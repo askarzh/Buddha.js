@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bhavacakra - The Wheel of Samsara</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      color: #e8e8e8;
+      overflow-x: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, #f39c12, #e74c3c, #9b59b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      color: #888;
+      margin-bottom: 20px;
+    }
+
+    .wheel-container {
+      position: relative;
+      display: flex;
+      gap: 30px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    #wheelCanvas {
+      border-radius: 50%;
+      box-shadow: 0 0 60px rgba(243, 156, 18, 0.3),
+                  0 0 100px rgba(231, 76, 60, 0.2);
+      cursor: pointer;
+    }
+
+    .info-panel {
+      width: 350px;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 25px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .info-panel h2 {
+      font-size: 1.5rem;
+      margin-bottom: 15px;
+      color: #f39c12;
+    }
+
+    .info-panel h3 {
+      font-size: 1.1rem;
+      margin: 15px 0 10px;
+      color: #e74c3c;
+    }
+
+    .info-panel p {
+      line-height: 1.6;
+      color: #ccc;
+      font-size: 0.95rem;
+    }
+
+    .info-panel .sanskrit {
+      font-style: italic;
+      color: #9b59b6;
+    }
+
+    .controls {
+      display: flex;
+      gap: 15px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 12px 25px;
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      font-weight: 500;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f39c12, #e74c3c);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(243, 156, 18, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e8e8e8;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary.active {
+      background: rgba(155, 89, 182, 0.3);
+      border-color: #9b59b6;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 30px;
+      width: 100%;
+      max-width: 900px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 15px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .legend-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateX(5px);
+    }
+
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .legend-text {
+      font-size: 0.9rem;
+    }
+
+    .nidana-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .nidana-chip {
+      padding: 5px 12px;
+      background: rgba(155, 89, 182, 0.2);
+      border-radius: 15px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .nidana-chip:hover {
+      background: rgba(155, 89, 182, 0.4);
+    }
+
+    .nidana-chip.active {
+      background: #9b59b6;
+      color: white;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .pulsing {
+      animation: pulse 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Bhavacakra</h1>
+    <p class="subtitle">The Wheel of Cyclic Existence</p>
+
+    <div class="controls">
+      <button class="btn-primary" id="spinBtn">Spin Wheel</button>
+      <button class="btn-secondary" id="pauseBtn">Pause</button>
+      <button class="btn-secondary" id="showNidanasBtn">Show 12 Nidanas</button>
+      <button class="btn-secondary" id="showRealmsBtn">Show 6 Realms</button>
+      <button class="btn-secondary" id="resetBtn">Reset View</button>
+    </div>
+
+    <div class="wheel-container">
+      <canvas id="wheelCanvas" width="600" height="600"></canvas>
+
+      <div class="info-panel">
+        <h2 id="infoTitle">The Wheel of Life</h2>
+        <p id="infoDescription">
+          The Bhavacakra represents the cycle of existence (samsara) in Buddhist cosmology.
+          Held by Yama, the Lord of Death, it illustrates how beings are trapped in
+          cyclic existence through ignorance, craving, and karma.
+        </p>
+        <h3 id="infoSubtitle">Click any section to learn more</h3>
+        <p id="infoDetails" class="sanskrit"></p>
+
+        <div class="nidana-list" id="nidanaList"></div>
+      </div>
+    </div>
+
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <script>
+    // ==========================================================================
+    // BHAVACAKRA DATA
+    // ==========================================================================
+
+    const THREE_POISONS = [
+      { name: 'Greed', sanskrit: 'Lobha', symbol: 'Rooster', color: '#e74c3c', angle: 0 },
+      { name: 'Hatred', sanskrit: 'Dosa', symbol: 'Snake', color: '#3498db', angle: 120 },
+      { name: 'Delusion', sanskrit: 'Moha', symbol: 'Pig', color: '#2ecc71', angle: 240 }
+    ];
+
+    const SIX_REALMS = [
+      {
+        name: 'Deva Realm',
+        sanskrit: 'Deva-gati',
+        description: 'The realm of gods and celestial beings. Though pleasurable, beings here are still subject to death and rebirth.',
+        color: '#f1c40f',
+        characteristics: ['Long life', 'Great pleasure', 'Pride', 'Complacency'],
+        buddha: 'White Buddha with lute'
+      },
+      {
+        name: 'Asura Realm',
+        sanskrit: 'Asura-gati',
+        description: 'The realm of jealous gods or titans. Beings here are powerful but consumed by envy and conflict.',
+        color: '#e67e22',
+        characteristics: ['Jealousy', 'Fighting', 'Competitiveness', 'Paranoia'],
+        buddha: 'Green Buddha with sword'
+      },
+      {
+        name: 'Human Realm',
+        sanskrit: 'Manusya-gati',
+        description: 'The human realm. Considered the most fortunate for spiritual practice due to balance of pleasure and suffering.',
+        color: '#3498db',
+        characteristics: ['Desire', 'Intelligence', 'Choice', 'Opportunity'],
+        buddha: 'Yellow Buddha with staff and bowl'
+      },
+      {
+        name: 'Animal Realm',
+        sanskrit: 'Tiryagyoni-gati',
+        description: 'The animal realm. Beings here are driven by instinct, ignorance, and survival.',
+        color: '#27ae60',
+        characteristics: ['Ignorance', 'Instinct', 'Predation', 'Servitude'],
+        buddha: 'Blue Buddha with book'
+      },
+      {
+        name: 'Hungry Ghost Realm',
+        sanskrit: 'Preta-gati',
+        description: 'The realm of hungry ghosts. Beings here suffer from insatiable craving and can never be satisfied.',
+        color: '#9b59b6',
+        characteristics: ['Craving', 'Hunger', 'Thirst', 'Miserliness'],
+        buddha: 'Red Buddha with nectar'
+      },
+      {
+        name: 'Hell Realm',
+        sanskrit: 'Naraka-gati',
+        description: 'The hell realms. Beings here experience intense suffering due to hatred and anger.',
+        color: '#c0392b',
+        characteristics: ['Intense suffering', 'Hatred', 'Aggression', 'Torment'],
+        buddha: 'Smoke-colored Buddha with fire and water'
+      }
+    ];
+
+    const TWELVE_NIDANAS = [
+      { position: 1, name: 'Ignorance', sanskrit: 'Avidyā', symbol: 'Blind person', description: 'Not seeing reality clearly' },
+      { position: 2, name: 'Formations', sanskrit: 'Saṃskāra', symbol: 'Potter', description: 'Volitional actions shaping karma' },
+      { position: 3, name: 'Consciousness', sanskrit: 'Vijñāna', symbol: 'Monkey', description: 'Awareness descending into new life' },
+      { position: 4, name: 'Name-Form', sanskrit: 'Nāma-rūpa', symbol: 'Boat with passengers', description: 'Mind-body complex forming' },
+      { position: 5, name: 'Six Senses', sanskrit: 'Ṣaḍāyatana', symbol: 'House with windows', description: 'Sense faculties developing' },
+      { position: 6, name: 'Contact', sanskrit: 'Sparśa', symbol: 'Couple embracing', description: 'Sense meeting object' },
+      { position: 7, name: 'Feeling', sanskrit: 'Vedanā', symbol: 'Arrow in eye', description: 'Pleasant, unpleasant, neutral' },
+      { position: 8, name: 'Craving', sanskrit: 'Tṛṣṇā', symbol: 'Person drinking', description: 'Thirst for more experience' },
+      { position: 9, name: 'Clinging', sanskrit: 'Upādāna', symbol: 'Monkey grabbing fruit', description: 'Grasping and attachment' },
+      { position: 10, name: 'Becoming', sanskrit: 'Bhava', symbol: 'Pregnant woman', description: 'Karmic momentum toward rebirth' },
+      { position: 11, name: 'Birth', sanskrit: 'Jāti', symbol: 'Woman giving birth', description: 'Taking new existence' },
+      { position: 12, name: 'Aging & Death', sanskrit: 'Jarā-maraṇa', symbol: 'Corpse being carried', description: 'Inevitable decay and death' }
+    ];
+
+    // ==========================================================================
+    // CANVAS SETUP
+    // ==========================================================================
+
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    // State
+    let rotation = 0;
+    let targetRotation = 0;
+    let isSpinning = false;
+    let isPaused = false;
+    let highlightedRealm = -1;
+    let highlightedNidana = -1;
+    let showNidanaLabels = false;
+    let showRealmLabels = false;
+    let animationId = null;
+
+    // Radii for different rings
+    const OUTER_RADIUS = 280;
+    const NIDANA_RADIUS = 260;
+    const REALM_OUTER = 220;
+    const REALM_INNER = 100;
+    const PATH_RADIUS = 80;
+    const HUB_RADIUS = 50;
+
+    // ==========================================================================
+    // DRAWING FUNCTIONS
+    // ==========================================================================
+
+    function drawWheel() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(rotation);
+
+      // Draw Yama's hands (behind the wheel)
+      drawYamaHands();
+
+      // Outer ring - 12 Nidanas
+      drawNidanaRing();
+
+      // Middle ring - 6 Realms
+      drawRealmsRing();
+
+      // Inner ring - Ascending/Descending paths
+      drawPathRing();
+
+      // Hub - Three Poisons
+      drawPoisonsHub();
+
+      ctx.restore();
+
+      // Draw Yama's head (in front, not rotating)
+      drawYamaHead();
+
+      // Draw labels if enabled
+      if (showNidanaLabels) drawNidanaLabels();
+      if (showRealmLabels) drawRealmLabels();
+    }
+
+    function drawYamaHands() {
+      // Simplified representation of Yama holding the wheel
+      ctx.save();
+
+      // Left claw
+      ctx.fillStyle = '#4a3728';
+      ctx.beginPath();
+      ctx.moveTo(-OUTER_RADIUS - 30, -50);
+      ctx.quadraticCurveTo(-OUTER_RADIUS - 60, 0, -OUTER_RADIUS - 30, 50);
+      ctx.lineTo(-OUTER_RADIUS - 10, 30);
+      ctx.lineTo(-OUTER_RADIUS - 10, -30);
+      ctx.closePath();
+      ctx.fill();
+
+      // Right claw
+      ctx.beginPath();
+      ctx.moveTo(OUTER_RADIUS + 30, -50);
+      ctx.quadraticCurveTo(OUTER_RADIUS + 60, 0, OUTER_RADIUS + 30, 50);
+      ctx.lineTo(OUTER_RADIUS + 10, 30);
+      ctx.lineTo(OUTER_RADIUS + 10, -30);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawYamaHead() {
+      // Yama at top (Lord of Death)
+      ctx.save();
+      ctx.translate(centerX, centerY - OUTER_RADIUS - 40);
+
+      // Skull face
+      ctx.fillStyle = '#f5f5dc';
+      ctx.beginPath();
+      ctx.arc(0, 0, 35, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes
+      ctx.fillStyle = '#c0392b';
+      ctx.beginPath();
+      ctx.arc(-12, -5, 8, 0, Math.PI * 2);
+      ctx.arc(12, -5, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Crown
+      ctx.fillStyle = '#f39c12';
+      for (let i = 0; i < 5; i++) {
+        const angle = (Math.PI / 6) + (i * Math.PI / 6);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * 30, -Math.sin(angle) * 30 - 10);
+        ctx.lineTo(Math.cos(angle) * 45, -Math.sin(angle) * 45 - 15);
+        ctx.lineTo(Math.cos(angle + 0.2) * 30, -Math.sin(angle + 0.2) * 30 - 10);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function drawNidanaRing() {
+      const ringWidth = 40;
+
+      // Background ring
+      ctx.fillStyle = '#2c3e50';
+      ctx.beginPath();
+      ctx.arc(0, 0, OUTER_RADIUS, 0, Math.PI * 2);
+      ctx.arc(0, 0, OUTER_RADIUS - ringWidth, 0, Math.PI * 2, true);
+      ctx.fill();
+
+      // Draw each nidana segment
+      TWELVE_NIDANAS.forEach((nidana, i) => {
+        const startAngle = (i * Math.PI * 2 / 12) - Math.PI / 2;
+        const endAngle = ((i + 1) * Math.PI * 2 / 12) - Math.PI / 2;
+
+        const isHighlighted = highlightedNidana === i;
+        const hue = (i * 30) % 360;
+
+        ctx.fillStyle = isHighlighted
+          ? `hsl(${hue}, 70%, 50%)`
+          : `hsl(${hue}, 40%, 30%)`;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, OUTER_RADIUS, startAngle, endAngle);
+        ctx.arc(0, 0, OUTER_RADIUS - ringWidth, endAngle, startAngle, true);
+        ctx.closePath();
+        ctx.fill();
+
+        // Segment border
+        ctx.strokeStyle = '#1a1a2e';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw symbol
+        const midAngle = (startAngle + endAngle) / 2;
+        const symbolRadius = OUTER_RADIUS - ringWidth / 2;
+        const x = Math.cos(midAngle) * symbolRadius;
+        const y = Math.sin(midAngle) * symbolRadius;
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(midAngle + Math.PI / 2);
+
+        // Position number
+        ctx.fillStyle = isHighlighted ? '#fff' : '#aaa';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(nidana.position.toString(), 0, 0);
+
+        ctx.restore();
+      });
+    }
+
+    function drawRealmsRing() {
+      SIX_REALMS.forEach((realm, i) => {
+        const startAngle = (i * Math.PI * 2 / 6) - Math.PI / 2;
+        const endAngle = ((i + 1) * Math.PI * 2 / 6) - Math.PI / 2;
+
+        const isHighlighted = highlightedRealm === i;
+
+        // Create gradient for realm
+        const midAngle = (startAngle + endAngle) / 2;
+        const gradX = Math.cos(midAngle) * (REALM_OUTER + REALM_INNER) / 2;
+        const gradY = Math.sin(midAngle) * (REALM_OUTER + REALM_INNER) / 2;
+
+        const gradient = ctx.createRadialGradient(gradX, gradY, 20, gradX, gradY, 100);
+        gradient.addColorStop(0, isHighlighted ? realm.color : adjustColor(realm.color, -30));
+        gradient.addColorStop(1, adjustColor(realm.color, -60));
+
+        ctx.fillStyle = gradient;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, REALM_OUTER, startAngle, endAngle);
+        ctx.arc(0, 0, REALM_INNER, endAngle, startAngle, true);
+        ctx.closePath();
+        ctx.fill();
+
+        // Border
+        ctx.strokeStyle = isHighlighted ? '#fff' : '#1a1a2e';
+        ctx.lineWidth = isHighlighted ? 3 : 2;
+        ctx.stroke();
+
+        // Realm icon/symbol
+        const iconRadius = (REALM_OUTER + REALM_INNER) / 2;
+        const iconX = Math.cos(midAngle) * iconRadius;
+        const iconY = Math.sin(midAngle) * iconRadius;
+
+        drawRealmIcon(iconX, iconY, i, isHighlighted);
+      });
+    }
+
+    function drawRealmIcon(x, y, realmIndex, isHighlighted) {
+      ctx.save();
+      ctx.translate(x, y);
+
+      ctx.fillStyle = isHighlighted ? '#fff' : 'rgba(255,255,255,0.7)';
+      ctx.font = '24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Emoji representations
+      const icons = ['👼', '⚔️', '🧑', '🐾', '👻', '🔥'];
+      ctx.fillText(icons[realmIndex], 0, 0);
+
+      ctx.restore();
+    }
+
+    function drawPathRing() {
+      // Ascending (white) and descending (black) paths
+      ctx.save();
+
+      // Left half - descending (dark)
+      ctx.fillStyle = '#1a1a2e';
+      ctx.beginPath();
+      ctx.arc(0, 0, PATH_RADIUS, Math.PI / 2, -Math.PI / 2);
+      ctx.arc(0, 0, HUB_RADIUS + 10, -Math.PI / 2, Math.PI / 2, true);
+      ctx.closePath();
+      ctx.fill();
+
+      // Right half - ascending (light)
+      ctx.fillStyle = '#ecf0f1';
+      ctx.beginPath();
+      ctx.arc(0, 0, PATH_RADIUS, -Math.PI / 2, Math.PI / 2);
+      ctx.arc(0, 0, HUB_RADIUS + 10, Math.PI / 2, -Math.PI / 2, true);
+      ctx.closePath();
+      ctx.fill();
+
+      // Figures on paths
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+
+      // Descending figures
+      ctx.fillStyle = '#666';
+      ctx.fillText('⬇️', -50, 0);
+
+      // Ascending figures
+      ctx.fillStyle = '#333';
+      ctx.fillText('⬆️', 50, 0);
+
+      ctx.restore();
+    }
+
+    function drawPoisonsHub() {
+      // Central hub with three poisons
+      ctx.save();
+
+      // Hub background
+      const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, HUB_RADIUS);
+      gradient.addColorStop(0, '#34495e');
+      gradient.addColorStop(1, '#2c3e50');
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, HUB_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Three poison segments
+      THREE_POISONS.forEach((poison, i) => {
+        const startAngle = (i * Math.PI * 2 / 3) - Math.PI / 2;
+        const endAngle = ((i + 1) * Math.PI * 2 / 3) - Math.PI / 2;
+        const midAngle = (startAngle + endAngle) / 2;
+
+        // Segment
+        ctx.fillStyle = adjustColor(poison.color, -20);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, HUB_RADIUS - 5, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fill();
+
+        // Symbol
+        const symbolRadius = HUB_RADIUS * 0.6;
+        const x = Math.cos(midAngle) * symbolRadius;
+        const y = Math.sin(midAngle) * symbolRadius;
+
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const symbols = ['🐓', '🐍', '🐷'];
+        ctx.fillText(symbols[i], x, y);
+      });
+
+      // Center point
+      ctx.fillStyle = '#1a1a2e';
+      ctx.beginPath();
+      ctx.arc(0, 0, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawNidanaLabels() {
+      ctx.save();
+      ctx.translate(centerX, centerY);
+
+      TWELVE_NIDANAS.forEach((nidana, i) => {
+        const angle = (i * Math.PI * 2 / 12) - Math.PI / 2 + rotation;
+        const labelRadius = OUTER_RADIUS + 25;
+        const x = Math.cos(angle) * labelRadius;
+        const y = Math.sin(angle) * labelRadius;
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        ctx.fillStyle = highlightedNidana === i ? '#f39c12' : '#888';
+        ctx.font = highlightedNidana === i ? 'bold 11px sans-serif' : '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Rotate text to be readable
+        let textRotation = angle + Math.PI / 2;
+        if (angle > Math.PI / 2 && angle < Math.PI * 1.5) {
+          textRotation += Math.PI;
+        }
+
+        ctx.rotate(textRotation);
+        ctx.fillText(nidana.name, 0, 0);
+
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
+
+    function drawRealmLabels() {
+      ctx.save();
+      ctx.translate(centerX, centerY);
+
+      SIX_REALMS.forEach((realm, i) => {
+        const angle = (i * Math.PI * 2 / 6) - Math.PI / 2 + Math.PI / 6 + rotation;
+        const labelRadius = (REALM_OUTER + REALM_INNER) / 2;
+        const x = Math.cos(angle) * labelRadius;
+        const y = Math.sin(angle) * labelRadius;
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        ctx.fillStyle = highlightedRealm === i ? '#fff' : 'rgba(255,255,255,0.5)';
+        ctx.font = highlightedRealm === i ? 'bold 12px sans-serif' : '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.fillText(realm.name.split(' ')[0], 0, -8);
+        ctx.fillText(realm.name.split(' ')[1] || '', 0, 8);
+
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
+
+    // ==========================================================================
+    // UTILITY FUNCTIONS
+    // ==========================================================================
+
+    function adjustColor(color, amount) {
+      const hex = color.replace('#', '');
+      const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + amount));
+      const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + amount));
+      const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + amount));
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function getClickedSection(x, y) {
+      const dx = x - centerX;
+      const dy = y - centerY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      let angle = Math.atan2(dy, dx) + Math.PI / 2 - rotation;
+
+      // Normalize angle
+      while (angle < 0) angle += Math.PI * 2;
+      while (angle >= Math.PI * 2) angle -= Math.PI * 2;
+
+      // Check which ring was clicked
+      if (distance > OUTER_RADIUS - 40 && distance < OUTER_RADIUS) {
+        // Nidana ring
+        const nidanaIndex = Math.floor(angle / (Math.PI * 2 / 12));
+        return { type: 'nidana', index: nidanaIndex };
+      } else if (distance > REALM_INNER && distance < REALM_OUTER) {
+        // Realm ring
+        const realmIndex = Math.floor(angle / (Math.PI * 2 / 6));
+        return { type: 'realm', index: realmIndex };
+      } else if (distance < HUB_RADIUS) {
+        // Hub (poisons)
+        const poisonIndex = Math.floor(angle / (Math.PI * 2 / 3));
+        return { type: 'poison', index: poisonIndex };
+      }
+
+      return null;
+    }
+
+    function updateInfoPanel(section) {
+      const title = document.getElementById('infoTitle');
+      const desc = document.getElementById('infoDescription');
+      const subtitle = document.getElementById('infoSubtitle');
+      const details = document.getElementById('infoDetails');
+
+      if (!section) {
+        title.textContent = 'The Wheel of Life';
+        desc.textContent = 'The Bhavacakra represents the cycle of existence (samsara) in Buddhist cosmology. Held by Yama, the Lord of Death, it illustrates how beings are trapped in cyclic existence through ignorance, craving, and karma.';
+        subtitle.textContent = 'Click any section to learn more';
+        details.textContent = '';
+        return;
+      }
+
+      if (section.type === 'nidana') {
+        const nidana = TWELVE_NIDANAS[section.index];
+        title.textContent = `${nidana.position}. ${nidana.name}`;
+        desc.textContent = nidana.description;
+        subtitle.textContent = `Symbol: ${nidana.symbol}`;
+        details.textContent = nidana.sanskrit;
+      } else if (section.type === 'realm') {
+        const realm = SIX_REALMS[section.index];
+        title.textContent = realm.name;
+        desc.textContent = realm.description;
+        subtitle.textContent = `Buddha appears as: ${realm.buddha}`;
+        details.textContent = realm.sanskrit;
+      } else if (section.type === 'poison') {
+        const poison = THREE_POISONS[section.index];
+        title.textContent = poison.name;
+        desc.textContent = `One of the three root poisons that drive the wheel of samsara. Represented by the ${poison.symbol.toLowerCase()}.`;
+        subtitle.textContent = 'Root cause of suffering';
+        details.textContent = poison.sanskrit;
+      }
+    }
+
+    // ==========================================================================
+    // ANIMATION
+    // ==========================================================================
+
+    function animate() {
+      if (!isPaused) {
+        if (isSpinning) {
+          rotation += 0.05;
+          if (rotation >= targetRotation) {
+            isSpinning = false;
+          }
+        }
+      }
+
+      drawWheel();
+      animationId = requestAnimationFrame(animate);
+    }
+
+    function spinWheel() {
+      isSpinning = true;
+      isPaused = false;
+      targetRotation = rotation + Math.PI * 4 + Math.random() * Math.PI * 2;
+    }
+
+    // ==========================================================================
+    // EVENT HANDLERS
+    // ==========================================================================
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const section = getClickedSection(x, y);
+
+      // Reset highlights
+      highlightedRealm = -1;
+      highlightedNidana = -1;
+
+      if (section) {
+        if (section.type === 'realm') {
+          highlightedRealm = section.index;
+        } else if (section.type === 'nidana') {
+          highlightedNidana = section.index;
+        }
+        updateInfoPanel(section);
+      } else {
+        updateInfoPanel(null);
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const section = getClickedSection(x, y);
+      canvas.style.cursor = section ? 'pointer' : 'default';
+    });
+
+    document.getElementById('spinBtn').addEventListener('click', spinWheel);
+
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      isPaused = !isPaused;
+      document.getElementById('pauseBtn').textContent = isPaused ? 'Resume' : 'Pause';
+      document.getElementById('pauseBtn').classList.toggle('active', isPaused);
+    });
+
+    document.getElementById('showNidanasBtn').addEventListener('click', () => {
+      showNidanaLabels = !showNidanaLabels;
+      document.getElementById('showNidanasBtn').classList.toggle('active', showNidanaLabels);
+    });
+
+    document.getElementById('showRealmsBtn').addEventListener('click', () => {
+      showRealmLabels = !showRealmLabels;
+      document.getElementById('showRealmsBtn').classList.toggle('active', showRealmLabels);
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      rotation = 0;
+      targetRotation = 0;
+      isSpinning = false;
+      isPaused = false;
+      highlightedRealm = -1;
+      highlightedNidana = -1;
+      showNidanaLabels = false;
+      showRealmLabels = false;
+      document.getElementById('pauseBtn').textContent = 'Pause';
+      document.getElementById('pauseBtn').classList.remove('active');
+      document.getElementById('showNidanasBtn').classList.remove('active');
+      document.getElementById('showRealmsBtn').classList.remove('active');
+      updateInfoPanel(null);
+    });
+
+    // ==========================================================================
+    // LEGEND & NIDANA LIST
+    // ==========================================================================
+
+    function buildLegend() {
+      const legend = document.getElementById('legend');
+
+      SIX_REALMS.forEach((realm, i) => {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `
+          <div class="legend-color" style="background: ${realm.color}"></div>
+          <span class="legend-text">${realm.name}</span>
+        `;
+        item.addEventListener('click', () => {
+          highlightedRealm = i;
+          highlightedNidana = -1;
+          updateInfoPanel({ type: 'realm', index: i });
+        });
+        legend.appendChild(item);
+      });
+    }
+
+    function buildNidanaList() {
+      const list = document.getElementById('nidanaList');
+
+      TWELVE_NIDANAS.forEach((nidana, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'nidana-chip';
+        chip.textContent = `${nidana.position}. ${nidana.name}`;
+        chip.addEventListener('click', () => {
+          document.querySelectorAll('.nidana-chip').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          highlightedNidana = i;
+          highlightedRealm = -1;
+          updateInfoPanel({ type: 'nidana', index: i });
+        });
+        list.appendChild(chip);
+      });
+    }
+
+    // ==========================================================================
+    // INITIALIZATION
+    // ==========================================================================
+
+    buildLegend();
+    buildNidanaList();
+    animate();
+  </script>
+</body>
+</html>

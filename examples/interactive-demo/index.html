@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buddha.js Interactive Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      color: #e8e8e8;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      text-align: center;
+      padding: 30px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 30px;
+    }
+
+    header h1 {
+      font-size: 2.5em;
+      background: linear-gradient(90deg, #f39c12, #e74c3c, #9b59b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+
+    header p {
+      color: #aaa;
+      font-size: 1.1em;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+    }
+
+    /* Sidebar - Being State */
+    .sidebar {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+      height: fit-content;
+      position: sticky;
+      top: 20px;
+    }
+
+    .sidebar h2 {
+      font-size: 1.2em;
+      margin-bottom: 15px;
+      color: #f39c12;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .state-section {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .state-section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .state-section h3 {
+      font-size: 0.85em;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 0.9em;
+    }
+
+    .stat-label {
+      color: #bbb;
+    }
+
+    .stat-value {
+      font-weight: 600;
+    }
+
+    .stat-value.positive { color: #2ecc71; }
+    .stat-value.negative { color: #e74c3c; }
+    .stat-value.neutral { color: #f39c12; }
+
+    .progress-bar {
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-fill.wisdom { background: linear-gradient(90deg, #3498db, #2980b9); }
+    .progress-fill.ethics { background: linear-gradient(90deg, #2ecc71, #27ae60); }
+    .progress-fill.meditation { background: linear-gradient(90deg, #9b59b6, #8e44ad); }
+    .progress-fill.mindfulness { background: linear-gradient(90deg, #f39c12, #e67e22); }
+
+    /* Main Content */
+    .main-content {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      background: rgba(0,0,0,0.2);
+      overflow-x: auto;
+    }
+
+    .tab {
+      padding: 15px 25px;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: #888;
+      font-size: 0.95em;
+      transition: all 0.2s;
+      white-space: nowrap;
+      border-bottom: 3px solid transparent;
+    }
+
+    .tab:hover {
+      color: #fff;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .tab.active {
+      color: #f39c12;
+      border-bottom-color: #f39c12;
+      background: rgba(243, 156, 18, 0.1);
+    }
+
+    .tab-content {
+      padding: 25px;
+      display: none;
+      min-height: 500px;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .tab-content h2 {
+      font-size: 1.5em;
+      margin-bottom: 20px;
+      color: #f39c12;
+    }
+
+    /* Cards */
+    .card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .card h3 {
+      font-size: 1.1em;
+      margin-bottom: 15px;
+      color: #ddd;
+    }
+
+    /* Form Controls */
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #aaa;
+      font-size: 0.9em;
+    }
+
+    select, input[type="text"], input[type="number"], input[type="range"] {
+      width: 100%;
+      padding: 10px 12px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.95em;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: #f39c12;
+    }
+
+    input[type="range"] {
+      padding: 0;
+      height: 6px;
+      -webkit-appearance: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #f39c12;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .range-value {
+      text-align: center;
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #f39c12;
+      margin-top: 5px;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95em;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f39c12, #e67e22);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.2);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #2ecc71, #27ae60);
+      color: #fff;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      color: #fff;
+    }
+
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 0.85em;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* Log / Output */
+    .log {
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+      padding: 15px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85em;
+      line-height: 1.8;
+    }
+
+    .log-entry {
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.03);
+      border-left: 3px solid #666;
+    }
+
+    .log-entry.positive { border-left-color: #2ecc71; background: rgba(46, 204, 113, 0.1); }
+    .log-entry.negative { border-left-color: #e74c3c; background: rgba(231, 76, 60, 0.1); }
+    .log-entry.neutral { border-left-color: #3498db; background: rgba(52, 152, 219, 0.1); }
+    .log-entry.insight { border-left-color: #9b59b6; background: rgba(155, 89, 182, 0.1); }
+    .log-entry.karma { border-left-color: #f39c12; background: rgba(243, 156, 18, 0.1); }
+
+    .log-time {
+      color: #666;
+      font-size: 0.8em;
+      margin-right: 8px;
+    }
+
+    /* Dependent Origination Chain */
+    .chain-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      padding: 20px 0;
+    }
+
+    .chain-link {
+      width: 100px;
+      padding: 12px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+      position: relative;
+    }
+
+    .chain-link:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .chain-link.arisen {
+      border-color: #2ecc71;
+      background: rgba(46, 204, 113, 0.15);
+    }
+
+    .chain-link.broken {
+      border-color: #e74c3c;
+      background: rgba(231, 76, 60, 0.15);
+      opacity: 0.6;
+    }
+
+    .chain-link.liberation-point {
+      border-color: #f39c12;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.4); }
+      50% { box-shadow: 0 0 0 10px rgba(243, 156, 18, 0); }
+    }
+
+    .chain-link .number {
+      font-size: 0.75em;
+      color: #888;
+    }
+
+    .chain-link .name {
+      font-size: 0.85em;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .chain-link .sanskrit {
+      font-size: 0.7em;
+      color: #999;
+      font-style: italic;
+    }
+
+    .chain-arrow {
+      display: flex;
+      align-items: center;
+      color: #666;
+      font-size: 1.2em;
+    }
+
+    /* Karma Seeds */
+    .seeds-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .seed-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 15px;
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: all 0.3s;
+    }
+
+    .seed-card.wholesome { border-left: 4px solid #2ecc71; }
+    .seed-card.unwholesome { border-left: 4px solid #e74c3c; }
+    .seed-card.ripening { animation: ripen 1s infinite; }
+    .seed-card.ripened { opacity: 0.5; }
+    .seed-card.purified {
+      border-left-color: #9b59b6;
+      background: rgba(155, 89, 182, 0.1);
+    }
+
+    @keyframes ripen {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
+    .seed-card .seed-type {
+      font-size: 0.75em;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 5px;
+    }
+
+    .seed-card .seed-desc {
+      font-size: 0.9em;
+      margin-bottom: 10px;
+    }
+
+    .seed-card .seed-stats {
+      font-size: 0.8em;
+      color: #999;
+    }
+
+    /* Aggregates Display */
+    .aggregates-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 15px;
+    }
+
+    .aggregate-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .aggregate-card .icon {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+
+    .aggregate-card .name {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .aggregate-card .sanskrit {
+      font-size: 0.8em;
+      color: #888;
+      font-style: italic;
+    }
+
+    /* Two columns layout */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: static;
+      }
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+      .aggregates-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    /* Diagnosis Result */
+    .diagnosis-result {
+      padding: 20px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+
+    .diagnosis-section {
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .diagnosis-section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .diagnosis-section h4 {
+      color: #f39c12;
+      margin-bottom: 8px;
+    }
+
+    /* Mindfulness indicator */
+    .mindfulness-indicator {
+      text-align: center;
+      padding: 20px;
+    }
+
+    .mindfulness-circle {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      margin: 0 auto 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2em;
+      font-weight: bold;
+      background: conic-gradient(
+        from 0deg,
+        #f39c12 calc(var(--progress) * 1%),
+        rgba(255,255,255,0.1) calc(var(--progress) * 1%)
+      );
+      position: relative;
+    }
+
+    .mindfulness-circle::before {
+      content: '';
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      background: #1a1a2e;
+      border-radius: 50%;
+    }
+
+    .mindfulness-circle span {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Toast notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+    }
+
+    .toast {
+      background: rgba(0,0,0,0.9);
+      color: #fff;
+      padding: 15px 20px;
+      border-radius: 8px;
+      margin-top: 10px;
+      animation: slideIn 0.3s ease;
+      border-left: 4px solid #f39c12;
+    }
+
+    .toast.success { border-left-color: #2ecc71; }
+    .toast.error { border-left-color: #e74c3c; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Buddha.js Interactive Demo</h1>
+      <p>Explore Buddhist philosophy through code - Experience, Meditate, Investigate</p>
+    </header>
+
+    <div class="main-grid">
+      <!-- Sidebar: Being State -->
+      <aside class="sidebar">
+        <h2>Being State</h2>
+
+        <div class="state-section">
+          <h3>Mind</h3>
+          <div class="stat-row">
+            <span class="stat-label">Calm</span>
+            <span class="stat-value" id="mind-calm">No</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Focused</span>
+            <span class="stat-value" id="mind-focused">No</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Dominant Factors</span>
+          </div>
+          <div id="dominant-factors" style="font-size: 0.85em; color: #888;">None active</div>
+        </div>
+
+        <div class="state-section">
+          <h3>Path Development</h3>
+          <div class="stat-row">
+            <span class="stat-label">Wisdom</span>
+            <span class="stat-value" id="wisdom-level">0</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill wisdom" id="wisdom-bar" style="width: 0%"></div>
+          </div>
+
+          <div class="stat-row" style="margin-top: 10px">
+            <span class="stat-label">Ethics</span>
+            <span class="stat-value" id="ethics-level">0</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill ethics" id="ethics-bar" style="width: 0%"></div>
+          </div>
+
+          <div class="stat-row" style="margin-top: 10px">
+            <span class="stat-label">Meditation</span>
+            <span class="stat-value" id="meditation-level">0</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill meditation" id="meditation-bar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="state-section">
+          <h3>Mindfulness</h3>
+          <div class="mindfulness-indicator">
+            <div class="mindfulness-circle" id="mindfulness-circle" style="--progress: 0">
+              <span id="mindfulness-value">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-section">
+          <h3>Karma</h3>
+          <div class="stat-row">
+            <span class="stat-label">Wholesome</span>
+            <span class="stat-value positive" id="karma-wholesome">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Unwholesome</span>
+            <span class="stat-value negative" id="karma-unwholesome">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Balance</span>
+            <span class="stat-value" id="karma-balance">0</span>
+          </div>
+        </div>
+
+        <div class="state-section">
+          <h3>Experiences</h3>
+          <div class="stat-row">
+            <span class="stat-label">Total</span>
+            <span class="stat-value" id="experience-count">0</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <nav class="tabs">
+          <button class="tab active" data-tab="experience">Experience</button>
+          <button class="tab" data-tab="meditation">Meditation</button>
+          <button class="tab" data-tab="karma">Karma</button>
+          <button class="tab" data-tab="chain">Dependent Origination</button>
+          <button class="tab" data-tab="inquiry">Self-Inquiry</button>
+          <button class="tab" data-tab="truths">Four Noble Truths</button>
+        </nav>
+
+        <!-- Experience Tab -->
+        <div class="tab-content active" id="tab-experience">
+          <h2>Process Sensory Experience</h2>
+          <p style="color: #888; margin-bottom: 20px;">
+            Experience something through the six sense bases and observe how it's processed through the Five Aggregates.
+          </p>
+
+          <div class="two-col">
+            <div class="card">
+              <h3>Create Experience</h3>
+              <div class="form-group">
+                <label>Sense Base</label>
+                <select id="sense-base">
+                  <option value="eye">Eye (Visual)</option>
+                  <option value="ear">Ear (Auditory)</option>
+                  <option value="nose">Nose (Olfactory)</option>
+                  <option value="tongue">Tongue (Gustatory)</option>
+                  <option value="body">Body (Tactile)</option>
+                  <option value="mind">Mind (Mental)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Object</label>
+                <input type="text" id="sense-object" placeholder="e.g., beautiful sunset, pleasant music..." value="beautiful flower">
+              </div>
+              <div class="form-group">
+                <label>Intensity (1-10)</label>
+                <input type="range" id="sense-intensity" min="1" max="10" value="5">
+                <div class="range-value" id="sense-intensity-value">5</div>
+              </div>
+              <button class="btn btn-primary" onclick="processExperience()">
+                Process Experience
+              </button>
+            </div>
+
+            <div class="card">
+              <h3>Experience Log</h3>
+              <div class="log" id="experience-log">
+                <div class="log-entry neutral">
+                  <span class="log-time">--:--</span>
+                  Ready to process experiences...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Five Aggregates</h3>
+            <div class="aggregates-grid">
+              <div class="aggregate-card">
+                <div class="icon">🫀</div>
+                <div class="name">Form</div>
+                <div class="sanskrit">Rupa</div>
+              </div>
+              <div class="aggregate-card">
+                <div class="icon">💭</div>
+                <div class="name">Feeling</div>
+                <div class="sanskrit">Vedana</div>
+              </div>
+              <div class="aggregate-card">
+                <div class="icon">👁️</div>
+                <div class="name">Perception</div>
+                <div class="sanskrit">Samjna</div>
+              </div>
+              <div class="aggregate-card">
+                <div class="icon">⚡</div>
+                <div class="name">Formations</div>
+                <div class="sanskrit">Samskara</div>
+              </div>
+              <div class="aggregate-card">
+                <div class="icon">🧠</div>
+                <div class="name">Consciousness</div>
+                <div class="sanskrit">Vijnana</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Meditation Tab -->
+        <div class="tab-content" id="tab-meditation">
+          <h2>Practice Meditation</h2>
+          <p style="color: #888; margin-bottom: 20px;">
+            Develop the path factors through meditation practice. Higher effort and duration lead to greater insight.
+          </p>
+
+          <div class="two-col">
+            <div class="card">
+              <h3>Meditation Session</h3>
+              <div class="form-group">
+                <label>Duration (minutes)</label>
+                <input type="range" id="med-duration" min="5" max="60" value="20">
+                <div class="range-value" id="med-duration-value">20</div>
+              </div>
+              <div class="form-group">
+                <label>Effort Level (1-10)</label>
+                <input type="range" id="med-effort" min="1" max="10" value="5">
+                <div class="range-value" id="med-effort-value">5</div>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-primary" onclick="meditate()">
+                  Begin Meditation
+                </button>
+                <button class="btn btn-secondary" onclick="calmMind()">
+                  Calm Mind
+                </button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Path Factors</h3>
+              <div style="display: grid; gap: 8px;">
+                <div class="stat-row">
+                  <span>Right View</span>
+                  <span id="pf-view">0/10</span>
+                </div>
+                <div class="stat-row">
+                  <span>Right Intention</span>
+                  <span id="pf-intention">0/10</span>
+                </div>
+                <div class="stat-row">
+                  <span>Right Speech</span>
+                  <span id="pf-speech">0/10</span>
+                </div>
+                <div class="stat-row">
+                  <span>Right Action</span>
+                  <span id="pf-action">0/10</span>
+                </div>
+                <div class="stat-row">
+                  <span>Right Livelihood</span>
+                  <span id="pf-livelihood">0/10</span>
+                </div>
+                <div class="stat-row">
+                  <span>Right Effort</span>
+                  <span id="pf-effort">0/10</span>
+                </div>
+                <div class="stat-row">
+                  <span>Right Mindfulness</span>
+                  <span id="pf-mindfulness">0/10</span>
+                </div>
+                <div class="stat-row">
+                  <span>Right Concentration</span>
+                  <span id="pf-concentration">0/10</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Meditation Insights</h3>
+            <div class="log" id="meditation-log">
+              <div class="log-entry neutral">
+                <span class="log-time">--:--</span>
+                Begin meditation to receive insights...
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Karma Tab -->
+        <div class="tab-content" id="tab-karma">
+          <h2>Karmic Event System</h2>
+          <p style="color: #888; margin-bottom: 20px;">
+            Plant karmic seeds through intentional actions. Watch them ripen over time based on conditions.
+          </p>
+
+          <div class="two-col">
+            <div class="card">
+              <h3>Plant Karmic Seed</h3>
+              <div class="form-group">
+                <label>Action Type</label>
+                <select id="karma-type">
+                  <option value="bodily">Bodily</option>
+                  <option value="verbal">Verbal</option>
+                  <option value="mental" selected>Mental</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Quality</label>
+                <select id="karma-quality">
+                  <option value="wholesome">Wholesome</option>
+                  <option value="unwholesome">Unwholesome</option>
+                  <option value="neutral">Neutral</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Description</label>
+                <input type="text" id="karma-desc" placeholder="Describe the action..." value="Act of generosity">
+              </div>
+              <div class="form-group">
+                <label>Intention Strength (1-10)</label>
+                <input type="range" id="karma-intensity" min="1" max="10" value="5">
+                <div class="range-value" id="karma-intensity-value">5</div>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-primary" onclick="plantSeed()">
+                  Plant Seed
+                </button>
+                <button class="btn btn-secondary" onclick="processKarma()">
+                  Process Ripening
+                </button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Karma Events</h3>
+              <div class="log" id="karma-log">
+                <div class="log-entry neutral">
+                  <span class="log-time">--:--</span>
+                  Ready to track karmic events...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Active Karmic Seeds</h3>
+            <div class="seeds-grid" id="seeds-container">
+              <p style="color: #888; grid-column: 1 / -1; text-align: center;">
+                No karmic seeds planted yet. Plant seeds above to see them here.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dependent Origination Tab -->
+        <div class="tab-content" id="tab-chain">
+          <h2>Dependent Origination (Pratityasamutpada)</h2>
+          <p style="color: #888; margin-bottom: 20px;">
+            The 12-link chain showing how suffering arises. Click a link to learn about it.
+            The yellow-highlighted link (Feeling → Craving) is the liberation point.
+          </p>
+
+          <div class="card">
+            <h3>The Twelve Links</h3>
+            <div class="chain-container" id="chain-container">
+              <!-- Generated by JavaScript -->
+            </div>
+            <div class="btn-group" style="justify-content: center; margin-top: 20px;">
+              <button class="btn btn-primary" onclick="runChain()">
+                Simulate Arising
+              </button>
+              <button class="btn btn-danger" onclick="breakChain()">
+                Break at Craving
+              </button>
+              <button class="btn btn-secondary" onclick="resetChain()">
+                Reset Chain
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Selected Link</h3>
+            <div id="link-detail">
+              <p style="color: #888;">Click on a link above to see its explanation.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Chain Events</h3>
+            <div class="log" id="chain-log">
+              <div class="log-entry neutral">
+                <span class="log-time">--:--</span>
+                Click "Simulate Arising" to see the chain unfold...
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Self-Inquiry Tab -->
+        <div class="tab-content" id="tab-inquiry">
+          <h2>Self-Investigation</h2>
+          <p style="color: #888; margin-bottom: 20px;">
+            Search for an unchanging self within the five aggregates. This is the practice of anatta (not-self).
+          </p>
+
+          <div class="card">
+            <h3>Begin Investigation</h3>
+            <p style="margin-bottom: 15px;">
+              The Buddha taught that what we call "self" is a process, not a thing.
+              Let's investigate each aggregate to see if we can find a permanent, unchanging self.
+            </p>
+            <button class="btn btn-primary" onclick="investigateSelf()">
+              Search for Self in Aggregates
+            </button>
+          </div>
+
+          <div class="card" id="inquiry-result" style="display: none;">
+            <h3>Investigation Results</h3>
+            <div id="inquiry-content"></div>
+          </div>
+        </div>
+
+        <!-- Four Noble Truths Tab -->
+        <div class="tab-content" id="tab-truths">
+          <h2>Four Noble Truths Diagnosis</h2>
+          <p style="color: #888; margin-bottom: 20px;">
+            Apply the Buddha's diagnostic framework to understand and address suffering.
+          </p>
+
+          <div class="two-col">
+            <div class="card">
+              <h3>Describe Your Situation</h3>
+              <div class="form-group">
+                <label>Types of Suffering (select multiple)</label>
+                <select id="suffering-types" multiple size="5">
+                  <option value="physical">Physical suffering</option>
+                  <option value="mental">Mental suffering</option>
+                  <option value="existential" selected>Existential suffering</option>
+                  <option value="change">Suffering from change</option>
+                  <option value="conditioned">Suffering of conditioned existence</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Types of Craving Present</label>
+                <select id="craving-types" multiple size="3">
+                  <option value="craving-for-sensual-pleasures" selected>Craving for sensual pleasures</option>
+                  <option value="craving-for-existence">Craving for existence/becoming</option>
+                  <option value="craving-for-non-existence">Craving for non-existence</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Intensity of Craving (1-10)</label>
+                <input type="range" id="craving-intensity" min="1" max="10" value="6">
+                <div class="range-value" id="craving-intensity-value">6</div>
+              </div>
+              <button class="btn btn-primary" onclick="diagnose()">
+                Apply Four Noble Truths
+              </button>
+            </div>
+
+            <div class="card">
+              <h3>The Framework</h3>
+              <div style="font-size: 0.9em;">
+                <p><strong style="color: #e74c3c;">1. Dukkha</strong> - There is suffering (to be understood)</p>
+                <p><strong style="color: #f39c12;">2. Samudaya</strong> - Craving is the cause (to be abandoned)</p>
+                <p><strong style="color: #2ecc71;">3. Nirodha</strong> - Suffering can cease (to be realized)</p>
+                <p><strong style="color: #3498db;">4. Magga</strong> - The Eightfold Path (to be developed)</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" id="diagnosis-result" style="display: none;">
+            <h3>Diagnosis</h3>
+            <div class="diagnosis-result" id="diagnosis-content"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    // ============================================================================
+    // BUDDHA.JS SIMULATION
+    // ============================================================================
+
+    // State
+    const state = {
+      being: {
+        mindfulness: 0,
+        wisdom: 0,
+        ethics: 0,
+        meditation: 0,
+        experiences: 0,
+        pathFactors: {
+          view: 0,
+          intention: 0,
+          speech: 0,
+          action: 0,
+          livelihood: 0,
+          effort: 0,
+          mindfulness: 0,
+          concentration: 0
+        },
+        mind: {
+          isCalm: false,
+          isFocused: false,
+          dominantFactors: []
+        }
+      },
+      karma: {
+        seeds: [],
+        wholesome: 0,
+        unwholesome: 0
+      },
+      chain: {
+        links: [],
+        broken: false,
+        brokenAt: null
+      }
+    };
+
+    // 12 Nidanas data
+    const TWELVE_NIDANAS = [
+      { position: 1, name: 'Ignorance', sanskrit: 'Avidya',
+        explanation: 'Not seeing reality clearly. The root cause that keeps the wheel turning.',
+        causation: 'With ignorance as condition, formations arise.' },
+      { position: 2, name: 'Formations', sanskrit: 'Samskara',
+        explanation: 'Volitional actions that create karma. Mental, verbal, and bodily formations.',
+        causation: 'With formations as condition, consciousness arises.' },
+      { position: 3, name: 'Consciousness', sanskrit: 'Vijnana',
+        explanation: 'Awareness that descends into a new existence.',
+        causation: 'With consciousness as condition, mind-body arises.' },
+      { position: 4, name: 'Mind-Body', sanskrit: 'Nama-rupa',
+        explanation: 'The psychophysical organism. Name (mental) and form (physical).',
+        causation: 'With mind-body as condition, the six senses arise.' },
+      { position: 5, name: 'Six Senses', sanskrit: 'Salayatana',
+        explanation: 'The six sense faculties: eye, ear, nose, tongue, body, mind.',
+        causation: 'With six senses as condition, contact arises.' },
+      { position: 6, name: 'Contact', sanskrit: 'Sparsa',
+        explanation: 'The meeting of sense organ, sense object, and consciousness.',
+        causation: 'With contact as condition, feeling arises.' },
+      { position: 7, name: 'Feeling', sanskrit: 'Vedana',
+        explanation: 'The feeling tone: pleasant, unpleasant, or neutral.',
+        causation: 'With feeling as condition, craving arises.' },
+      { position: 8, name: 'Craving', sanskrit: 'Tanha',
+        explanation: 'Thirst, desire. The crucial link where liberation is possible.',
+        causation: 'With craving as condition, clinging arises.' },
+      { position: 9, name: 'Clinging', sanskrit: 'Upadana',
+        explanation: 'Grasping, attachment. Holding tightly to objects of craving.',
+        causation: 'With clinging as condition, becoming arises.' },
+      { position: 10, name: 'Becoming', sanskrit: 'Bhava',
+        explanation: 'Karmic momentum toward a new existence.',
+        causation: 'With becoming as condition, birth arises.' },
+      { position: 11, name: 'Birth', sanskrit: 'Jati',
+        explanation: 'The arising of a new existence.',
+        causation: 'With birth as condition, aging and death arise.' },
+      { position: 12, name: 'Aging & Death', sanskrit: 'Jaramarana',
+        explanation: 'The inevitable end. Sorrow, lamentation, pain, grief, and despair.',
+        causation: 'This is the mass of suffering that arises.' }
+    ];
+
+    // Initialize chain
+    function initChain() {
+      state.chain.links = TWELVE_NIDANAS.map(n => ({
+        ...n,
+        arisen: false,
+        broken: false
+      }));
+      renderChain();
+    }
+
+    // ============================================================================
+    // UI HELPERS
+    // ============================================================================
+
+    function getTime() {
+      const now = new Date();
+      return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    function addLog(logId, message, type = 'neutral') {
+      const log = document.getElementById(logId);
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = `<span class="log-time">${getTime()}</span>${message}`;
+      log.insertBefore(entry, log.firstChild);
+
+      // Limit log entries
+      while (log.children.length > 20) {
+        log.removeChild(log.lastChild);
+      }
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function updateUI() {
+      // Mind state
+      document.getElementById('mind-calm').textContent = state.being.mind.isCalm ? 'Yes' : 'No';
+      document.getElementById('mind-calm').className = `stat-value ${state.being.mind.isCalm ? 'positive' : 'negative'}`;
+
+      document.getElementById('mind-focused').textContent = state.being.mind.isFocused ? 'Yes' : 'No';
+      document.getElementById('mind-focused').className = `stat-value ${state.being.mind.isFocused ? 'positive' : 'negative'}`;
+
+      document.getElementById('dominant-factors').textContent =
+        state.being.mind.dominantFactors.length > 0
+          ? state.being.mind.dominantFactors.join(', ')
+          : 'None active';
+
+      // Path development
+      const wisdomAvg = (state.being.pathFactors.view + state.being.pathFactors.intention) / 2;
+      const ethicsAvg = (state.being.pathFactors.speech + state.being.pathFactors.action + state.being.pathFactors.livelihood) / 3;
+      const meditationAvg = (state.being.pathFactors.effort + state.being.pathFactors.mindfulness + state.being.pathFactors.concentration) / 3;
+
+      document.getElementById('wisdom-level').textContent = wisdomAvg.toFixed(1);
+      document.getElementById('wisdom-bar').style.width = `${wisdomAvg * 10}%`;
+
+      document.getElementById('ethics-level').textContent = ethicsAvg.toFixed(1);
+      document.getElementById('ethics-bar').style.width = `${ethicsAvg * 10}%`;
+
+      document.getElementById('meditation-level').textContent = meditationAvg.toFixed(1);
+      document.getElementById('meditation-bar').style.width = `${meditationAvg * 10}%`;
+
+      // Mindfulness
+      document.getElementById('mindfulness-value').textContent = state.being.mindfulness;
+      document.getElementById('mindfulness-circle').style.setProperty('--progress', state.being.mindfulness * 10);
+
+      // Karma
+      document.getElementById('karma-wholesome').textContent = state.karma.wholesome;
+      document.getElementById('karma-unwholesome').textContent = state.karma.unwholesome;
+      const balance = state.karma.wholesome - state.karma.unwholesome;
+      document.getElementById('karma-balance').textContent = balance > 0 ? `+${balance}` : balance;
+      document.getElementById('karma-balance').className = `stat-value ${balance > 0 ? 'positive' : balance < 0 ? 'negative' : 'neutral'}`;
+
+      // Experiences
+      document.getElementById('experience-count').textContent = state.being.experiences;
+
+      // Path factors
+      document.getElementById('pf-view').textContent = `${state.being.pathFactors.view}/10`;
+      document.getElementById('pf-intention').textContent = `${state.being.pathFactors.intention}/10`;
+      document.getElementById('pf-speech').textContent = `${state.being.pathFactors.speech}/10`;
+      document.getElementById('pf-action').textContent = `${state.being.pathFactors.action}/10`;
+      document.getElementById('pf-livelihood').textContent = `${state.being.pathFactors.livelihood}/10`;
+      document.getElementById('pf-effort').textContent = `${state.being.pathFactors.effort}/10`;
+      document.getElementById('pf-mindfulness').textContent = `${state.being.pathFactors.mindfulness}/10`;
+      document.getElementById('pf-concentration').textContent = `${state.being.pathFactors.concentration}/10`;
+    }
+
+    // ============================================================================
+    // EXPERIENCE
+    // ============================================================================
+
+    function processExperience() {
+      const senseBase = document.getElementById('sense-base').value;
+      const object = document.getElementById('sense-object').value;
+      const intensity = parseInt(document.getElementById('sense-intensity').value);
+
+      // Determine feeling based on object description
+      let feeling = 'neutral';
+      const pleasant = ['beautiful', 'pleasant', 'good', 'wonderful', 'amazing', 'lovely', 'sweet', 'delicious'];
+      const unpleasant = ['ugly', 'unpleasant', 'bad', 'terrible', 'awful', 'painful', 'bitter', 'harsh'];
+
+      const objLower = object.toLowerCase();
+      if (pleasant.some(w => objLower.includes(w))) feeling = 'pleasant';
+      if (unpleasant.some(w => objLower.includes(w))) feeling = 'unpleasant';
+
+      // Generate reactions based on mindfulness
+      const reactions = [];
+      if (feeling === 'pleasant') {
+        if (state.being.mindfulness < 5) {
+          reactions.push('desire arises', 'wanting more');
+        } else {
+          reactions.push('observing pleasantness', 'noting impermanence');
+        }
+      } else if (feeling === 'unpleasant') {
+        if (state.being.mindfulness < 5) {
+          reactions.push('aversion arises', 'pushing away');
+        } else {
+          reactions.push('observing unpleasantness', 'equanimity maintained');
+        }
+      } else {
+        reactions.push('neutral observation');
+      }
+
+      if (state.being.mindfulness > 7) {
+        reactions.push('mindful observation without automatic reaction');
+      }
+
+      state.being.experiences++;
+
+      const feelingEmoji = feeling === 'pleasant' ? '😊' : feeling === 'unpleasant' ? '😣' : '😐';
+      const type = feeling === 'pleasant' ? 'positive' : feeling === 'unpleasant' ? 'negative' : 'neutral';
+
+      addLog('experience-log',
+        `${feelingEmoji} <strong>${senseBase}</strong> contacts <em>${object}</em> (intensity: ${intensity})<br>` +
+        `Feeling: ${feeling} | Reactions: ${reactions.join(', ')}`,
+        type
+      );
+
+      updateUI();
+      showToast(`Experience processed: ${feeling} feeling`, type === 'positive' ? 'success' : '');
+    }
+
+    // ============================================================================
+    // MEDITATION
+    // ============================================================================
+
+    function meditate() {
+      const duration = parseInt(document.getElementById('med-duration').value);
+      const effort = parseInt(document.getElementById('med-effort').value);
+
+      // Develop path factors
+      const increase = effort * duration * 0.01;
+      state.being.pathFactors.effort = Math.min(10, state.being.pathFactors.effort + increase * 1.2);
+      state.being.pathFactors.mindfulness = Math.min(10, state.being.pathFactors.mindfulness + increase);
+      state.being.pathFactors.concentration = Math.min(10, state.being.pathFactors.concentration + increase * 0.8);
+
+      // Update mindfulness
+      state.being.mindfulness = Math.min(10, Math.round(state.being.mindfulness + increase));
+
+      // Update mind state
+      state.being.mind.isFocused = state.being.mindfulness >= 5;
+      if (effort >= 5) {
+        state.being.mind.isCalm = true;
+        state.being.mind.dominantFactors = ['mindfulness', 'equanimity'];
+      }
+
+      // Generate insight
+      const concentration = state.being.pathFactors.concentration;
+      const mindfulness = state.being.mindfulness;
+      const wisdom = (state.being.pathFactors.view + state.being.pathFactors.intention) / 2;
+
+      let insight = null;
+      if (concentration >= 8 && mindfulness >= 8 && wisdom >= 5) {
+        insight = 'Deep insight: Directly seeing the three marks of existence in all phenomena. Liberation is near.';
+        state.being.pathFactors.view = Math.min(10, state.being.pathFactors.view + 2);
+      } else if (concentration >= 6 && mindfulness >= 6) {
+        insight = 'Clear seeing: Impermanence of mental states becomes obvious. Each moment arises and passes.';
+        state.being.pathFactors.view = Math.min(10, state.being.pathFactors.view + 1);
+      } else if (concentration >= 4 && mindfulness >= 4) {
+        insight = 'Growing clarity: Able to observe thoughts without being caught. Some detachment arising.';
+      } else if (concentration >= 2) {
+        insight = 'Beginning stability: Moments of calm and clarity amidst distraction.';
+      }
+
+      addLog('meditation-log',
+        `Meditated for ${duration} minutes with effort level ${effort}`,
+        'neutral'
+      );
+
+      if (insight) {
+        addLog('meditation-log', `💡 ${insight}`, 'insight');
+        showToast('Insight arose!', 'success');
+      }
+
+      updateUI();
+    }
+
+    function calmMind() {
+      state.being.mind.isCalm = true;
+      state.being.mind.dominantFactors = state.being.mind.dominantFactors.filter(
+        f => !['greed', 'aversion', 'delusion'].includes(f)
+      );
+
+      addLog('meditation-log', 'Mind calmed - unwholesome factors deactivated', 'positive');
+      updateUI();
+    }
+
+    // ============================================================================
+    // KARMA
+    // ============================================================================
+
+    function plantSeed() {
+      const type = document.getElementById('karma-type').value;
+      const quality = document.getElementById('karma-quality').value;
+      const description = document.getElementById('karma-desc').value;
+      const intensity = parseInt(document.getElementById('karma-intensity').value);
+
+      const seed = {
+        id: Date.now(),
+        type,
+        quality,
+        description,
+        intensity,
+        potency: intensity * 10,
+        state: 'active',
+        createdAt: Date.now(),
+        ripeningTime: Date.now() + (3000 + Math.random() * 7000) // 3-10 seconds
+      };
+
+      state.karma.seeds.push(seed);
+
+      if (quality === 'wholesome') {
+        state.karma.wholesome += seed.potency;
+      } else if (quality === 'unwholesome') {
+        state.karma.unwholesome += seed.potency;
+      }
+
+      addLog('karma-log',
+        `🌱 Seed planted: <em>${description}</em><br>` +
+        `Type: ${type} | Quality: ${quality} | Potency: ${seed.potency}`,
+        quality === 'wholesome' ? 'positive' : quality === 'unwholesome' ? 'negative' : 'neutral'
+      );
+
+      renderSeeds();
+      updateUI();
+      showToast(`Karmic seed planted: ${quality}`, quality === 'wholesome' ? 'success' : '');
+
+      // Schedule ripening check
+      setTimeout(() => checkRipening(seed.id), seed.ripeningTime - Date.now());
+    }
+
+    function checkRipening(seedId) {
+      const seed = state.karma.seeds.find(s => s.id === seedId);
+      if (!seed || seed.state !== 'active') return;
+
+      // Random chance to ripen
+      if (Math.random() < (seed.potency / 100)) {
+        ripenSeed(seed);
+      } else {
+        // Reschedule
+        seed.ripeningTime = Date.now() + 5000;
+        setTimeout(() => checkRipening(seedId), 5000);
+      }
+    }
+
+    function ripenSeed(seed) {
+      seed.state = 'ripened';
+
+      const feeling = seed.quality === 'wholesome' ? 'pleasant' :
+                      seed.quality === 'unwholesome' ? 'unpleasant' : 'neutral';
+
+      addLog('karma-log',
+        `🍎 Karma ripened! <em>${seed.description}</em><br>` +
+        `Result: ${feeling} experience (intensity: ${Math.round(seed.intensity * 0.8)})`,
+        'karma'
+      );
+
+      renderSeeds();
+      showToast(`Karma ripened: ${feeling} result`);
+    }
+
+    function processKarma() {
+      let ripened = 0;
+      state.karma.seeds.forEach(seed => {
+        if (seed.state === 'active' && Date.now() >= seed.ripeningTime) {
+          if (Math.random() < 0.7) {
+            ripenSeed(seed);
+            ripened++;
+          }
+        }
+      });
+
+      if (ripened === 0) {
+        addLog('karma-log', 'No karma ready to ripen at this time', 'neutral');
+      }
+    }
+
+    function renderSeeds() {
+      const container = document.getElementById('seeds-container');
+      const activeSeeds = state.karma.seeds.filter(s => s.state === 'active' || s.state === 'ripened');
+
+      if (activeSeeds.length === 0) {
+        container.innerHTML = `
+          <p style="color: #888; grid-column: 1 / -1; text-align: center;">
+            No karmic seeds planted yet. Plant seeds above to see them here.
+          </p>
+        `;
+        return;
+      }
+
+      container.innerHTML = activeSeeds.slice(-12).map(seed => `
+        <div class="seed-card ${seed.quality} ${seed.state}">
+          <div class="seed-type">${seed.type} ${seed.quality}</div>
+          <div class="seed-desc">${seed.description}</div>
+          <div class="seed-stats">
+            Potency: ${seed.potency} | State: ${seed.state}
+          </div>
+          ${seed.state === 'active' ? `
+            <div class="btn-group" style="margin-top: 10px;">
+              <button class="btn btn-sm btn-secondary" onclick="strengthenSeed(${seed.id})">Strengthen</button>
+              <button class="btn btn-sm btn-secondary" onclick="weakenSeed(${seed.id})">Weaken</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    function strengthenSeed(seedId) {
+      const seed = state.karma.seeds.find(s => s.id === seedId);
+      if (seed && seed.state === 'active') {
+        seed.potency = Math.min(100, seed.potency + 10);
+        if (seed.quality === 'wholesome') state.karma.wholesome += 10;
+        if (seed.quality === 'unwholesome') state.karma.unwholesome += 10;
+        addLog('karma-log', `Seed strengthened: ${seed.description} (potency: ${seed.potency})`, 'karma');
+        renderSeeds();
+        updateUI();
+      }
+    }
+
+    function weakenSeed(seedId) {
+      const seed = state.karma.seeds.find(s => s.id === seedId);
+      if (seed && seed.state === 'active') {
+        seed.potency = Math.max(0, seed.potency - 10);
+        if (seed.quality === 'wholesome') state.karma.wholesome = Math.max(0, state.karma.wholesome - 10);
+        if (seed.quality === 'unwholesome') state.karma.unwholesome = Math.max(0, state.karma.unwholesome - 10);
+
+        if (seed.potency === 0) {
+          seed.state = 'purified';
+          addLog('karma-log', `✨ Seed purified through counter-action: ${seed.description}`, 'positive');
+        } else {
+          addLog('karma-log', `Seed weakened: ${seed.description} (potency: ${seed.potency})`, 'karma');
+        }
+        renderSeeds();
+        updateUI();
+      }
+    }
+
+    // ============================================================================
+    // DEPENDENT ORIGINATION
+    // ============================================================================
+
+    function renderChain() {
+      const container = document.getElementById('chain-container');
+      container.innerHTML = state.chain.links.map((link, i) => {
+        const isLiberation = link.position === 7 || link.position === 8;
+        let classes = 'chain-link';
+        if (link.arisen) classes += ' arisen';
+        if (link.broken) classes += ' broken';
+        if (isLiberation && !state.chain.broken) classes += ' liberation-point';
+
+        return `
+          <div class="${classes}" onclick="showLinkDetail(${link.position})">
+            <div class="number">${link.position}</div>
+            <div class="name">${link.name}</div>
+            <div class="sanskrit">${link.sanskrit}</div>
+          </div>
+          ${i < 11 ? '<div class="chain-arrow">→</div>' : ''}
+        `;
+      }).join('');
+    }
+
+    function showLinkDetail(position) {
+      const link = state.chain.links.find(l => l.position === position);
+      const detail = document.getElementById('link-detail');
+
+      detail.innerHTML = `
+        <h4 style="color: #f39c12; margin-bottom: 10px;">
+          ${link.position}. ${link.name} (${link.sanskrit})
+        </h4>
+        <p style="margin-bottom: 10px;">${link.explanation}</p>
+        <p style="color: #888; font-style: italic;">"${link.causation}"</p>
+        ${link.position === 7 || link.position === 8 ? `
+          <p style="margin-top: 15px; color: #f39c12;">
+            ⚡ This is the liberation point! Between feeling and craving,
+            mindfulness can intervene to break the cycle.
+          </p>
+        ` : ''}
+      `;
+    }
+
+    function runChain() {
+      // Reset first
+      state.chain.links.forEach(l => { l.arisen = false; l.broken = false; });
+      state.chain.broken = false;
+
+      let delay = 0;
+      state.chain.links.forEach((link, i) => {
+        setTimeout(() => {
+          if (state.chain.broken && link.position > state.chain.brokenAt) {
+            return;
+          }
+          link.arisen = true;
+          renderChain();
+          addLog('chain-log',
+            `${link.sanskrit} (${link.name}) arises: ${link.causation}`,
+            link.position <= 7 ? 'neutral' : 'negative'
+          );
+        }, delay);
+        delay += 500;
+      });
+    }
+
+    function breakChain() {
+      state.chain.broken = true;
+      state.chain.brokenAt = 8;
+
+      const craving = state.chain.links.find(l => l.position === 8);
+      craving.broken = true;
+
+      // Mark subsequent links as broken
+      state.chain.links.filter(l => l.position > 8).forEach(l => {
+        l.broken = true;
+        l.arisen = false;
+      });
+
+      renderChain();
+      addLog('chain-log',
+        '🔓 Chain broken at Craving! Mindfulness intervened. Subsequent links will not arise.',
+        'positive'
+      );
+      showToast('Liberation point activated!', 'success');
+    }
+
+    function resetChain() {
+      state.chain.links.forEach(l => { l.arisen = false; l.broken = false; });
+      state.chain.broken = false;
+      state.chain.brokenAt = null;
+      renderChain();
+      addLog('chain-log', 'Chain reset - ready for new simulation', 'neutral');
+    }
+
+    // ============================================================================
+    // SELF-INQUIRY
+    // ============================================================================
+
+    function investigateSelf() {
+      const result = document.getElementById('inquiry-result');
+      const content = document.getElementById('inquiry-content');
+
+      result.style.display = 'block';
+
+      const aggregates = [
+        { name: 'Form (Rupa)', finding: 'The body changes constantly - cells die and regenerate, breath flows in and out. Is there a stable "self" here? No unchanging self found in form.' },
+        { name: 'Feeling (Vedana)', finding: 'Feelings arise and pass - pleasant becomes unpleasant, unpleasant fades to neutral. Is there a permanent self in these changing feelings? No unchanging self found in feeling.' },
+        { name: 'Perception (Samjna)', finding: 'Perceptions are constructed and conditioned. The same object is perceived differently at different times. No unchanging self found in perception.' },
+        { name: 'Mental Formations (Samskara)', finding: 'Intentions, thoughts, and mental states are in constant flux. They arise from conditions and change with conditions. No unchanging self found in formations.' },
+        { name: 'Consciousness (Vijnana)', finding: 'Consciousness arises dependent on sense contact. It is not a container but a process. No unchanging self found in consciousness.' }
+      ];
+
+      let html = '<div style="margin-bottom: 20px;">';
+      aggregates.forEach((agg, i) => {
+        setTimeout(() => {
+          html += `
+            <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+              <strong style="color: #f39c12;">Searching in ${agg.name}...</strong>
+              <p style="margin-top: 8px; color: #bbb;">${agg.finding}</p>
+            </div>
+          `;
+          content.innerHTML = html + '</div>';
+        }, i * 800);
+      });
+
+      setTimeout(() => {
+        html += `
+          </div>
+          <div style="padding: 20px; background: rgba(155, 89, 182, 0.2); border-radius: 8px; border-left: 4px solid #9b59b6;">
+            <h4 style="color: #9b59b6; margin-bottom: 10px;">Conclusion</h4>
+            <p style="font-size: 1.1em;">
+              What is called "self" is a <strong>convenient designation</strong> for a process.
+              No unchanging, independent self can be found in any of the five aggregates.
+            </p>
+            <p style="margin-top: 10px; color: #888; font-style: italic;">
+              "This body is not mine, this is not me, this is not my self."<br>
+              — The Buddha
+            </p>
+          </div>
+        `;
+        content.innerHTML = html;
+
+        // Increase wisdom
+        state.being.pathFactors.view = Math.min(10, state.being.pathFactors.view + 0.5);
+        updateUI();
+        showToast('Insight into not-self arose', 'success');
+      }, aggregates.length * 800 + 500);
+    }
+
+    // ============================================================================
+    // FOUR NOBLE TRUTHS
+    // ============================================================================
+
+    function diagnose() {
+      const sufferingSelect = document.getElementById('suffering-types');
+      const cravingSelect = document.getElementById('craving-types');
+      const intensity = parseInt(document.getElementById('craving-intensity').value);
+
+      const suffering = Array.from(sufferingSelect.selectedOptions).map(o => o.value);
+      const cravings = Array.from(cravingSelect.selectedOptions).map(o => o.value);
+
+      const result = document.getElementById('diagnosis-result');
+      const content = document.getElementById('diagnosis-content');
+      result.style.display = 'block';
+
+      // Generate diagnosis
+      const intensityLevel = intensity > 7 ? 'severe' : intensity > 4 ? 'moderate' : 'mild';
+      const deepestSuffering = suffering.includes('existential') ? 'existential' :
+                               suffering.includes('conditioned') ? 'conditioned' : suffering[0];
+
+      const rootPoisons = [];
+      if (cravings.includes('craving-for-sensual-pleasures')) rootPoisons.push('greed');
+      if (cravings.includes('craving-for-existence')) rootPoisons.push('delusion');
+      if (cravings.includes('craving-for-non-existence')) rootPoisons.push('aversion');
+
+      const focusArea = rootPoisons.includes('delusion') ? 'wisdom' :
+                        rootPoisons.includes('greed') ? 'ethics' : 'meditation';
+
+      const practices = focusArea === 'wisdom' ? ['Study dependent origination', 'Investigate three marks'] :
+                        focusArea === 'ethics' ? ['Practice generosity', 'Cultivate contentment'] :
+                        ['Develop equanimity', 'Practice loving-kindness'];
+
+      content.innerHTML = `
+        <div class="diagnosis-section">
+          <h4 style="color: #e74c3c;">1. Dukkha (Suffering)</h4>
+          <p><strong>Types present:</strong> ${suffering.join(', ')}</p>
+          <p><strong>Deepest type:</strong> ${deepestSuffering}</p>
+          <p><strong>Task:</strong> To be fully understood - acknowledge this suffering without denial or aversion.</p>
+        </div>
+
+        <div class="diagnosis-section">
+          <h4 style="color: #f39c12;">2. Samudaya (Origin)</h4>
+          <p><strong>Craving types:</strong> ${cravings.map(c => c.replace(/-/g, ' ')).join(', ')}</p>
+          <p><strong>Root poisons:</strong> ${rootPoisons.join(', ')}</p>
+          <p><strong>Intensity:</strong> ${intensityLevel} (${intensity}/10)</p>
+          <p><strong>Task:</strong> To be abandoned - recognize and let go of these cravings.</p>
+        </div>
+
+        <div class="diagnosis-section">
+          <h4 style="color: #2ecc71;">3. Nirodha (Cessation)</h4>
+          <p><strong>Cessation possible:</strong> Yes - suffering can end when craving ceases</p>
+          <p><strong>Difficulty:</strong> ${intensityLevel === 'severe' ? 'Challenging' : 'Moderate'}</p>
+          <p><strong>Obstacles:</strong> ${rootPoisons.map(p => `Strong ${p}`).join(', ')}</p>
+          <p><strong>Task:</strong> To be realized - direct the mind toward peace.</p>
+        </div>
+
+        <div class="diagnosis-section">
+          <h4 style="color: #3498db;">4. Magga (Path)</h4>
+          <p><strong>Focus area:</strong> ${focusArea.charAt(0).toUpperCase() + focusArea.slice(1)} training</p>
+          <p><strong>Recommended practices:</strong></p>
+          <ul style="margin-left: 20px; color: #bbb;">
+            ${practices.map(p => `<li>${p}</li>`).join('')}
+          </ul>
+          <p><strong>Task:</strong> To be developed - walk the Noble Eightfold Path.</p>
+        </div>
+      `;
+
+      showToast('Diagnosis complete', 'success');
+    }
+
+    // ============================================================================
+    // TAB NAVIGATION
+    // ============================================================================
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+        tab.classList.add('active');
+        document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+      });
+    });
+
+    // Range input displays
+    document.querySelectorAll('input[type="range"]').forEach(input => {
+      const valueDisplay = document.getElementById(`${input.id}-value`);
+      if (valueDisplay) {
+        input.addEventListener('input', () => {
+          valueDisplay.textContent = input.value;
+        });
+      }
+    });
+
+    // ============================================================================
+    // INITIALIZATION
+    // ============================================================================
+
+    initChain();
+    updateUI();
+    console.log('Buddha.js Interactive Demo initialized');
+  </script>
+</body>
+</html>

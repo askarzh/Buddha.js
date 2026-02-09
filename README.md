@@ -60,6 +60,27 @@ for (const event of chain.simulateArisingSequence()) {
 }
 ```
 
+## English Aliases (Plain English API)
+
+For those who prefer plain English terms over Sanskrit, the library exports readable aliases:
+
+```typescript
+import {
+  Dissatisfaction,      // Dukkha
+  Confusion,            // Avidya
+  Craving,              // Tanha
+  Clinging,             // Upadana
+  OriginOfSuffering,    // Samudaya
+  PathToCessation       // Magga
+} from 'buddha-js';
+
+const problem = new Dissatisfaction();
+console.log(problem.getTask()); // "To be fully understood"
+
+const rootCause = new Confusion();
+console.log(rootCause.getExplanation().meaning);
+```
+
 ---
 
 ## Core Concepts

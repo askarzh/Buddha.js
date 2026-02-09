@@ -3,7 +3,7 @@
 This TODO list tracks planned features and improvements, inspired by the practical "plain and simple" approach to Buddhist philosophy.
 
 ## "Plain and Simple" API Enhancements
-- [ ] **English Aliases**: Add readable aliases for Sanskrit terms to make the library more accessible (e.g., `Dissatisfaction` for `Dukkha`, `Confusion` for `Avidya`).
+- [x] **English Aliases**: Add readable aliases for Sanskrit terms to make the library more accessible (e.g., `Dissatisfaction` for `Dukkha`, `Confusion` for `Avidya`).
 - [ ] **The "84th Problem" Helper**: Create a utility to distinguish between inevitable pain (first arrow) and the suffering of resistance (second arrow).
 - [ ] **"Poison Arrow" Simulation**: A simplified simulation mode that focuses strictly on immediate cessation of suffering without requiring deep configuration of the 12 Nidanas.
 

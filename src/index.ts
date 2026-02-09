@@ -18,6 +18,7 @@ export * from './core';
 
 // Utils
 export * from './utils';
+export * from './utils/aliases';
 
 // Four Noble Truths
 export * from './four-noble-truths';

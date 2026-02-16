@@ -10,6 +10,8 @@ npm run test:run      # Run tests once
 npm run typecheck     # TypeScript type checking
 npm run build         # Build for distribution (CJS + ESM + types)
 npm run dev           # Build in watch mode
+npm run test:coverage # Run tests with coverage report
+npm run lint          # ESLint (note: no .eslintrc config yet)
 
 # Run a single test file
 npx vitest run tests/core/Phenomenon.test.ts
@@ -37,14 +39,14 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 |--------|-------------|---------|
 | `core/` | `Phenomenon`, `ThreeMarks`, `TwoTruths` | Foundational abstractions |
 | `four-noble-truths/` | `Dukkha`, `Samudaya`, `Nirodha`, `Magga`, `FourNobleTruths` | Suffering, origin, cessation, path |
-| `eightfold-path/` | `PathFactor` base, 8 factor classes, `EightfoldPath` | The path of practice |
+| `eightfold-path/` | `PathFactor` base, 8 factor classes, `EightfoldPath` | The path of practice (grouped into `wisdom/`, `ethics/`, `meditation/`) |
 | `dependent-origination/` | `Nidana` base, 12 link classes, `DependentOrigination` | Causal chain of becoming |
 | `five-aggregates/` | `Skandha` base, 5 aggregate classes, `FiveAggregates` | Components of experience |
-| `karma/` | `Intention`, `Karma`, `KarmicResult`, `KarmicStore` | Intentional action, results, and event-driven karma system |
+| `karma/` | `Intention`, `Karma`, `KarmicResult`, `KarmicStore`, `KarmicEventSystem` | Intentional action, results, seeds, ripening, and event-driven karma system |
 | `emptiness/` | `Sunyata`, `ThreeNatures` | Emptiness analysis |
 | `mind/` | `MentalFactor`, `Mind`, `Citta` | Mental factors, states, and Abhidhamma consciousness model |
 | `simulation/` | `Being` | Integration class combining all concepts |
-| `utils/` | `types` | Shared type definitions and utilities |
+| `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |
 
 ### Key Patterns
 
@@ -53,6 +55,8 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 2. **Composite containers**: Aggregate classes like `EightfoldPath`, `DependentOrigination`, `FiveAggregates` compose multiple instances and provide orchestration
 
 3. **Type definitions**: `src/utils/types.ts` contains shared types (`Intensity`, `FeelingTone`, `KarmaQuality`, etc.)
+
+4. **English aliases**: `src/utils/aliases.ts` re-exports core classes under accessible English names (e.g., `Dissatisfaction` for `Dukkha`, `Confusion` for `Avidya`). Both Sanskrit originals and English aliases are part of the public API.
 
 ### TypeScript Configuration
 
@@ -72,6 +76,10 @@ The `examples/` directory contains interactive visualizations:
 
 - **[interactive-demo/](examples/interactive-demo/)** — Comprehensive web demo showcasing all library features (meditation, karma, dependent origination, self-inquiry, Four Noble Truths)
 - **[bhavacakra/](examples/bhavacakra/)** — Interactive Wheel of Samsara (Canvas-based, open index.html in browser)
+
+## NotebookLM Reference
+
+Use the **"Buddha Plain and Simple"** notebook via the `notebooklm-mcp` MCP server (ID: `9e43e48e-13ca-4d45-80ed-36739c4606db`) to query Buddhist source texts when implementing new concepts. Sources include *Buddhism Plain and Simple*, *Buddhist Philosophy: Essential Readings*, *The Foundations of Buddhism*, *Why Buddhism Is True*, and *Ранний буддизм*.
 
 ## Full Documentation
 

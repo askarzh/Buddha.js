@@ -25,6 +25,9 @@ export class PoisonArrow {
   private stepHistory: CessationStep[] = [];
 
   constructor(suffering: string) {
+    if (!suffering.trim()) {
+      throw new Error('Suffering must be named before it can be addressed.');
+    }
     this.suffering = suffering;
   }
 

@@ -8,6 +8,13 @@ describe('PoisonArrow', () => {
     sim = new PoisonArrow('anxiety about the future');
   });
 
+  describe('construction', () => {
+    it('should throw if suffering description is empty', () => {
+      expect(() => new PoisonArrow('')).toThrow();
+      expect(() => new PoisonArrow('   ')).toThrow();
+    });
+  });
+
   describe('initial state', () => {
     it('should not be complete initially', () => {
       expect(sim.isComplete()).toBe(false);

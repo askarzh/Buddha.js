@@ -7,6 +7,8 @@ import { koan } from './commands/koan';
 import { diagnose } from './commands/diagnose';
 import { karma } from './commands/karma';
 import { meditate } from './commands/meditate';
+import { beings, beingsDelete } from './commands/beings';
+import { reset } from './commands/reset';
 
 const program = new Command();
 
@@ -67,5 +69,20 @@ program
   .option('--interval <seconds>', 'Seconds between interval bells', '60')
   .option('--duration <minutes>', 'Duration in minutes (for --json, runs silently)')
   .action(meditate);
+
+const beingsCmd = program
+  .command('beings')
+  .description('List saved beings')
+  .action(beings);
+
+beingsCmd
+  .command('delete <name>')
+  .description('Delete a saved being')
+  .action(beingsDelete);
+
+program
+  .command('reset')
+  .description('Reset the current being to a fresh state')
+  .action(reset);
 
 program.parse();

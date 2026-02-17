@@ -57,6 +57,21 @@ export interface ArrowAnalysis {
   insight: string;
 }
 
+/** Stage in the poison arrow cessation path */
+export type CessationStage = 'recognize' | 'investigate' | 'release' | 'practice';
+
+/** Result of a single cessation step */
+export interface CessationStep {
+  /** Which stage this step represents */
+  stage: CessationStage;
+  /** Which Noble Truth this stage corresponds to */
+  truth: 'dukkha' | 'samudaya' | 'nirodha' | 'magga';
+  /** Insight gained at this stage */
+  insight: string;
+  /** Practical guidance for this stage */
+  guidance: string;
+}
+
 /** Aggregate category */
 export type AggregateCategory = 'material' | 'mental';
 

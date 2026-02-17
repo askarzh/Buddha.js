@@ -14,7 +14,7 @@
  * "The seeds we plant today become the fruits we harvest tomorrow."
  */
 
-import { generateId, KarmaQuality, FeelingTone, Intensity, UnwholesomeRoot, WholesomeRoot, KarmicSeedData, KarmicStoreData } from '../utils/types';
+import { generateId, KarmaQuality, FeelingTone, Intensity, UnwholesomeRoot, WholesomeRoot, KarmicSeedData, KarmicStoreData, Serializable } from '../utils/types';
 
 // =============================================================================
 // TYPES AND INTERFACES
@@ -206,7 +206,7 @@ export function createKarmicSeed(options: CreateSeedOptions): KarmicSeed {
  * In Yogācāra Buddhism, the ālaya-vijñāna stores karmic seeds until
  * they ripen. This class models that function as an event-driven system.
  */
-export class KarmicStore {
+export class KarmicStore implements Serializable<KarmicStoreData> {
   private seeds: Map<string, KarmicSeed> = new Map();
   private listeners: Map<KarmicEventType, Set<KarmicEventListener>> = new Map();
   private ripeningTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -969,6 +969,9 @@ export class KarmicStore {
     }
 
     store.config = { ...data.config };
+    if (data.config.enableAutoRipening) {
+      store.startRipeningCheck();
+    }
 
     return store;
   }

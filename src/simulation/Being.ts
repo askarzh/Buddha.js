@@ -15,7 +15,7 @@ import { Intention } from '../karma/Intention';
 import { KarmicResult } from '../karma/KarmicResult';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
-import { Intensity, KarmaQuality, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, SenseBase, BeingData, PathData, MindData, NidanaChainData, KarmaData } from '../utils/types';
+import { Intensity, KarmaQuality, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, SenseBase, BeingData, PathData, MindData, NidanaChainData, KarmaData, Serializable } from '../utils/types';
 
 /**
  * Result of meditation practice
@@ -62,7 +62,7 @@ export interface BeingState {
 /**
  * Being - A sentient being composed of the five aggregates
  */
-export class Being {
+export class Being implements Serializable<BeingData> {
   /** The five aggregates that constitute the "person" */
   readonly aggregates: FiveAggregates;
 
@@ -436,7 +436,7 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     for (const ld of data.dependentOrigination.links) {
       const link = links[ld.position - 1];
       if (link) {
-        (link as any).restoreLink();
+        link.restoreLink();
         if (ld.hasArisen) (link as any)._hasArisen = true;
         if (ld.hasCeased) (link as any)._hasCeased = true;
         if (ld.isBroken) (link as any)._isBroken = true;

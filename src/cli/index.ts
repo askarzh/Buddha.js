@@ -4,6 +4,8 @@ import { chain } from './commands/chain';
 import { status } from './commands/status';
 import { sit } from './commands/sit';
 import { koan } from './commands/koan';
+import { diagnose } from './commands/diagnose';
+import { karma } from './commands/karma';
 
 const program = new Command();
 
@@ -37,5 +39,15 @@ program
   .description('Contemplate a Zen koan')
   .option('--id <id>', 'Present a specific koan by ID')
   .action(koan);
+
+program
+  .command('diagnose')
+  .description('Diagnose suffering using the Four Noble Truths')
+  .action(diagnose);
+
+program
+  .command('karma')
+  .description('Explore intentional action and karmic results')
+  .action(karma);
 
 program.parse();

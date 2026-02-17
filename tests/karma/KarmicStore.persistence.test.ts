@@ -79,6 +79,101 @@ describe('KarmicStore Persistence', () => {
     });
   });
 
+  describe('fromJSON', () => {
+    it('should restore empty store', () => {
+      const store = new KarmicStore({ enableAutoRipening: false });
+      const data = store.toJSON();
+      const restored = KarmicStore.fromJSON(data);
+      expect(restored.getSeeds()).toHaveLength(0);
+    });
+
+    it('should restore seeds with correct fields', () => {
+      const store = new KarmicStore({ enableAutoRipening: false });
+      store.plantSeed({
+        quality: 'wholesome',
+        description: 'Generosity',
+        intentionStrength: 8,
+        root: 'non-greed',
+        tags: ['dana'],
+      });
+      store.plantSeed({
+        quality: 'unwholesome',
+        description: 'Angry word',
+        root: 'aversion',
+        type: 'verbal',
+      });
+
+      const data = store.toJSON();
+      const restored = KarmicStore.fromJSON(data);
+      const seeds = restored.getSeeds();
+
+      expect(seeds).toHaveLength(2);
+      expect(seeds[0].quality).toBe('wholesome');
+      expect(seeds[0].description).toBe('Generosity');
+      expect(seeds[0].tags).toEqual(['dana']);
+      expect(seeds[1].quality).toBe('unwholesome');
+      expect(seeds[1].type).toBe('verbal');
+    });
+
+    it('should restore config', () => {
+      const customStore = new KarmicStore({
+        maxSeeds: 500,
+        timeScale: 3,
+        enableAutoRipening: false,
+      });
+      const data = customStore.toJSON();
+      const restored = KarmicStore.fromJSON(data);
+      const restoredData = restored.toJSON();
+
+      expect(restoredData.config.maxSeeds).toBe(500);
+      expect(restoredData.config.timeScale).toBe(3);
+    });
+
+    it('should reconstruct named conditions from registry', () => {
+      const store = new KarmicStore({ enableAutoRipening: false });
+      let flag = false;
+      store.registerCondition('flag-check', () => flag);
+      store.plantSeed({
+        quality: 'wholesome',
+        description: 'Conditional seed',
+        conditions: [{
+          type: 'state',
+          name: 'flag-check',
+          description: 'Check flag',
+          check: () => flag,
+          weight: 1,
+        }],
+      });
+
+      const data = store.toJSON();
+      const restored = KarmicStore.fromJSON(data);
+
+      // Before registering, condition check is a no-op returning false
+      const seedBefore = restored.getSeeds()[0];
+      expect(seedBefore.ripeningConditions[0].check()).toBe(false);
+
+      // After registering, condition works
+      restored.registerCondition('flag-check', () => flag);
+      restored.rebindConditions();
+      flag = true;
+      const seedAfter = restored.getSeeds()[0];
+      expect(seedAfter.ripeningConditions[0].check()).toBe(true);
+    });
+
+    it('should survive full round-trip', () => {
+      const store = new KarmicStore({ enableAutoRipening: false });
+      store.plantSeed({ quality: 'wholesome', description: 'Gift', intentionStrength: 6 });
+      store.plantSeed({ quality: 'unwholesome', description: 'Lie', type: 'verbal', root: 'delusion' });
+
+      const json = JSON.stringify(store);
+      const parsed = JSON.parse(json);
+      const restored = KarmicStore.fromJSON(parsed);
+
+      expect(restored.getSeeds()).toHaveLength(2);
+      expect(restored.getKarmicBalance().balance).toBe(store.getKarmicBalance().balance);
+    });
+  });
+
   describe('Condition Registry', () => {
     it('should register and retrieve named conditions', () => {
       const store = new KarmicStore({ enableAutoRipening: false });

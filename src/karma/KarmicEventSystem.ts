@@ -927,6 +927,66 @@ export class KarmicStore {
     };
   }
 
+  static fromJSON(data: KarmicStoreData): KarmicStore {
+    const store = new KarmicStore({
+      ...data.config,
+      enableAutoRipening: false,
+    });
+
+    for (const seedData of data.seeds) {
+      const conditions: RipeningCondition[] = seedData.ripeningConditions.map(c => ({
+        type: c.type,
+        ...(c.name ? { name: c.name } : {}),
+        description: c.description,
+        check: () => false,
+        weight: c.weight,
+      }));
+
+      const seed: KarmicSeed = {
+        id: seedData.id,
+        createdAt: seedData.createdAt,
+        type: seedData.type,
+        quality: seedData.quality,
+        description: seedData.description,
+        intentionStrength: seedData.intentionStrength,
+        root: seedData.root,
+        potency: seedData.potency,
+        originalPotency: seedData.originalPotency,
+        strength: seedData.strength,
+        ripeningTiming: seedData.ripeningTiming,
+        minDelay: seedData.minDelay,
+        maxDelay: seedData.maxDelay,
+        ripeningConditions: conditions,
+        state: seedData.state,
+        ripeningProgress: seedData.ripeningProgress,
+        timesRipened: seedData.timesRipened,
+        maxRipenings: seedData.maxRipenings,
+        tags: [...seedData.tags],
+        ...(seedData.collectiveId ? { collectiveId: seedData.collectiveId } : {}),
+      };
+
+      store.seeds.set(seed.id, seed);
+    }
+
+    store.config = { ...data.config };
+
+    return store;
+  }
+
+  rebindConditions(): void {
+    for (const seed of this.seeds.values()) {
+      for (let i = 0; i < seed.ripeningConditions.length; i++) {
+        const condition = seed.ripeningConditions[i];
+        if (condition.name) {
+          const check = this.conditionRegistry.get(condition.name);
+          if (check) {
+            seed.ripeningConditions[i] = { ...condition, check };
+          }
+        }
+      }
+    }
+  }
+
   // ===========================================================================
   // CONDITION REGISTRY
   // ===========================================================================

@@ -6,6 +6,7 @@ import { sit } from './commands/sit';
 import { koan } from './commands/koan';
 import { diagnose } from './commands/diagnose';
 import { karma } from './commands/karma';
+import { meditate } from './commands/meditate';
 
 const program = new Command();
 
@@ -49,5 +50,11 @@ program
   .command('karma')
   .description('Explore intentional action and karmic results')
   .action(karma);
+
+program
+  .command('meditate')
+  .description('Start a meditation session with mindful check-ins')
+  .option('--interval <seconds>', 'Seconds between interval bells', '60')
+  .action(meditate);
 
 program.parse();

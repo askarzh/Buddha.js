@@ -424,6 +424,89 @@ store.plantSeed(weightyKarma({
 
 ---
 
+## Persistence (Save & Restore)
+
+Save and restore state using `toJSON()`/`fromJSON()` — compatible with `JSON.stringify`/`JSON.parse`. Inspired by the Yogacara concept of *alaya-vijnana* (storehouse consciousness), where karmic seeds are stored as latent potentials and reconstituted when conditions arise.
+
+### KarmicStore Persistence
+
+```typescript
+import { KarmicStore } from 'buddha-js';
+
+const store = new KarmicStore({ enableAutoRipening: true, timeScale: 10 });
+
+// Plant seeds, register named conditions...
+store.registerCondition('is-mindful', () => mindfulnessLevel > 5);
+store.plantSeed({
+  type: 'mental',
+  quality: 'wholesome',
+  description: 'Mindful awareness',
+  intentionStrength: 7,
+  root: 'non-greed',
+  conditions: [{ type: 'conditional', name: 'is-mindful', check: () => mindfulnessLevel > 5, weight: 1 }]
+});
+
+// Serialize
+const json = store.toJSON();
+const str = JSON.stringify(store); // toJSON() called automatically
+
+// Restore
+const data = JSON.parse(str);
+const restored = KarmicStore.fromJSON(data);
+
+// Re-register condition functions (not serializable)
+restored.registerCondition('is-mindful', () => mindfulnessLevel > 5);
+restored.rebindConditions(); // Reconnects named conditions from registry
+```
+
+### Being Persistence
+
+```typescript
+import { Being } from 'buddha-js';
+
+const being = new Being();
+being.meditate(30, 8);
+being.act('Practiced generosity', 'wholesome', 7, 'non-greed');
+
+// Serialize
+const json = being.toJSON();
+const str = JSON.stringify(being);
+
+// Restore
+const data = JSON.parse(str);
+const restored = Being.fromJSON(data);
+
+// Restored state includes:
+// - Mindfulness level
+// - Path factor development (activation, development level)
+// - Mind state (active factors, clarity, stability)
+// - Dependent origination chain state
+// - Karmic stream (intentions and karma objects)
+// - Experience history
+
+// Not restored (starts fresh):
+// - Five Aggregates (reactive to new experiences)
+// - Event listeners (re-register after restore)
+// - Auto-ripening timers (restart manually)
+```
+
+### What Gets Serialized
+
+| Component | Serialized | Notes |
+| --------- | --------- | ----- |
+| Mindfulness level | Yes | Direct value |
+| Path factors | Yes | Activation state, development level |
+| Mind state | Yes | Active factors, clarity, stability |
+| Dependent origination | Yes | Link states (arisen/ceased) |
+| Karmic stream | Yes | Intentions and karma objects |
+| Experience history | Yes | Past processed experiences |
+| Aggregates | Snapshot only | Not restored; reactive state starts fresh |
+| Event listeners | No | Re-register after restore |
+| Ripening timers | No | Restart via `startAutoRipening()` |
+| Condition functions | Named only | Use condition registry for persistence |
+
+---
+
 ## Mind and Mental Factors
 
 ### Mind (Citta)

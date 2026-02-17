@@ -58,6 +58,8 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 
 4. **English aliases**: `src/utils/aliases.ts` re-exports core classes under accessible English names (e.g., `Dissatisfaction` for `Dukkha`, `Confusion` for `Avidya`). Both Sanskrit originals and English aliases are part of the public API.
 
+5. **Persistence**: `Being` and `KarmicStore` implement `Serializable<T>` with `toJSON()`/`fromJSON()`. Function callbacks (ripening conditions) use a named condition registry — serialize the name, re-register the function after restore, call `rebindConditions()`. Data shape types are in `src/utils/types.ts`.
+
 ### TypeScript Configuration
 
 Strict mode is enabled with `noUnusedLocals` and `noUnusedParameters`. Prefix unused parameters with underscore (`_param`).

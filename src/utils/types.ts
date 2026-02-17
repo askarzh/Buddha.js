@@ -320,3 +320,30 @@ export interface BeingData {
   mind: MindData;
   dependentOrigination: NidanaChainData;
 }
+
+// =============================================================================
+// KOAN TYPES
+// =============================================================================
+
+export interface Koan {
+  id: string;
+  title: string;
+  case: string;
+  source: string;
+  hint?: string;
+}
+
+export type DualismTrap =
+  | 'binary'
+  | 'intellectual'
+  | 'seeking'
+  | 'nihilistic'
+  | 'grasping';
+
+export interface ContemplationResult {
+  koan: Koan;
+  response: string;
+  trapsDetected: DualismTrap[];
+  reflection: string;
+  isNonDual: boolean;
+}

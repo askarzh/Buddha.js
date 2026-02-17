@@ -37,6 +37,15 @@ Implementing Vipassanā (insight meditation) as a function for non-reactive stat
 - Body scan, rising/falling, choiceless awareness
 - The mindful proxy pattern
 
+### [Metaphor Guide: Raft, Finger, and Burning House](./metaphor-guide.md)
+
+Three classic Buddhist metaphors applied to the library: when to use the tools, what they point toward, and why simplicity matters.
+
+**Topics:**
+- The Raft (Kullupama Sutta) — tools for crossing, not for carrying
+- The Finger Pointing at the Moon — conventional truth vs ultimate truth
+- The House on Fire (Lotus Sutra) — skillful means and the PoisonArrow
+
 ## Philosophical Foundation
 
 These documents explore how Buddhist phenomenology maps to computational concepts:
@@ -48,6 +57,7 @@ These documents explore how Buddhist phenomenology maps to computational concept
 | Mindfulness | Non-reactive observation / Proxy |
 | Three Marks | Property analysis functions |
 | Liberation | Stream completion / unsubscription |
+| Skillful Means (Upaya) | Simplified APIs / CLI wrappers |
 
 ## Usage
 

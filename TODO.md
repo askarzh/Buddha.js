@@ -18,5 +18,5 @@ This TODO list tracks planned features and improvements, inspired by the practic
 
 ## Documentation
 
-- [ ] **Metaphor Guide**: A doc explaining key concepts using the "Raft", "Finger pointing at the Moon", and "House on Fire" metaphors.
+- [x] **Metaphor Guide**: A doc explaining key concepts using the "Raft", "Finger pointing at the Moon", and "House on Fire" metaphors.
 - [ ] **Interactive Tutorial**: A step-by-step code tutorial building a "Mind" from scratch.

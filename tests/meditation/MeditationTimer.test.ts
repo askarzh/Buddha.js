@@ -34,6 +34,16 @@ describe('MeditationTimer', () => {
     });
   });
 
+  describe('constructor validation', () => {
+    it('should throw if duration is zero', () => {
+      expect(() => new MeditationTimer({ duration: 0, clock })).toThrow('Duration must be positive.');
+    });
+
+    it('should throw if duration is negative', () => {
+      expect(() => new MeditationTimer({ duration: -10, clock })).toThrow('Duration must be positive.');
+    });
+  });
+
   describe('start()', () => {
     it('should set running to true', () => {
       timer.start();
@@ -192,6 +202,23 @@ describe('MeditationTimer', () => {
       bellTimer.stop();
 
       expect(bellCount).toBe(2);
+    });
+
+    it('should fire multiple catchup bells when check-in spans multiple intervals', () => {
+      let bellCount = 0;
+      const bellTimer = new MeditationTimer({
+        duration: 300,
+        intervalBell: 60,
+        onBell: () => { bellCount++; },
+        clock,
+      });
+
+      bellTimer.start();
+      clock.advance(180); // spans 3 intervals
+      bellTimer.checkIn();
+      bellTimer.stop();
+
+      expect(bellCount).toBe(3);
     });
 
     it('should not call onBell before interval elapses', () => {

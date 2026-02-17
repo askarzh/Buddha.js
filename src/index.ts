@@ -47,5 +47,8 @@ export type {
   CittaClassification
 } from './mind';
 
+// Meditation
+export * from './meditation';
+
 // Simulation
 export * from './simulation';

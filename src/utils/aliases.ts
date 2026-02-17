@@ -18,6 +18,7 @@ import { Tanha } from '../dependent-origination/links/Tanha';
 import { Upadana } from '../dependent-origination/links/Upadana';
 
 import { PoisonArrow } from '../simulation/PoisonArrow';
+import { MeditationTimer } from '../meditation/MeditationTimer';
 import { Sunyata } from '../emptiness/Sunyata';
 import { ImpermanenceInsight, NotSelfInsight, UnsatisfactorinessInsight } from '../core/ThreeMarks';
 
@@ -37,6 +38,9 @@ export const BlindUrges = Samskara;  // Volitional Formations
 export const Consciousness = Vijnana;
 export const Craving = Tanha;        // Thirst
 export const Clinging = Upadana;     // Grasping
+
+// Meditation
+export const SittingTimer = MeditationTimer;
 
 // Emptiness
 export const Emptiness = Sunyata;

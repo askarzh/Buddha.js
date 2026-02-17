@@ -651,6 +651,41 @@ console.log(sim.getSummary());
 
 ---
 
+## Meditation Timer
+
+Track real-time meditation sessions by recording "mindful moments" (check-ins) versus periods of distraction. Based on the practice of *sati* (mindfulness): quality is measured not by absence of distraction, but by how quickly one recognizes distraction and returns to presence.
+
+Uses an injectable `Clock` interface — defaults to wall-clock time (`Date.now`), but accepts a manual clock for testing and simulation.
+
+```typescript
+import { MeditationTimer } from 'buddha-js';
+// or: import { SittingTimer } from 'buddha-js';
+
+const timer = new MeditationTimer({
+  duration: 300,        // 5-minute session
+  intervalBell: 60,     // bell every 60 seconds
+  onBell: () => console.log('🔔'),
+});
+
+timer.start();
+
+// ... user presses a key to record a mindful moment ...
+timer.checkIn();
+
+// ... time passes, user checks in again ...
+timer.checkIn();
+
+const session = timer.stop();
+
+session.quality;            // 'scattered' | 'intermittent' | 'sustained' | 'absorbed'
+session.mindfulnessRatio;   // 0–1, check-ins vs expected (1 per 30s)
+session.distractionPeriods; // Array of { start, end, duration }
+session.longestDistraction; // Longest gap in seconds
+session.mindfulMoments;     // Total check-in count
+```
+
+---
+
 ## Being (Simulation)
 
 The `Being` class integrates all concepts to simulate a sentient being:
@@ -801,6 +836,7 @@ The library is organized into modules reflecting core Buddhist concepts:
 - **`src/karma/`**: Karma generation, results, and the event-driven store.
 - **`src/mind/`**: Consciousness models (`Mind`, `Citta`) and mental factors.
 - **`src/emptiness/`**: Tools for analyzing emptiness (`Sunyata`).
+- **`src/meditation/`**: Real-time meditation session tracking (`MeditationTimer`).
 - **`src/simulation/`**: The `Being` class that integrates all modules.
 - **`src/utils/`**: Shared type definitions and helper functions.
 

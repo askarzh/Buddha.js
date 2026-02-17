@@ -11,7 +11,7 @@ This TODO list tracks planned features and improvements, inspired by the practic
 ## Core Features
 
 - [x] **Persistence Layer**: Add a persistence layer for saving and restoring state (karmic store, being state, etc.).
-- [ ] **Meditation Timer**: Implement a real-time meditation timer that tracks "mindful moments" (checking in) versus distraction.
+- [x] **Meditation Timer**: Implement a real-time meditation timer that tracks "mindful moments" (checking in) versus distraction.
 - [ ] **Koan Generator**: A class that presents paradoxical logic puzzles to break out of dualistic thinking/conditional logic.
 - [ ] **Refactoring**: Simplify `Being.ts` to be more compositional and less monolithic.
 - [ ] **CLI**: Develop a command-line interface for interacting with Buddha.js concepts from the terminal.

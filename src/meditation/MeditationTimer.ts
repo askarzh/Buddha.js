@@ -133,34 +133,29 @@ export class MeditationTimer {
     }
   }
 
-  private computeDistractionPeriods(totalDuration: number): DistractionPeriod[] {
-    const periods: DistractionPeriod[] = [];
+  private computeGaps(totalDuration: number): { start: number; end: number; duration: number }[] {
     const points = [0, ...this.checkInTimes, totalDuration];
+    const gaps: { start: number; end: number; duration: number }[] = [];
 
     for (let i = 0; i < points.length - 1; i++) {
-      const gap = points[i + 1] - points[i];
-      if (gap > DISTRACTION_THRESHOLD) {
-        periods.push({
-          start: points[i],
-          end: points[i + 1],
-          duration: gap,
-        });
-      }
+      gaps.push({
+        start: points[i],
+        end: points[i + 1],
+        duration: points[i + 1] - points[i],
+      });
     }
 
-    return periods;
+    return gaps;
+  }
+
+  private computeDistractionPeriods(totalDuration: number): DistractionPeriod[] {
+    return this.computeGaps(totalDuration)
+      .filter(gap => gap.duration > DISTRACTION_THRESHOLD);
   }
 
   private computeLongestGap(totalDuration: number): number {
-    const points = [0, ...this.checkInTimes, totalDuration];
-    let longest = 0;
-
-    for (let i = 0; i < points.length - 1; i++) {
-      const gap = points[i + 1] - points[i];
-      if (gap > longest) longest = gap;
-    }
-
-    return longest;
+    const gaps = this.computeGaps(totalDuration);
+    return gaps.length > 0 ? Math.max(...gaps.map(g => g.duration)) : 0;
   }
 
   private assessQuality(ratio: number): MeditationQuality {

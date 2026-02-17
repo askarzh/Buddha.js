@@ -49,7 +49,8 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `mind/` | `MentalFactor`, `Mind`, `Citta` | Mental factors, states, and Abhidhamma consciousness model |
 | `koan/` | `KoanGenerator` | Zen koan presentation and dualistic thinking detection |
 | `meditation/` | `MeditationTimer` | Real-time meditation session tracking with injectable clock |
-| `cli/` | `buddha` CLI | Terminal interface for all library features (8 commands) |
+| `cli/` | `buddha` CLI | Terminal interface with persistence and `--json` output (10 commands) |
+| `plugin/` | Claude Code plugin | Skills and `/buddha` command for Claude Code integration |
 | `simulation/` | `Being` | Integration class combining all concepts |
 | `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |
 
@@ -70,6 +71,12 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 ### CLI
 
 Built with Commander.js, @inquirer/prompts, and chalk v5. Separate build config in `tsup.cli.ts` (tsup doesn't support `--banner`/`--outExtension` as CLI flags). Output uses `.mjs` extension since project lacks `"type": "module"`.
+
+**Persistence:** Beings are saved as JSON in `~/.buddha/beings/<name>.json` (override with `BUDDHA_STATE_DIR` env or `--state-dir` flag). Commands `inquiry`, `status`, `karma` load/save the persistent being. Use `--being <name>` for named profiles.
+
+**JSON output:** All commands support `--json` for machine-readable output. Interactive commands accept flags for non-interactive use (e.g., `karma --json --quality wholesome --description "..." --intensity 7 --root non-greed`).
+
+**Commander convention:** Action handlers use `(localOpts, cmd: Command)` pattern with `cmd.optsWithGlobals()` for global flags.
 
 ### TypeScript Configuration
 

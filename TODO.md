@@ -15,6 +15,9 @@ This TODO list tracks planned features and improvements, inspired by the practic
 - [x] **Koan Generator**: A class that presents paradoxical logic puzzles to break out of dualistic thinking/conditional logic.
 - [x] **Refactoring**: Simplify `Being.ts` to be more compositional and less monolithic.
 - [x] **CLI**: Develop a command-line interface for interacting with Buddha.js concepts from the terminal.
+- [x] **CLI Persistence**: Save and restore Being state between CLI sessions with named beings.
+- [x] **CLI JSON Output**: Machine-readable `--json` output for all commands.
+- [x] **Claude Code Plugin**: Package CLI as a Claude Code plugin with auto-activating skills.
 
 ## Documentation
 

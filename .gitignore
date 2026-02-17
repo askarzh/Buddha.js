@@ -38,3 +38,5 @@ pnpm-debug.log*
 tmp/
 temp/
 .gemini/
+.claude/
+.sync.log

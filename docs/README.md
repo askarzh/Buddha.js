@@ -46,6 +46,17 @@ Three classic Buddhist metaphors applied to the library: when to use the tools, 
 - The Finger Pointing at the Moon — conventional truth vs ultimate truth
 - The House on Fire (Lotus Sutra) — skillful means and the PoisonArrow
 
+### [Interactive Tutorial: Building a Mind from Scratch](./interactive-tutorial.md)
+
+A step-by-step guide that constructs a Mind from first principles: mental factors, the Mind container, and meditation practice.
+
+**Topics:**
+- MentalFactor as the atom of consciousness
+- Three qualities: variable, unwholesome, wholesome
+- Mind as a stream of composable factors
+- Meditation as mind transformation
+- The Citta advanced model (teaser)
+
 ## Philosophical Foundation
 
 These documents explore how Buddhist phenomenology maps to computational concepts:
@@ -58,6 +69,7 @@ These documents explore how Buddhist phenomenology maps to computational concept
 | Three Marks | Property analysis functions |
 | Liberation | Stream completion / unsubscription |
 | Skillful Means (Upaya) | Simplified APIs / CLI wrappers |
+| Mental Factors (Cetasika) | Composable state objects / activation patterns |
 
 ## Usage
 

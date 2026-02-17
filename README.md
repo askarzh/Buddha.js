@@ -176,6 +176,44 @@ const magga = truths.magga;
 magga.prescribe(causeAnalysis);
 ```
 
+### Two Arrows / The 84th Problem
+
+A farmer once came to the Buddha listing all his problems. The Buddha replied: "Everyone has 83 problems. I can't help with those. But I can help with the 84th — wanting to have no problems."
+
+This connects to the Sallatha Sutta's "two arrows" teaching: the first arrow is unavoidable pain; the second is the suffering we add through resistance. The `TwoArrows` class (aliased as `EightyFourthProblem`) helps distinguish between the two.
+
+```typescript
+import { TwoArrows } from 'buddha-js';
+// or: import { EightyFourthProblem } from 'buddha-js';
+
+const arrows = new TwoArrows();
+
+// Situation with both arrows
+const result = arrows.analyze({
+  pain: 'knee pain while sitting',
+  mentalReactions: ['wishing it would stop', 'fear it will get worse'],
+});
+
+result.totalArrows;            // 'two'
+result.isEightyFourthProblem;  // true — the second arrow IS the 84th problem
+result.firstArrow;             // { description: 'knee pain...', isUnavoidable: true }
+result.secondArrow;            // { reactions: [...], count: 2, isOptional: true }
+result.insight;                // Explanation of first vs second arrow
+
+// Situation with equanimity (no second arrow)
+const equanimous = arrows.analyze({
+  pain: 'knee pain while sitting',
+  mentalReactions: [],
+});
+
+equanimous.totalArrows;            // 'one'
+equanimous.isEightyFourthProblem;  // false
+
+// Track recognition over time
+arrows.hasRecognizedSecondArrow(); // true (from the first analysis)
+arrows.getAnalysisCount();         // 2
+```
+
 ---
 
 ## Eightfold Path

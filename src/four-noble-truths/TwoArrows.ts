@@ -1,12 +1,20 @@
 /**
  * TwoArrows — The "84th Problem" Helper
  *
- * Models the Buddhist "two arrows" teaching:
+ * A farmer once came to the Buddha listing all his problems — trouble with
+ * crops, a difficult wife, worries about his children. The Buddha replied:
+ * "I can't help you with those. Everyone has 83 problems. When you solve one,
+ * another takes its place. But I can help you with the 84th problem."
+ * "What's the 84th problem?" asked the farmer.
+ * "The 84th problem is that you don't want to have any problems."
+ *
+ * This connects to the Sallatha Sutta (SN 36.6), the "two arrows" teaching:
  *   - First arrow: unavoidable pain (the raw sensation or loss)
  *   - Second arrow: self-inflicted suffering through resistance, craving, or aversion
  *
- * The "84th problem" is the problem of not wanting to have any problems —
- * the second arrow itself. Recognizing it is optional is the path to relief.
+ * The untrained person, struck by pain, grieves and resists — experiencing
+ * two arrows. The trained person feels the same pain but doesn't add the
+ * second arrow. The 84th problem IS the second arrow: wanting no problems.
  */
 
 import { Phenomenon } from '../core/Phenomenon';

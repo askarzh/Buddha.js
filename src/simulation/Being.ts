@@ -15,7 +15,7 @@ import { Intention } from '../karma/Intention';
 import { KarmicResult } from '../karma/KarmicResult';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
-import { Intensity, KarmaQuality, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, BeingData, PathData, MindData, NidanaChainData, KarmaData } from '../utils/types';
+import { Intensity, KarmaQuality, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, SenseBase, BeingData, PathData, MindData, NidanaChainData, KarmaData } from '../utils/types';
 
 /**
  * Result of meditation practice
@@ -390,6 +390,86 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
       mind,
       dependentOrigination,
     };
+  }
+
+  /**
+   * Restore a Being from serialized data
+   */
+  static fromJSON(data: BeingData): Being {
+    const being = new Being();
+
+    // Restore mindfulness
+    being._mindfulnessLevel = data.mindfulnessLevel;
+
+    // Restore path factor development levels
+    const factorMap = new Map(being.path.getAllFactors().map(f => [f.name, f]));
+    for (const fd of data.path.factors) {
+      const factor = factorMap.get(fd.name);
+      if (factor) {
+        factor.reset();
+        if (fd.hasArisen || fd.isActive) {
+          factor.activate();
+        }
+        // Direct assignment to protected fields for deserialization
+        (factor as any)._developmentLevel = fd.developmentLevel;
+        (factor as any)._hasArisen = fd.hasArisen;
+        (factor as any)._hasCeased = fd.hasCeased;
+      }
+    }
+
+    // Restore mind factors
+    for (const mf of data.mind.factors) {
+      const factor = being.mind.getFactor(mf.key);
+      if (factor) {
+        if (mf.isActive) {
+          factor.activate(mf.intensity);
+        } else {
+          factor.deactivate();
+        }
+      }
+    }
+    being.mind.setClarity(data.mind.clarity);
+    being.mind.setStability(data.mind.stability);
+
+    // Restore dependent origination
+    const links = being.dependentOrigination.links;
+    for (const ld of data.dependentOrigination.links) {
+      const link = links[ld.position - 1];
+      if (link) {
+        (link as any).restoreLink();
+        if (ld.hasArisen) (link as any)._hasArisen = true;
+        if (ld.hasCeased) (link as any)._hasCeased = true;
+        if (ld.isBroken) (link as any)._isBroken = true;
+      }
+    }
+
+    // Restore karmic stream
+    being.karmicStream = data.karmicStream.map(kd => {
+      const intention = new Intention(
+        kd.description,
+        kd.intensity,
+        kd.root === 'neutral' ? undefined : kd.root as UnwholesomeRoot | WholesomeRoot
+      );
+      const karma = new Karma(intention, kd.intensity);
+      if (kd.isCompleted) karma.complete();
+      if (kd.hasManifested) karma.manifest();
+      return karma;
+    });
+
+    // Restore experience history
+    being.experienceHistory = data.experienceHistory.map(e => ({
+      input: {
+        senseBase: e.input.senseBase as SenseBase,
+        object: e.input.object,
+        intensity: e.input.intensity,
+      },
+      label: e.label,
+      feelingTone: e.feelingTone,
+      reactions: [...e.reactions],
+      timestamp: e.timestamp,
+    }));
+
+    return being;
   }
 
   /**

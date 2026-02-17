@@ -84,6 +84,7 @@ export interface KarmicSeed {
 /** Conditions required for a seed to ripen */
 export interface RipeningCondition {
   type: 'time' | 'state' | 'trigger' | 'random' | 'accumulation';
+  name?: string;
   description: string;
   check: () => boolean;
   weight: number;  // How important this condition is (0-1)
@@ -211,6 +212,7 @@ export class KarmicStore {
   private ripeningTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private checkInterval: ReturnType<typeof setInterval> | null = null;
   private config: Required<KarmicStoreConfig>;
+  private conditionRegistry: Map<string, () => boolean> = new Map();
 
   constructor(config: KarmicStoreConfig = {}) {
     this.config = {
@@ -884,6 +886,18 @@ export class KarmicStore {
    */
   setTimeScale(scale: number): void {
     this.config.timeScale = Math.max(0.1, scale);
+  }
+
+  // ===========================================================================
+  // CONDITION REGISTRY
+  // ===========================================================================
+
+  registerCondition(name: string, check: () => boolean): void {
+    this.conditionRegistry.set(name, check);
+  }
+
+  getCondition(name: string): (() => boolean) | undefined {
+    return this.conditionRegistry.get(name);
   }
 }
 

@@ -721,6 +721,49 @@ session.mindfulMoments;     // Total check-in count
 
 ---
 
+## CLI
+
+Buddha.js includes a command-line interface for exploring Buddhist concepts from the terminal.
+
+### Installation
+
+```bash
+# Run directly
+npx buddha-js meditate
+
+# Or install globally
+npm install -g buddha-js
+buddha meditate
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `buddha meditate [--interval N]` | Timed meditation session with mindful check-ins |
+| `buddha sit` | Guided cessation through the Poison Arrow method |
+| `buddha koan [--id ID]` | Contemplate a Zen koan |
+| `buddha inquiry` | Investigate the nature of self |
+| `buddha diagnose` | Diagnose suffering using the Four Noble Truths |
+| `buddha karma` | Explore intentional action and karmic results |
+| `buddha chain` | Display the 12 links of dependent origination |
+| `buddha status` | Show the current state of a being |
+
+### Examples
+
+```bash
+# Start a 5-minute meditation with check-ins every 30 seconds
+buddha meditate --interval 30
+
+# Work through suffering with the Poison Arrow method
+buddha sit
+
+# Contemplate a specific koan
+buddha koan --id mu
+```
+
+---
+
 ## Being (Simulation)
 
 The `Being` class integrates all concepts to simulate a sentient being:
@@ -873,6 +916,7 @@ The library is organized into modules reflecting core Buddhist concepts:
 - **`src/emptiness/`**: Tools for analyzing emptiness (`Sunyata`).
 - **`src/koan/`**: Zen koan presentation and contemplation (`KoanGenerator`).
 - **`src/meditation/`**: Real-time meditation session tracking (`MeditationTimer`).
+- **`src/cli/`**: Command-line interface (`buddha` CLI with 8 commands).
 - **`src/simulation/`**: The `Being` class that integrates all modules.
 - **`src/utils/`**: Shared type definitions and helper functions.
 

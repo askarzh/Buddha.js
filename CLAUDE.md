@@ -12,6 +12,8 @@ npm run build         # Build for distribution (CJS + ESM + types)
 npm run dev           # Build in watch mode
 npm run test:coverage # Run tests with coverage report
 npm run lint          # ESLint (note: no .eslintrc config yet)
+npm run build:cli     # Build CLI to dist/cli.mjs
+node dist/cli.mjs     # Run CLI (or: buddha <command> if installed globally)
 
 # Run a single test file
 npx vitest run tests/core/Phenomenon.test.ts
@@ -47,6 +49,7 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `mind/` | `MentalFactor`, `Mind`, `Citta` | Mental factors, states, and Abhidhamma consciousness model |
 | `koan/` | `KoanGenerator` | Zen koan presentation and dualistic thinking detection |
 | `meditation/` | `MeditationTimer` | Real-time meditation session tracking with injectable clock |
+| `cli/` | `buddha` CLI | Terminal interface for all library features (8 commands) |
 | `simulation/` | `Being` | Integration class combining all concepts |
 | `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |
 

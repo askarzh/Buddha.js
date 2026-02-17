@@ -619,6 +619,38 @@ console.log(classification.root);    // ahetuka | lobha | dosa | moha | alobha |
 
 ---
 
+## Poison Arrow (Quick Cessation)
+
+Based on the Cula-Malunkyovada Sutta (MN 63): a man struck by a poisoned arrow should remove it immediately rather than asking who shot it. The `PoisonArrow` class (aliased as `QuickCessation`) provides a simplified 4-step cessation path — one step per Noble Truth — without requiring configuration of nidanas, aggregates, or karma.
+
+```typescript
+import { PoisonArrow } from 'buddha-js';
+// or: import { QuickCessation } from 'buddha-js';
+
+const sim = new PoisonArrow('anxiety about the future');
+
+sim.step();
+// { stage: 'recognize', truth: 'dukkha',
+//   insight: 'This is suffering: "anxiety about the future"...',
+//   guidance: 'Sit with the experience. Name it...' }
+
+sim.step();
+// { stage: 'investigate', truth: 'samudaya', ... }
+
+sim.step();
+// { stage: 'release', truth: 'nirodha', ... }
+
+sim.step();
+// { stage: 'practice', truth: 'magga', ... }
+
+sim.isComplete(); // true — the arrow has been removed
+
+// Review the path
+console.log(sim.getSummary());
+```
+
+---
+
 ## Being (Simulation)
 
 The `Being` class integrates all concepts to simulate a sentient being:

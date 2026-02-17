@@ -723,7 +723,7 @@ session.mindfulMoments;     // Total check-in count
 
 ## CLI
 
-Buddha.js includes a command-line interface for exploring Buddhist concepts from the terminal.
+Buddha.js includes a command-line interface for exploring Buddhist concepts from the terminal, with persistence for saving and restoring being state between sessions.
 
 ### Installation
 
@@ -736,18 +736,65 @@ npm install -g buddha-js
 buddha meditate
 ```
 
+### Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output results as structured JSON (non-interactive mode) |
+| `--being <name>` | Named being profile to use (default: `"default"`) |
+| `--state-dir <path>` | State directory for persistence (default: `~/.buddha/`) |
+
+State directory priority: `--state-dir` flag > `BUDDHA_STATE_DIR` env var > `~/.buddha/`.
+
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `buddha meditate [--interval N]` | Timed meditation session with mindful check-ins |
-| `buddha sit` | Guided cessation through the Poison Arrow method |
+| `buddha meditate [--interval N] [--duration N]` | Timed meditation session with mindful check-ins |
+| `buddha sit [--situation TEXT]` | Guided cessation through the Poison Arrow method |
 | `buddha koan [--id ID]` | Contemplate a Zen koan |
 | `buddha inquiry` | Investigate the nature of self |
-| `buddha diagnose` | Diagnose suffering using the Four Noble Truths |
-| `buddha karma` | Explore intentional action and karmic results |
+| `buddha diagnose [--dukkha-types T] [--craving-types T]` | Diagnose suffering using the Four Noble Truths |
+| `buddha karma [--quality Q] [--description D] [--intensity N] [--root R]` | Explore intentional action and karmic results |
 | `buddha chain` | Display the 12 links of dependent origination |
 | `buddha status` | Show the current state of a being |
+| `buddha beings` | List saved beings |
+| `buddha beings delete <name>` | Delete a saved being |
+| `buddha reset` | Reset the current being to a fresh state |
+
+### Persistence
+
+Being-based commands (`inquiry`, `status`, `karma`) automatically save and restore state between sessions. Each named being is stored as a JSON file in the state directory.
+
+```bash
+# Actions accumulate across sessions
+buddha karma --json --quality wholesome --description "Practiced generosity" --intensity 7
+buddha status --json    # Shows the karma from above
+
+# Work with multiple named beings
+buddha karma --being monk --quality wholesome --description "Morning meditation"
+buddha status --being monk
+
+# Manage beings
+buddha beings           # List all saved beings
+buddha beings delete monk
+buddha reset            # Reset current being to fresh state
+```
+
+### JSON Output
+
+All commands support `--json` for machine-readable output. Interactive prompts are replaced with command-line flags in JSON mode.
+
+```bash
+buddha status --json
+# { "command": "status", "being": "default", "result": { ... }, "state": { ... } }
+
+buddha koan --json
+# { "command": "koan", "result": { "id": "mu", "title": "...", "case": "..." } }
+
+buddha sit --json --situation "anxiety about the future"
+# { "command": "sit", "result": { "steps": [...], "summary": "..." } }
+```
 
 ### Examples
 
@@ -760,7 +807,46 @@ buddha sit
 
 # Contemplate a specific koan
 buddha koan --id mu
+
+# Diagnose suffering (non-interactive)
+buddha diagnose --json --dukkha-types "dukkha-dukkha,sankhara-dukkha" --craving-types "sensory"
 ```
+
+---
+
+## Claude Code Plugin
+
+Buddha.js ships as a [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-code/plugins) with auto-activating skills. When installed, Claude Code can invoke Buddhist philosophy tools based on conversational context.
+
+### Installation
+
+```bash
+# From the project directory
+claude plugin add ./plugin
+```
+
+### Available Skills
+
+Skills auto-activate based on context — no slash commands needed:
+
+| Skill | Triggers when... |
+|-------|-------------------|
+| `buddha-status` | User asks about their being's current state |
+| `buddha-inquiry` | User wants to investigate the nature of self |
+| `buddha-karma` | User explores intentional action or karmic results |
+| `buddha-diagnose` | User wants to diagnose suffering |
+| `buddha-sit` | User needs guided cessation for a specific problem |
+| `buddha-koan` | User wants to contemplate a Zen koan |
+| `buddha-chain` | User asks about dependent origination |
+| `buddha-meditate` | User wants to start a meditation session |
+
+### Discovery Command
+
+Use `/buddha` to see all available commands and get started.
+
+### How It Works
+
+Each skill calls `buddha <cmd> --json` under the hood and presents results conversationally. The plugin uses the CLI as its single source of truth — no separate logic layer.
 
 ---
 
@@ -894,11 +980,13 @@ See the [examples/](examples/) directory for interactive demonstrations:
 
 ## Design Documents
 
-The [docs/](docs/) directory contains conceptual analyses:
+The [docs/](docs/) directory contains conceptual analyses and guides:
 
 - **[typed-dependency-graph.md](docs/typed-dependency-graph.md)** - Modeling the 12 nidanas as a compile-time typed dependency graph
 - **[momentariness-reactive-programming.md](docs/momentariness-reactive-programming.md)** - Buddhist momentariness (kshanikavada) compared to RxJS/reactive programming
 - **[vipassana-object-observation.md](docs/vipassana-object-observation.md)** - Vipassana meditation as non-reactive object state observation
+- **[metaphor-guide.md](docs/metaphor-guide.md)** - Key Buddhist metaphors (the Raft, the Finger, the House on Fire) and how they map to code
+- **[interactive-tutorial.md](docs/interactive-tutorial.md)** - Step-by-step tutorial building a "Mind" from scratch
 
 ---
 
@@ -916,9 +1004,10 @@ The library is organized into modules reflecting core Buddhist concepts:
 - **`src/emptiness/`**: Tools for analyzing emptiness (`Sunyata`).
 - **`src/koan/`**: Zen koan presentation and contemplation (`KoanGenerator`).
 - **`src/meditation/`**: Real-time meditation session tracking (`MeditationTimer`).
-- **`src/cli/`**: Command-line interface (`buddha` CLI with 8 commands).
+- **`src/cli/`**: Command-line interface (`buddha` CLI with 10 commands, persistence via `StateManager`).
 - **`src/simulation/`**: The `Being` class that integrates all modules.
 - **`src/utils/`**: Shared type definitions and helper functions.
+- **`plugin/`**: Claude Code plugin (8 auto-activating skills, `/buddha` command).
 
 ---
 

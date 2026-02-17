@@ -293,6 +293,20 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
   }
 
   /**
+   * @internal Used by BeingSerializer for deserialization.
+   * Not part of the public API.
+   */
+  _restoreState(state: {
+    mindfulnessLevel: Intensity;
+    karmicStream: Karma[];
+    experienceHistory: ProcessedExperience[];
+  }): void {
+    this._mindfulnessLevel = state.mindfulnessLevel;
+    this.karmicStream = state.karmicStream;
+    this.experienceHistory = state.experienceHistory;
+  }
+
+  /**
    * Serialize this being to a plain JSON-compatible object
    */
   toJSON(): BeingData {

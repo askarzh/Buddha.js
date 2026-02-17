@@ -9,6 +9,7 @@ import { Dukkha } from '../four-noble-truths/Dukkha';
 import { Samudaya } from '../four-noble-truths/Samudaya';
 import { Nirodha } from '../four-noble-truths/Nirodha';
 import { Magga } from '../four-noble-truths/Magga';
+import { TwoArrows } from '../four-noble-truths/TwoArrows';
 
 import { Avidya } from '../dependent-origination/links/Avidya';
 import { Samskara } from '../dependent-origination/links/Samskara';
@@ -24,6 +25,7 @@ export const Dissatisfaction = Dukkha;
 export const OriginOfSuffering = Samudaya;
 export const CessationOfSuffering = Nirodha;
 export const PathToCessation = Magga;
+export const EightyFourthProblem = TwoArrows;
 
 // Dependent Origination Aliases (Key Links)
 export const Confusion = Avidya;     // Ignorance

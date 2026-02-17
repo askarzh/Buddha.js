@@ -14,7 +14,7 @@
  * "The seeds we plant today become the fruits we harvest tomorrow."
  */
 
-import { generateId, KarmaQuality, FeelingTone, Intensity, UnwholesomeRoot, WholesomeRoot } from '../utils/types';
+import { generateId, KarmaQuality, FeelingTone, Intensity, UnwholesomeRoot, WholesomeRoot, KarmicSeedData, KarmicStoreData } from '../utils/types';
 
 // =============================================================================
 // TYPES AND INTERFACES
@@ -886,6 +886,45 @@ export class KarmicStore {
    */
   setTimeScale(scale: number): void {
     this.config.timeScale = Math.max(0.1, scale);
+  }
+
+  // ===========================================================================
+  // SERIALIZATION
+  // ===========================================================================
+
+  toJSON(): KarmicStoreData {
+    const seeds: KarmicSeedData[] = Array.from(this.seeds.values()).map(seed => ({
+      id: seed.id,
+      createdAt: seed.createdAt,
+      type: seed.type,
+      quality: seed.quality,
+      description: seed.description,
+      intentionStrength: seed.intentionStrength,
+      root: seed.root,
+      potency: seed.potency,
+      originalPotency: seed.originalPotency,
+      strength: seed.strength,
+      ripeningTiming: seed.ripeningTiming,
+      minDelay: seed.minDelay,
+      maxDelay: seed.maxDelay,
+      ripeningConditions: seed.ripeningConditions.map(c => ({
+        type: c.type,
+        ...(c.name ? { name: c.name } : {}),
+        description: c.description,
+        weight: c.weight,
+      })),
+      state: seed.state,
+      ripeningProgress: seed.ripeningProgress,
+      timesRipened: seed.timesRipened,
+      maxRipenings: seed.maxRipenings,
+      tags: [...seed.tags],
+      ...(seed.collectiveId ? { collectiveId: seed.collectiveId } : {}),
+    }));
+
+    return {
+      seeds,
+      config: { ...this.config },
+    };
   }
 
   // ===========================================================================

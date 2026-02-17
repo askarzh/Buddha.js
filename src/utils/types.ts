@@ -101,3 +101,136 @@ export function generateId(): string {
   return Math.random().toString(36).substring(2, 15) +
          Math.random().toString(36).substring(2, 15);
 }
+
+// =============================================================================
+// PERSISTENCE TYPES
+// =============================================================================
+
+/** Interface for classes that can serialize to/from JSON */
+export interface Serializable<TData> {
+  toJSON(): TData;
+}
+
+/** Serialized ripening condition (without check function) */
+export interface RipeningConditionData {
+  type: 'time' | 'state' | 'trigger' | 'random' | 'accumulation';
+  name?: string;
+  description: string;
+  weight: number;
+}
+
+/** Serialized karmic seed */
+export interface KarmicSeedData {
+  id: string;
+  createdAt: number;
+  type: 'bodily' | 'verbal' | 'mental';
+  quality: KarmaQuality;
+  description: string;
+  intentionStrength: Intensity;
+  root: UnwholesomeRoot | WholesomeRoot | 'neutral';
+  potency: number;
+  originalPotency: number;
+  strength: 'weak' | 'moderate' | 'strong' | 'weighty';
+  ripeningTiming: 'immediate' | 'deferred' | 'next-life' | 'distant-future';
+  minDelay: number;
+  maxDelay: number;
+  ripeningConditions: RipeningConditionData[];
+  state: 'dormant' | 'active' | 'ripening' | 'ripened' | 'exhausted' | 'purified';
+  ripeningProgress: number;
+  timesRipened: number;
+  maxRipenings: number;
+  tags: string[];
+  collectiveId?: string;
+}
+
+/** Serialized KarmicStore */
+export interface KarmicStoreData {
+  seeds: KarmicSeedData[];
+  config: {
+    maxSeeds: number;
+    defaultMinDelay: number;
+    defaultMaxDelay: number;
+    ripeningCheckInterval: number;
+    enableAutoRipening: boolean;
+    timeScale: number;
+  };
+}
+
+/** Serialized path factor state */
+export interface PathFactorData {
+  name: string;
+  developmentLevel: Intensity;
+  isActive: boolean;
+  hasArisen: boolean;
+  hasCeased: boolean;
+}
+
+/** Serialized eightfold path */
+export interface PathData {
+  factors: PathFactorData[];
+}
+
+/** Serialized mental factor */
+export interface MentalFactorData {
+  key: string;
+  name: string;
+  sanskritName: string;
+  quality: MentalFactorQuality;
+  intensity: Intensity;
+  isActive: boolean;
+}
+
+/** Serialized mind state */
+export interface MindData {
+  factors: MentalFactorData[];
+  clarity: Intensity;
+  stability: Intensity;
+}
+
+/** Serialized nidana link */
+export interface NidanaLinkData {
+  position: number;
+  name: string;
+  hasArisen: boolean;
+  hasCeased: boolean;
+  isBroken: boolean;
+}
+
+/** Serialized dependent origination chain */
+export interface NidanaChainData {
+  links: NidanaLinkData[];
+}
+
+/** Serialized karma */
+export interface KarmaData {
+  id: string;
+  description: string;
+  quality: KarmaQuality;
+  intensity: Intensity;
+  root: UnwholesomeRoot | WholesomeRoot | 'neutral';
+  isCompleted: boolean;
+  hasManifested: boolean;
+}
+
+/** Serialized Being */
+export interface BeingData {
+  mindfulnessLevel: Intensity;
+  karmicStream: KarmaData[];
+  experienceHistory: Array<{
+    input: { senseBase: string; object: unknown; intensity: number };
+    label: string;
+    feelingTone: FeelingTone;
+    reactions: string[];
+    timestamp: number;
+  }>;
+  aggregates: {
+    form: { vitality: Intensity; health: string; energy: Intensity };
+    feeling: { currentTone: FeelingTone; previousTones: FeelingTone[]; intensity: Intensity };
+    perception: { labels: string[]; currentLabel: string | null };
+    mentalFormations: { dominantQuality: KarmaQuality; reactions: string[] };
+    consciousness: { clarity: Intensity; objects: string[] };
+  };
+  path: PathData;
+  mind: MindData;
+  dependentOrigination: NidanaChainData;
+}

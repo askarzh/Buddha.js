@@ -1,12 +1,67 @@
+import { Command } from 'commander';
 import { input, select } from '@inquirer/prompts';
 import { Being } from '../../simulation/Being';
 import { KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot } from '../../utils/types';
+import { GlobalOpts, getStateManager } from '../utils/state';
 import { header, label, insight, subtle, divider, success } from '../utils/format';
 import chalk from 'chalk';
 
-export async function karma(): Promise<void> {
-  const being = new Being();
+interface KarmaLocalOpts {
+  quality?: string;
+  description?: string;
+  intensity?: string;
+  root?: string;
+}
 
+export async function karma(localOpts: KarmaLocalOpts, cmd: Command): Promise<void> {
+  const globalOpts = cmd.optsWithGlobals() as GlobalOpts;
+  const mgr = getStateManager(globalOpts);
+  const being = mgr.loadBeing(globalOpts.being);
+
+  if (globalOpts.json) {
+    await jsonMode(being, localOpts, globalOpts, mgr);
+    return;
+  }
+
+  await interactiveMode(being);
+  mgr.saveBeing(globalOpts.being, being);
+}
+
+async function jsonMode(
+  being: Being,
+  localOpts: KarmaLocalOpts,
+  globalOpts: GlobalOpts,
+  mgr: ReturnType<typeof getStateManager>,
+): Promise<void> {
+  if (localOpts.quality && localOpts.description && localOpts.intensity && localOpts.root) {
+    const quality = localOpts.quality as KarmaQuality;
+    const intensity = Number(localOpts.intensity) as Intensity;
+    const root = localOpts.root as WholesomeRoot | UnwholesomeRoot;
+
+    being.act(localOpts.description, quality, intensity, root);
+    mgr.saveBeing(globalOpts.being, being);
+  }
+
+  const stream = being.getKarmicStream();
+  const state = being.getState();
+
+  console.log(JSON.stringify({
+    command: 'karma',
+    being: globalOpts.being,
+    result: {
+      karmicStream: stream.map(k => ({
+        quality: k.quality,
+        intensity: k.intensity,
+        description: k.intention.description,
+        status: k.isPotential() ? 'potential' : 'manifested',
+      })),
+      totalActions: stream.length,
+    },
+    state: { mindfulness: state.mindfulnessLevel, karmicActions: state.pendingKarma },
+  }, null, 2));
+}
+
+async function interactiveMode(being: Being): Promise<void> {
   console.log(header('Karma — Intentional Action'));
   console.log('Every action plants a seed. What will you cultivate?\n');
 

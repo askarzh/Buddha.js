@@ -1,8 +1,23 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { Command } from 'commander';
 import { Being } from '../../simulation/Being';
 import { BeingData } from '../../utils/types';
+
+export interface GlobalOpts {
+  json?: boolean;
+  being: string;
+  stateDir?: string;
+}
+
+export function getGlobalOpts(cmd: Command): GlobalOpts {
+  return cmd.optsWithGlobals() as GlobalOpts;
+}
+
+export function getStateManager(opts: GlobalOpts): StateManager {
+  return new StateManager(resolveStateDir(opts.stateDir));
+}
 
 export class StateManager {
   private readonly beingsDir: string;

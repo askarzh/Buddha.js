@@ -1,9 +1,35 @@
-import { Being } from '../../simulation/Being';
+import { Command } from 'commander';
+import { getGlobalOpts, getStateManager } from '../utils/state';
 import { header, label, insight, divider } from '../utils/format';
 
-export function inquiry(): void {
-  const being = new Being();
+export function inquiry(_localOpts: Record<string, never>, cmd: Command): void {
+  const opts = getGlobalOpts(cmd);
+  const mgr = getStateManager(opts);
+  const being = mgr.loadBeing(opts.being);
+
   const result = being.investigateSelf();
+  mgr.saveBeing(opts.being, being);
+
+  if (opts.json) {
+    console.log(JSON.stringify({
+      command: 'inquiry',
+      being: opts.being,
+      result: {
+        selfFound: result.aggregateSearch.selfFound,
+        aggregatesExamined: result.aggregateSearch.aggregatesExamined.map(a => a.aggregate),
+        conclusion: result.aggregateSearch.conclusion,
+        dependentOriginationInsight: result.dependentOriginationInsight,
+        emptinessInsight: result.emptinessInsight ? {
+          phenomenon: result.emptinessInsight.phenomenon,
+          hasInherentExistence: result.emptinessInsight.hasInherentExistence,
+          dependsOn: result.emptinessInsight.dependsOn,
+        } : null,
+        overallConclusion: result.conclusion,
+      },
+      state: { mindfulness: being.getState().mindfulnessLevel, karmicActions: being.getState().pendingKarma },
+    }, null, 2));
+    return;
+  }
 
   console.log(header('Self Investigation'));
 

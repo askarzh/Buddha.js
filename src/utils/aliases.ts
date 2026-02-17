@@ -19,6 +19,7 @@ import { Upadana } from '../dependent-origination/links/Upadana';
 
 import { PoisonArrow } from '../simulation/PoisonArrow';
 import { MeditationTimer } from '../meditation/MeditationTimer';
+import { KoanGenerator } from '../koan/KoanGenerator';
 import { Sunyata } from '../emptiness/Sunyata';
 import { ImpermanenceInsight, NotSelfInsight, UnsatisfactorinessInsight } from '../core/ThreeMarks';
 
@@ -41,6 +42,9 @@ export const Clinging = Upadana;     // Grasping
 
 // Meditation
 export const SittingTimer = MeditationTimer;
+
+// Koan
+export const Riddle = KoanGenerator;
 
 // Emptiness
 export const Emptiness = Sunyata;

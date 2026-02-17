@@ -45,6 +45,7 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `karma/` | `Intention`, `Karma`, `KarmicResult`, `KarmicStore`, `KarmicEventSystem` | Intentional action, results, seeds, ripening, and event-driven karma system |
 | `emptiness/` | `Sunyata`, `ThreeNatures` | Emptiness analysis |
 | `mind/` | `MentalFactor`, `Mind`, `Citta` | Mental factors, states, and Abhidhamma consciousness model |
+| `koan/` | `KoanGenerator` | Zen koan presentation and dualistic thinking detection |
 | `meditation/` | `MeditationTimer` | Real-time meditation session tracking with injectable clock |
 | `simulation/` | `Being` | Integration class combining all concepts |
 | `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |

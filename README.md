@@ -651,6 +651,41 @@ console.log(sim.getSummary());
 
 ---
 
+## Koan Generator
+
+In Zen tradition, a koan is a verbal device used to exhaust the discriminating mind — not a riddle with an answer, but a tool to push beyond conceptual thought. The `KoanGenerator` (aliased as `Riddle`) ships with 8 classic koans and evaluates contemplation responses for dualistic thinking traps.
+
+```typescript
+import { KoanGenerator } from 'buddha-js';
+// or: import { Riddle } from 'buddha-js';
+
+const generator = new KoanGenerator();
+
+// Present a random koan
+const koan = generator.present();
+console.log(koan.title); // e.g. "Zhaozhou's Dog"
+console.log(koan.case);  // The koan dialogue
+
+// Contemplate with a response
+const result = generator.contemplate(koan.id, 'Yes');
+
+result.trapsDetected;  // ['binary'] — caught in yes/no thinking
+result.isNonDual;      // false
+result.reflection;     // 'You reach for yes or no, but the koan lives...'
+
+// A non-dual response
+const quiet = generator.contemplate(koan.id, '🙏');
+quiet.isNonDual;       // true
+quiet.reflection;      // 'The mind is quiet. What remains?'
+
+// Browse all koans
+generator.getCollection(); // 8 classic koans
+```
+
+**Dualism traps detected:** `binary` (yes/no), `intellectual` (over-analysis), `seeking` (looking for "the answer"), `nihilistic` ("nothing matters"), `grasping` (definitive claims).
+
+---
+
 ## Meditation Timer
 
 Track real-time meditation sessions by recording "mindful moments" (check-ins) versus periods of distraction. Based on the practice of *sati* (mindfulness): quality is measured not by absence of distraction, but by how quickly one recognizes distraction and returns to presence.
@@ -836,6 +871,7 @@ The library is organized into modules reflecting core Buddhist concepts:
 - **`src/karma/`**: Karma generation, results, and the event-driven store.
 - **`src/mind/`**: Consciousness models (`Mind`, `Citta`) and mental factors.
 - **`src/emptiness/`**: Tools for analyzing emptiness (`Sunyata`).
+- **`src/koan/`**: Zen koan presentation and contemplation (`KoanGenerator`).
 - **`src/meditation/`**: Real-time meditation session tracking (`MeditationTimer`).
 - **`src/simulation/`**: The `Being` class that integrates all modules.
 - **`src/utils/`**: Shared type definitions and helper functions.

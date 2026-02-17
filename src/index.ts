@@ -47,6 +47,9 @@ export type {
   CittaClassification
 } from './mind';
 
+// Koan
+export * from './koan';
+
 // Meditation
 export * from './meditation';
 

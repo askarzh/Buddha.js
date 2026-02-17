@@ -72,6 +72,59 @@ export interface CessationStep {
   guidance: string;
 }
 
+// =============================================================================
+// MEDITATION TIMER TYPES
+// =============================================================================
+
+/** Injectable clock interface for MeditationTimer */
+export interface Clock {
+  /** Returns current time in milliseconds since epoch */
+  now(): number;
+}
+
+/** Options for creating a MeditationTimer */
+export interface MeditationTimerOptions {
+  /** Duration of the session in seconds */
+  duration: number;
+  /** Optional: seconds between interval bells */
+  intervalBell?: number;
+  /** Optional: callback when interval bell fires */
+  onBell?: () => void;
+  /** Optional: injectable clock (default: Date.now) */
+  clock?: Clock;
+}
+
+/** A period of distraction (gap between check-ins) */
+export interface DistractionPeriod {
+  /** Seconds from session start when distraction began */
+  start: number;
+  /** Seconds from session start when distraction ended */
+  end: number;
+  /** Duration of distraction in seconds */
+  duration: number;
+}
+
+/** Quality of meditation session */
+export type MeditationQuality = 'scattered' | 'intermittent' | 'sustained' | 'absorbed';
+
+/** Result of a completed meditation session */
+export interface MeditationSession {
+  /** Actual duration of the session in seconds */
+  duration: number;
+  /** Timestamps of each check-in (seconds from start) */
+  checkIns: number[];
+  /** Number of mindful moments (check-ins) */
+  mindfulMoments: number;
+  /** Gaps between check-ins exceeding the threshold */
+  distractionPeriods: DistractionPeriod[];
+  /** Longest gap without checking in (seconds) */
+  longestDistraction: number;
+  /** Ratio of mindful check-ins to expected intervals (0-1) */
+  mindfulnessRatio: number;
+  /** Qualitative assessment of the session */
+  quality: MeditationQuality;
+}
+
 /** Aggregate category */
 export type AggregateCategory = 'material' | 'mental';
 

@@ -39,6 +39,24 @@ export type DukkhaType =
   | 'viparinama-dukkha'  // Pain of change (impermanence)
   | 'sankhara-dukkha';   // Pain of conditioned existence
 
+/** Input for two-arrows analysis */
+export interface ArrowInput {
+  /** The raw, unavoidable painful experience (first arrow) */
+  pain: string;
+  /** Mental reactions layered on top: resistance, craving, aversion (second arrow) */
+  mentalReactions: string[];
+}
+
+/** Result of two-arrows analysis */
+export interface ArrowAnalysis {
+  firstArrow: { description: string; isUnavoidable: true };
+  secondArrow: { reactions: string[]; count: number; isOptional: true };
+  totalArrows: 'one' | 'two';
+  /** True when a second arrow is present — this IS the 84th problem */
+  isEightyFourthProblem: boolean;
+  insight: string;
+}
+
 /** Aggregate category */
 export type AggregateCategory = 'material' | 'mental';
 

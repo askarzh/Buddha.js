@@ -65,6 +65,12 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 
 5. **Persistence**: `Being` and `KarmicStore` implement `Serializable<T>` with `toJSON()`/`fromJSON()`. Function callbacks (ripening conditions) use a named condition registry — serialize the name, re-register the function after restore, call `rebindConditions()`. Data shape types are in `src/utils/types.ts`.
 
+6. **Mind factor count**: `Mind` has 12 pre-configured factors (5 variable, 3 unwholesome, 4 wholesome). `Citta` has the full 52-factor Abhidhamma model.
+
+### CLI
+
+Built with Commander.js, @inquirer/prompts, and chalk v5. Separate build config in `tsup.cli.ts` (tsup doesn't support `--banner`/`--outExtension` as CLI flags). Output uses `.mjs` extension since project lacks `"type": "module"`.
+
 ### TypeScript Configuration
 
 Strict mode is enabled with `noUnusedLocals` and `noUnusedParameters`. Prefix unused parameters with underscore (`_param`).
@@ -76,6 +82,8 @@ The `docs/` directory contains design documents exploring Buddhist-programming p
 - **[typed-dependency-graph.md](docs/typed-dependency-graph.md)** — Modeling the 12 nidanas as a compile-time typed graph
 - **[momentariness-reactive-programming.md](docs/momentariness-reactive-programming.md)** — Kṣaṇikavāda and RxJS comparison
 - **[vipassana-object-observation.md](docs/vipassana-object-observation.md)** — Vipassanā as non-reactive state observation
+- **[metaphor-guide.md](docs/metaphor-guide.md)** — Raft, Finger, and Burning House metaphors mapped to library classes
+- **[interactive-tutorial.md](docs/interactive-tutorial.md)** — Step-by-step guide building a Mind from MentalFactor to Being.meditate()
 
 ## Examples
 

@@ -1,8 +1,15 @@
+import { Command } from 'commander';
 import { checkbox } from '@inquirer/prompts';
 import { EightfoldPath } from '../../eightfold-path/EightfoldPath';
 import { FourNobleTruths } from '../../four-noble-truths/FourNobleTruths';
 import { DukkhaType, CravingType } from '../../utils/types';
+import { getGlobalOpts } from '../utils/state';
 import { header, label, insight, divider } from '../utils/format';
+
+interface DiagnoseLocalOpts {
+  dukkhaTypes?: string;
+  cravingTypes?: string;
+}
 
 const SUFFERING_CHOICES = [
   { name: 'Obvious suffering (pain, illness, loss)', value: 'dukkha-dukkha' as DukkhaType },
@@ -16,7 +23,33 @@ const CRAVING_CHOICES = [
   { name: 'Craving for non-existence', value: 'non-becoming' as CravingType },
 ];
 
-export async function diagnose(): Promise<void> {
+export async function diagnose(localOpts: DiagnoseLocalOpts, cmd: Command): Promise<void> {
+  const globalOpts = getGlobalOpts(cmd);
+
+  if (globalOpts.json) {
+    const suffering = localOpts.dukkhaTypes
+      ? localOpts.dukkhaTypes.split(',') as DukkhaType[]
+      : ['dukkha-dukkha' as DukkhaType];
+    const cravings = localOpts.cravingTypes
+      ? localOpts.cravingTypes.split(',') as CravingType[]
+      : ['sensory' as CravingType];
+
+    const path = new EightfoldPath();
+    const truths = new FourNobleTruths(path);
+    const diagnosis = truths.diagnose({ suffering, cravings });
+
+    console.log(JSON.stringify({
+      command: 'diagnose',
+      result: {
+        suffering: diagnosis.suffering,
+        cause: diagnosis.cause,
+        cessation: diagnosis.cessationPossible,
+        path: diagnosis.path,
+      },
+    }, null, 2));
+    return;
+  }
+
   console.log(header('Four Noble Truths — Diagnosis'));
 
   const suffering = await checkbox<DukkhaType>({

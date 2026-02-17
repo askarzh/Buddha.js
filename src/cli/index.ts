@@ -36,6 +36,7 @@ program
 program
   .command('sit')
   .description('Guided cessation through the Poison Arrow method')
+  .option('--situation <text>', 'Describe the suffering (for --json)')
   .action(sit);
 
 program
@@ -47,6 +48,8 @@ program
 program
   .command('diagnose')
   .description('Diagnose suffering using the Four Noble Truths')
+  .option('--dukkha-types <types>', 'Comma-separated: dukkha-dukkha,viparinama-dukkha,sankhara-dukkha (for --json)')
+  .option('--craving-types <types>', 'Comma-separated: sensory,becoming,non-becoming (for --json)')
   .action(diagnose);
 
 program
@@ -62,6 +65,7 @@ program
   .command('meditate')
   .description('Start a meditation session with mindful check-ins')
   .option('--interval <seconds>', 'Seconds between interval bells', '60')
+  .option('--duration <minutes>', 'Duration in minutes (for --json, runs silently)')
   .action(meditate);
 
 program.parse();

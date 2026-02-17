@@ -1,12 +1,33 @@
+import { Command } from 'commander';
 import * as readline from 'readline';
 import { MeditationTimer } from '../../meditation/MeditationTimer';
 import { MeditationQuality } from '../../utils/types';
+import { getGlobalOpts } from '../utils/state';
 import { header, label, insight, success, subtle, divider } from '../utils/format';
 import chalk from 'chalk';
 
-export async function meditate(options: { interval?: string }): Promise<void> {
+interface MeditateLocalOpts {
+  interval?: string;
+  duration?: string;
+}
+
+export async function meditate(localOpts: MeditateLocalOpts, cmd: Command): Promise<void> {
+  const globalOpts = getGlobalOpts(cmd);
+
+  if (globalOpts.json) {
+    const durationMinutes = localOpts.duration ? parseInt(localOpts.duration, 10) : 5;
+    console.log(JSON.stringify({
+      command: 'meditate',
+      result: {
+        durationMinutes,
+        message: `Meditation session: ${durationMinutes} minutes. Use interactive mode for real-time practice.`,
+      },
+    }, null, 2));
+    return;
+  }
+
   const duration = 5;
-  const intervalBell = options.interval ? parseInt(options.interval, 10) : 60;
+  const intervalBell = localOpts.interval ? parseInt(localOpts.interval, 10) : 60;
 
   console.log(header('Meditation Timer'));
   console.log(`Duration: ${duration} minutes`);

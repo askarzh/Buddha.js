@@ -17,6 +17,7 @@ import { Vijnana } from '../dependent-origination/links/Vijnana';
 import { Tanha } from '../dependent-origination/links/Tanha';
 import { Upadana } from '../dependent-origination/links/Upadana';
 
+import { PoisonArrow } from '../simulation/PoisonArrow';
 import { Sunyata } from '../emptiness/Sunyata';
 import { ImpermanenceInsight, NotSelfInsight, UnsatisfactorinessInsight } from '../core/ThreeMarks';
 
@@ -26,6 +27,9 @@ export const OriginOfSuffering = Samudaya;
 export const CessationOfSuffering = Nirodha;
 export const PathToCessation = Magga;
 export const EightyFourthProblem = TwoArrows;
+
+// Simulation Aliases
+export const QuickCessation = PoisonArrow;
 
 // Dependent Origination Aliases (Key Links)
 export const Confusion = Avidya;     // Ignorance

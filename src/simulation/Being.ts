@@ -15,7 +15,7 @@ import { Intention } from '../karma/Intention';
 import { KarmicResult } from '../karma/KarmicResult';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
-import { Intensity, KarmaQuality, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot } from '../utils/types';
+import { Intensity, KarmaQuality, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, BeingData, PathData, MindData, NidanaChainData, KarmaData } from '../utils/types';
 
 /**
  * Result of meditation practice
@@ -290,6 +290,106 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
    */
   getKarmicStream(): Karma[] {
     return [...this.karmicStream];
+  }
+
+  /**
+   * Serialize this being to a plain JSON-compatible object
+   */
+  toJSON(): BeingData {
+    const pathFactors = this.path.getAllFactors();
+    const path: PathData = {
+      factors: pathFactors.map(f => ({
+        name: f.name,
+        developmentLevel: f.developmentLevel,
+        isActive: f.isActive,
+        hasArisen: f.hasArisen,
+        hasCeased: f.hasCeased,
+      })),
+    };
+
+    const mindFactorKeys = [
+      'contact', 'feeling', 'perception', 'intention', 'attention',
+      'greed', 'aversion', 'delusion',
+      'mindfulness', 'equanimity', 'compassion', 'wisdom',
+    ];
+    const mindFactors: MindData['factors'] = [];
+    for (const key of mindFactorKeys) {
+      const factor = this.mind.getFactor(key);
+      if (factor) {
+        mindFactors.push({
+          key,
+          name: factor.name,
+          sanskritName: factor.sanskritName,
+          quality: factor.quality,
+          intensity: factor.intensity,
+          isActive: factor.isActive,
+        });
+      }
+    }
+    const mindState = this.mind.getState();
+    const mind: MindData = {
+      factors: mindFactors,
+      clarity: mindState.clarity,
+      stability: mindState.stability,
+    };
+
+    const chainState = this.dependentOrigination.getChainState();
+    const dependentOrigination: NidanaChainData = {
+      links: chainState.map(l => ({
+        position: l.position,
+        name: l.name,
+        hasArisen: l.hasArisen,
+        hasCeased: false,
+        isBroken: l.isBroken,
+      })),
+    };
+
+    const karmicStream: KarmaData[] = this.karmicStream.map(k => ({
+      id: k.id,
+      description: k.intention.description,
+      quality: k.quality,
+      intensity: k.intensity,
+      root: k.intention.root,
+      isCompleted: k.isCompleted,
+      hasManifested: k.hasManifested,
+    }));
+
+    const snapshot = this.aggregates.getSnapshot();
+
+    return {
+      mindfulnessLevel: this._mindfulnessLevel,
+      karmicStream,
+      experienceHistory: this.experienceHistory.map(e => ({
+        input: { senseBase: e.input.senseBase, object: e.input.object, intensity: e.input.intensity },
+        label: e.label,
+        feelingTone: e.feelingTone,
+        reactions: [...e.reactions],
+        timestamp: e.timestamp,
+      })),
+      aggregates: {
+        form: { ...snapshot.form } as Record<string, unknown>,
+        feeling: { ...snapshot.feeling } as Record<string, unknown>,
+        perception: { ...snapshot.perception } as Record<string, unknown>,
+        mentalFormations: {
+          dominantQuality: snapshot.mentalFormations.dominantQuality,
+          overallIntensity: snapshot.mentalFormations.overallIntensity,
+          activeFactors: snapshot.mentalFormations.activeFactors.map(f => ({
+            name: f.name,
+            quality: f.quality,
+            intensity: f.intensity,
+            active: f.active,
+          })),
+        } as Record<string, unknown>,
+        consciousness: {
+          activeTypes: Array.from(snapshot.consciousness.activeTypes),
+          primaryFocus: snapshot.consciousness.primaryFocus,
+          clarity: snapshot.consciousness.clarity,
+        } as Record<string, unknown>,
+      },
+      path,
+      mind,
+      dependentOrigination,
+    };
   }
 
   /**

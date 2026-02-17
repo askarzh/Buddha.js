@@ -224,11 +224,11 @@ export interface BeingData {
     timestamp: number;
   }>;
   aggregates: {
-    form: { vitality: Intensity; health: string; energy: Intensity };
-    feeling: { currentTone: FeelingTone; previousTones: FeelingTone[]; intensity: Intensity };
-    perception: { labels: string[]; currentLabel: string | null };
-    mentalFormations: { dominantQuality: KarmaQuality; reactions: string[] };
-    consciousness: { clarity: Intensity; objects: string[] };
+    form: Record<string, unknown>;
+    feeling: Record<string, unknown>;
+    perception: Record<string, unknown>;
+    mentalFormations: Record<string, unknown>;
+    consciousness: Record<string, unknown>;
   };
   path: PathData;
   mind: MindData;

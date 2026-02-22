@@ -1,5 +1,9 @@
 import { StateManager } from '../cli/utils/state';
 import { Being } from '../simulation/Being';
+import type {
+  SenseBase, Intensity, KarmaQuality,
+  UnwholesomeRoot, WholesomeRoot,
+} from '../utils/types';
 
 export function createBeing(sm: StateManager, name: string): string {
   const being = new Being();
@@ -19,4 +23,36 @@ export function deleteBeing(sm: StateManager, name: string): string {
 export function getStatus(sm: StateManager, name: string) {
   const being = sm.loadBeing(name);
   return { summary: being.getSummary(), state: being.getState() };
+}
+
+export function experienceSensory(
+  sm: StateManager,
+  name: string,
+  input: { senseBase: SenseBase; object: unknown; intensity: Intensity },
+) {
+  const being = sm.loadBeing(name);
+  const result = being.experience(input);
+  sm.saveBeing(name, being);
+  return result;
+}
+
+export function act(
+  sm: StateManager,
+  name: string,
+  description: string,
+  quality: KarmaQuality,
+  intensity: Intensity,
+  root?: UnwholesomeRoot | WholesomeRoot,
+) {
+  const being = sm.loadBeing(name);
+  const karma = being.act(description, quality, intensity, root);
+  sm.saveBeing(name, being);
+  return karma;
+}
+
+export function ripenKarma(sm: StateManager, name: string) {
+  const being = sm.loadBeing(name);
+  const results = being.receiveKarmicResults();
+  sm.saveBeing(name, being);
+  return results;
 }

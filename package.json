@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "build:cli": "tsup --config tsup.cli.ts",
+    "build:mcp": "tsup --config tsup.mcp.ts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "test": "vitest",
     "test:run": "vitest run",
@@ -41,7 +42,9 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^8.2.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "chalk": "^5.6.2",
-    "commander": "^14.0.3"
+    "commander": "^14.0.3",
+    "zod": "^4.3.6"
   }
 }

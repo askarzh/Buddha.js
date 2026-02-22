@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StateManager } from '../../src/cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma } from '../../src/mcp/handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain } from '../../src/mcp/handlers';
 
 describe('MCP handlers — being management', () => {
   let sm: StateManager;
@@ -83,5 +83,42 @@ describe('MCP handlers — stateful actions', () => {
     act(sm, 'actor', 'small kind act', 'wholesome', 3);
     const results = ripenKarma(sm, 'actor');
     expect(Array.isArray(results)).toBe(true);
+  });
+});
+
+describe('MCP handlers — contemplative tools', () => {
+  let sm: StateManager;
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'buddha-mcp-'));
+    sm = new StateManager(tempDir);
+    createBeing(sm, 'meditator');
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('meditate develops path factors and returns result', () => {
+    const result = meditate(sm, 'meditator', 300, 7);
+    expect(result).toHaveProperty('mindfulnessLevel');
+    expect(result).toHaveProperty('insight');
+  });
+
+  test('diagnose returns suffering analysis', () => {
+    const result = diagnose(sm, 'meditator', ['dukkha-dukkha'], ['sensory']);
+    expect(result).toBeDefined();
+  });
+
+  test('inquiry investigates self and returns result', () => {
+    const result = inquiry(sm, 'meditator');
+    expect(result).toHaveProperty('conclusion');
+  });
+
+  test('chain returns dependent origination visualization', () => {
+    const result = chain(sm, 'meditator');
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
   });
 });

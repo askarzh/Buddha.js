@@ -3,6 +3,7 @@ import { Being } from '../simulation/Being';
 import type {
   SenseBase, Intensity, KarmaQuality,
   UnwholesomeRoot, WholesomeRoot,
+  DukkhaType, CravingType,
 } from '../utils/types';
 
 export function createBeing(sm: StateManager, name: string): string {
@@ -55,4 +56,36 @@ export function ripenKarma(sm: StateManager, name: string) {
   const results = being.receiveKarmicResults();
   sm.saveBeing(name, being);
   return results;
+}
+
+export function meditate(
+  sm: StateManager,
+  name: string,
+  duration: number,
+  effort: Intensity,
+) {
+  const being = sm.loadBeing(name);
+  const result = being.meditate(duration, effort);
+  sm.saveBeing(name, being);
+  return result;
+}
+
+export function diagnose(
+  sm: StateManager,
+  name: string,
+  suffering: DukkhaType[],
+  cravings: CravingType[],
+) {
+  const being = sm.loadBeing(name);
+  return being.faceSuffering(suffering, cravings);
+}
+
+export function inquiry(sm: StateManager, name: string) {
+  const being = sm.loadBeing(name);
+  return being.investigateSelf();
+}
+
+export function chain(sm: StateManager, name: string): string {
+  const being = sm.loadBeing(name);
+  return being.observeDependentOrigination();
 }

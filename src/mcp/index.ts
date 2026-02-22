@@ -4,8 +4,8 @@ import { z } from 'zod';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { StateManager } from '../cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma } from './handlers';
-import type { SenseBase, KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot } from '../utils/types';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain } from './handlers';
+import type { SenseBase, KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType } from '../utils/types';
 
 const stateDir = process.env.BUDDHA_STATE_DIR || path.join(os.homedir(), '.buddha');
 const sm = new StateManager(stateDir);
@@ -26,6 +26,10 @@ const rootSchema = z.enum([
   'greed', 'aversion', 'delusion',
   'non-greed', 'non-aversion', 'non-delusion',
 ]).optional().describe('Root cause');
+const dukkhaTypeSchema = z.enum(['dukkha-dukkha', 'viparinama-dukkha', 'sankhara-dukkha'])
+  .describe('Type of suffering');
+const cravingTypeSchema = z.enum(['sensory', 'becoming', 'non-becoming'])
+  .describe('Type of craving');
 
 server.tool(
   'buddha_list_beings',
@@ -152,6 +156,69 @@ server.tool(
     try {
       const results = ripenKarma(sm, name);
       return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_meditate',
+  'Conduct a meditation session — develops path factors, mindfulness, and generates insights',
+  {
+    ...nameSchema,
+    duration: z.number().positive().describe('Duration in seconds'),
+    effort: intensitySchema.describe('Meditation effort (0-10)'),
+  },
+  async ({ name, duration, effort }) => {
+    try {
+      const result = meditate(sm, name, duration, effort as Intensity);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_diagnose',
+  'Diagnose suffering using the Four Noble Truths framework',
+  {
+    ...nameSchema,
+    suffering: z.array(dukkhaTypeSchema).min(1).describe('Types of suffering present'),
+    cravings: z.array(cravingTypeSchema).min(1).describe('Types of craving driving the suffering'),
+  },
+  async ({ name, suffering, cravings }) => {
+    try {
+      const result = diagnose(sm, name, suffering as DukkhaType[], cravings as CravingType[]);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_inquiry',
+  'Investigate the nature of self — search for an unchanging essence across the five aggregates',
+  nameSchema,
+  async ({ name }) => {
+    try {
+      const result = inquiry(sm, name);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_chain',
+  'Visualize the 12 links of dependent origination',
+  nameSchema,
+  async ({ name }) => {
+    try {
+      return { content: [{ type: 'text' as const, text: chain(sm, name) }] };
     } catch (e) {
       return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
     }

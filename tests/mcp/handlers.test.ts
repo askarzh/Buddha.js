@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StateManager } from '../../src/cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain } from '../../src/mcp/handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan } from '../../src/mcp/handlers';
 
 describe('MCP handlers — being management', () => {
   let sm: StateManager;
@@ -120,5 +120,27 @@ describe('MCP handlers — contemplative tools', () => {
     const result = chain(sm, 'meditator');
     expect(typeof result).toBe('string');
     expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe('MCP handlers — koan tools', () => {
+  test('presentKoan returns a random koan', () => {
+    const koan = presentKoan();
+    expect(koan).toHaveProperty('id');
+    expect(koan).toHaveProperty('title');
+    expect(koan).toHaveProperty('case');
+    expect(koan).toHaveProperty('source');
+  });
+
+  test('presentKoan with id returns specific koan', () => {
+    const koan = presentKoan('mu');
+    expect(koan.id).toBe('mu');
+  });
+
+  test('contemplateKoan evaluates response for dualism traps', () => {
+    const result = contemplateKoan('mu', 'yes');
+    expect(result).toHaveProperty('trapsDetected');
+    expect(result).toHaveProperty('isNonDual');
+    expect(result).toHaveProperty('reflection');
   });
 });

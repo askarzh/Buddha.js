@@ -1,10 +1,13 @@
 import { StateManager } from '../cli/utils/state';
 import { Being } from '../simulation/Being';
+import { KoanGenerator } from '../koan/KoanGenerator';
 import type {
   SenseBase, Intensity, KarmaQuality,
   UnwholesomeRoot, WholesomeRoot,
   DukkhaType, CravingType,
 } from '../utils/types';
+
+const koanGenerator = new KoanGenerator();
 
 export function createBeing(sm: StateManager, name: string): string {
   const being = new Being();
@@ -88,4 +91,12 @@ export function inquiry(sm: StateManager, name: string) {
 export function chain(sm: StateManager, name: string): string {
   const being = sm.loadBeing(name);
   return being.observeDependentOrigination();
+}
+
+export function presentKoan(id?: string) {
+  return koanGenerator.present(id);
+}
+
+export function contemplateKoan(koanId: string, response: string) {
+  return koanGenerator.contemplate(koanId, response);
 }

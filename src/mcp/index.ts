@@ -4,7 +4,7 @@ import { z } from 'zod';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { StateManager } from '../cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain } from './handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan } from './handlers';
 import type { SenseBase, KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType } from '../utils/types';
 
 const stateDir = process.env.BUDDHA_STATE_DIR || path.join(os.homedir(), '.buddha');
@@ -219,6 +219,37 @@ server.tool(
   async ({ name }) => {
     try {
       return { content: [{ type: 'text' as const, text: chain(sm, name) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_koan',
+  'Present a Zen koan for contemplation. Available: mu, one-hand, stone-mind, flag-wind, marrow, nansen-cat, fan-wind, original-face',
+  { id: z.string().optional().describe('Koan ID (omit for random)') },
+  async ({ id }) => {
+    try {
+      const koan = presentKoan(id);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(koan, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_contemplate',
+  'Submit a response to a koan — evaluates for dualism traps: binary, intellectual, seeking, nihilistic, grasping',
+  {
+    koanId: z.string().describe('ID of the koan being contemplated'),
+    response: z.string().describe('Your contemplative response to the koan'),
+  },
+  async ({ koanId, response }) => {
+    try {
+      const result = contemplateKoan(koanId, response);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
       return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
     }

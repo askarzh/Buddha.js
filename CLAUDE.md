@@ -13,7 +13,9 @@ npm run dev           # Build in watch mode
 npm run test:coverage # Run tests with coverage report
 npm run lint          # ESLint (note: no .eslintrc config yet)
 npm run build:cli     # Build CLI to dist/cli.mjs
+npm run build:mcp     # Build MCP server to dist/mcp.mjs
 node dist/cli.mjs     # Run CLI (or: buddha <command> if installed globally)
+node dist/mcp.mjs     # Run MCP server (stdio transport)
 
 # Run a single test file
 npx vitest run tests/core/Phenomenon.test.ts
@@ -50,6 +52,7 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `koan/` | `KoanGenerator` | Zen koan presentation and dualistic thinking detection |
 | `meditation/` | `MeditationTimer` | Real-time meditation session tracking with injectable clock |
 | `cli/` | `buddha` CLI | Terminal interface with persistence and `--json` output (10 commands) |
+| `mcp/` | `buddha-mcp` server | MCP server exposing Being API as 13 tools (stdio transport) |
 | `plugin/` | Claude Code plugin | Skills and `/buddha` command for Claude Code integration |
 | `simulation/` | `Being` | Integration class combining all concepts |
 | `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |
@@ -77,6 +80,24 @@ Built with Commander.js, @inquirer/prompts, and chalk v5. Separate build config 
 **JSON output:** All commands support `--json` for machine-readable output. Interactive commands accept flags for non-interactive use (e.g., `karma --json --quality wholesome --description "..." --intensity 7 --root non-greed`).
 
 **Commander convention:** Action handlers use `(localOpts, cmd: Command)` pattern with `cmd.optsWithGlobals()` for global flags.
+
+### MCP Server
+
+Exposes the full Being API as 13 MCP tools via stdio transport. Built with `@modelcontextprotocol/sdk` and `zod`. Shares persistence with CLI (`~/.buddha/beings/`). Separate build config in `tsup.mcp.ts`.
+
+**Configuration (Claude Code / Claude Desktop):**
+```json
+{
+  "mcpServers": {
+    "buddha-js": {
+      "command": "node",
+      "args": ["/path/to/buddha.js/dist/mcp.mjs"]
+    }
+  }
+}
+```
+
+**13 Tools:** `buddha_create_being`, `buddha_list_beings`, `buddha_delete_being`, `buddha_status`, `buddha_experience`, `buddha_act`, `buddha_karma_ripen`, `buddha_meditate`, `buddha_diagnose`, `buddha_inquiry`, `buddha_chain`, `buddha_koan`, `buddha_contemplate`
 
 ### TypeScript Configuration
 

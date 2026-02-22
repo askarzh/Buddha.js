@@ -6,7 +6,8 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "bin": {
-    "buddha": "./dist/cli.mjs"
+    "buddha": "./dist/cli.mjs",
+    "buddha-mcp": "./dist/mcp.mjs"
   },
   "files": [
     "dist"

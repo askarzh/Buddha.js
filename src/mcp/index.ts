@@ -16,7 +16,7 @@ const server = new McpServer({
 });
 
 const nameSchema = {
-  name: z.string().describe('Name of the being (letters, numbers, hyphens, underscores)'),
+  name: z.string().regex(/^[a-zA-Z0-9_-]+$/).describe('Being name (letters, numbers, hyphens, underscores)'),
 };
 
 const intensitySchema = z.number().int().min(0).max(10).describe('Intensity level (0-10)');
@@ -35,9 +35,13 @@ server.tool(
   'buddha_list_beings',
   'List all saved beings',
   {},
-  async () => ({
-    content: [{ type: 'text' as const, text: JSON.stringify(listBeings(sm)) }],
-  }),
+  async () => {
+    try {
+      return { content: [{ type: 'text' as const, text: JSON.stringify(listBeings(sm)) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
 );
 
 server.tool(

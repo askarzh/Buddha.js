@@ -125,6 +125,111 @@ while (!arrow.isComplete()) {
 
 ---
 
+## The Chariot (Questions of King Milinda)
+
+### The Teaching
+
+King Milinda asks the monk Nagasena about the nature of the self. Nagasena asks if the pole, the axle, the wheels, or the framework are the "chariot". When the king admits they are not, Nagasena explains that the word "chariot" is merely a conventional designation—a convenient label applied to the right assemblage of parts.
+
+Similarly, the word "person" or "self" is just a conventional name given to the interacting collection of the Five Aggregates (form, feeling, perception, mental formations, and consciousness).
+
+### In Code
+
+This perfectly describes **Composition over Inheritance** and the abstraction of objects in JavaScript.
+
+In Buddha.js, the `FiveAggregates` class is the chariot. It doesn't contain a magical "Self" property. It simply coordinates the five constituent `Skandha` components. When you call `getSkandhas()`, you see the parts. 
+
+The `Being` class takes this further—it's just a grouping of `FiveAggregates`, a `Mind`, and a `KarmicStore`. There is no core essence, just organized components interacting.
+
+### Example
+
+```typescript
+import { FiveAggregates, Rupa, Vedana } from 'buddha-js';
+
+// The "chariot" components
+const aggregates = new FiveAggregates();
+aggregates.addSkandha(new Rupa('physical body'));
+aggregates.addSkandha(new Vedana('pleasant feeling'));
+
+// We call this a "person" conventionally
+console.log(aggregates.analyze()); 
+// { totalSkandhas: 2, hasSelf: false, components: [...] }
+
+// Ultimate truth: there is no "self" here, only parts
+const ultimate = aggregates.getUltimateTruth();
+// "An interacting system of 5 aggregates... empty of a separate self."
+```
+
+---
+
+## The Storehouse Consciousness (Yogācāra)
+
+### The Teaching
+
+In the Mind-Only school, every intentional action plants a "seed" (*bīja*) in the deepest layer of the mind, known as the *ālaya-vijñāna* or "storehouse consciousness". This storehouse is the repository of all past tendencies, which lie dormant as seeds until the right conditions cause them to mature and project our experience of reality. 
+
+### In Code
+
+This maps flawlessly to **State Management** and **Event-Driven Architecture**.
+
+Buddha.js models this literally with the `KarmicEventSystem` and `KarmicStore`. Actions (`Intention`) dispatch events (create `KarmicSeed` objects). These seeds sit dormant in the storehouse array until a specific condition (a `RipeningCondition` returning true) triggers them to "unzip" and render into active consciousness as a `KarmicVipaka` (result).
+
+### Example
+
+```typescript
+import { KarmicStore, createKarmicSeed } from 'buddha-js';
+
+const storehouse = new KarmicStore();
+
+// An action plants a seed
+const action = createKarmicSeed({
+  quality: 'wholesome',
+  description: 'helping a friend',
+  minDelay: 1000 // dormant period
+});
+
+storehouse.plantSeed(action);
+
+// The storehouse ticker runs, waiting for conditions
+// When conditions match, the seed ripens into Vipaka (result)
+storehouse.on('ripened', (event) => {
+  console.log(`Karmic result experienced: ${event.vipaka.description}`);
+});
+```
+
+---
+
+## The Spider in the Web (Abhidhamma)
+
+### The Teaching
+
+In the Theravada tradition, the mind is said to have an inactive baseline mode called *bhavanga*, occurring in deep sleep or the micro-moments between active thoughts. To explain this, texts compare the baseline mind to a spider resting in the middle of its web. When an insect strikes a thread on the web, the spider wakes up, runs out along the thread, investigates, consumes the insect, and returns to rest.
+
+### In Code
+
+This is an exact conceptual match for **the Event Loop** in asynchronous programming (like JavaScript or Node.js). 
+
+The `Mind` class and its `citta` (consciousness moments) stream operate like this. The spider resting in the center is the main thread in an idle state. The insect hitting the web is an event trigger (like an incoming percept to the `Salayatana` / sense doors). The mind darts out to process it, generating mental factors (`MentalFactor`), and then returns to empty waiting.
+
+### Example
+
+```typescript
+import { Mind, Citta } from 'buddha-js';
+
+const mind = new Mind();
+const spider = mind.getBaselineState(); // empty consciousness
+
+// An event hits the sense web
+setTimeout(() => {
+  const visualPercept = new Citta('eye-consciousness');
+  mind.process(visualPercept); // The spider darts out
+  // ... mental factors arise and cease ...
+  mind.returnToBaseline(); // The spider returns to the center
+}, 500);
+```
+
+---
+
 ## Conclusion
 
 All three metaphors point to the same truth: **the map is not the territory.**

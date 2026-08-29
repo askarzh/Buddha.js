@@ -731,7 +731,7 @@ Buddha.js includes a command-line interface for exploring Buddhist concepts from
 
 ```bash
 # Run directly
-npx buddha-js meditate
+npx -p buddha-js buddha meditate
 
 # Or install globally
 npm install -g buddha-js

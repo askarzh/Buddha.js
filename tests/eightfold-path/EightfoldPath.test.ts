@@ -116,4 +116,14 @@ describe('EightfoldPath', () => {
       expect(summary).toContain('MEDITATION');
     });
   });
+
+  describe('Arising', () => {
+    it('factors arise when activated (mutual support is not a prerequisite gate)', () => {
+      const path = new EightfoldPath();
+      path.activateAll();
+      for (const f of path.getAllFactors()) {
+        expect(f.hasArisen).toBe(true);
+      }
+    });
+  });
 });

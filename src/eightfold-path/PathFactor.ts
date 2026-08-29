@@ -58,6 +58,15 @@ export abstract class PathFactor extends Phenomenon {
   }
 
   /**
+   * Path factors develop together in mutual support, not in sequence:
+   * the interdependence conditions model reinforcement, never prerequisites.
+   * A factor arises the moment it is cultivated. (Gethin, Foundations ch. 3)
+   */
+  protected conditionsMet(): boolean {
+    return true;
+  }
+
+  /**
    * Activate this path factor (begin cultivating it)
    */
   activate(): void {

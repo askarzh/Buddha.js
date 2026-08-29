@@ -9,7 +9,7 @@
  * compulsions of craving and the peace of unbinding.
  */
 
-import { Phenomenon } from '../core/Phenomenon';
+import { UnconditionedDharma } from '../core/Unconditioned';
 import { ConventionalTruth, UltimateTruth } from '../core/TwoTruths';
 import { CauseAnalysis } from './Samudaya';
 
@@ -33,7 +33,7 @@ export interface CessationAssessment {
  * The task with respect to Nirodha is to "realize" it.
  * This realization comes through practice, not mere belief.
  */
-export class Nirodha extends Phenomenon {
+export class Nirodha extends UnconditionedDharma {
   readonly name = 'Nirodha';
   readonly sanskritName = 'Nirodha';
 

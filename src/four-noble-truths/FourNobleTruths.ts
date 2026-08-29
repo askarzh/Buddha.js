@@ -89,8 +89,7 @@ export class FourNobleTruths {
     // The second truth (origin) causes the first (suffering)
     this.firstTruth.addCondition(this.secondTruth);
 
-    // The fourth truth (path) leads to the third (cessation)
-    this.thirdTruth.addCondition(this.fourthTruth);
+    // Nirodha is asankhata — it has no conditions; the PATH conditions its realization, not it.
   }
 
   /**

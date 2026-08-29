@@ -76,5 +76,27 @@ describe('BeingSerializer', () => {
       const result = restored.meditate(10, 7);
       expect(result.mindfulnessLevel).toBeGreaterThanOrEqual(being.mindfulnessLevel);
     });
+
+    it('should round-trip valence on experience input', () => {
+      const being = new Being();
+      being.experience({ senseBase: 'body', object: 'pain', intensity: 8, valence: 'unpleasant' });
+
+      const data = serializeBeing(being);
+      expect(data.experienceHistory[0].input.valence).toBe('unpleasant');
+
+      const restored = deserializeBeing(data);
+      expect(restored.getExperienceHistory(1)[0].input.valence).toBe('unpleasant');
+    });
+
+    it('should tolerate legacy serialized data without a valence field', () => {
+      const being = new Being();
+      being.experience({ senseBase: 'body', object: 'pain', intensity: 8, valence: 'unpleasant' });
+
+      const data = serializeBeing(being);
+      delete (data.experienceHistory[0].input as { valence?: unknown }).valence;
+
+      const restored = deserializeBeing(data);
+      expect(restored.getExperienceHistory(1)[0].input.valence).toBeUndefined();
+    });
   });
 });

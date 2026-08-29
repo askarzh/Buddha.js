@@ -91,7 +91,12 @@ export function serializeBeing(being: Being): BeingData {
     mindfulnessLevel: being.mindfulnessLevel,
     karmicStream: karmicStreamData,
     experienceHistory: allExperiences.map(e => ({
-      input: { senseBase: e.input.senseBase, object: e.input.object, intensity: e.input.intensity },
+      input: {
+        senseBase: e.input.senseBase,
+        object: e.input.object,
+        intensity: e.input.intensity,
+        valence: e.input.valence,
+      },
       label: e.label,
       feelingTone: e.feelingTone,
       reactions: [...e.reactions],
@@ -190,6 +195,7 @@ export function deserializeBeing(data: BeingData): Being {
       senseBase: e.input.senseBase as SenseBase,
       object: e.input.object,
       intensity: e.input.intensity,
+      valence: e.input.valence,
     },
     label: e.label,
     feelingTone: e.feelingTone,

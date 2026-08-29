@@ -303,7 +303,7 @@ export interface BeingData {
   mindfulnessLevel: Intensity;
   karmicStream: KarmaData[];
   experienceHistory: Array<{
-    input: { senseBase: string; object: unknown; intensity: number };
+    input: { senseBase: string; object: unknown; intensity: number; valence?: FeelingTone };
     label: string;
     feelingTone: FeelingTone;
     reactions: string[];

@@ -1,5 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StateManager } from '../../src/cli/utils/state';
@@ -130,16 +130,34 @@ describe('MCP handlers — contemplative tools', () => {
     expect(result).toHaveProperty('conclusion');
   });
 
-  test('diagnose persists mutations to the saved being', () => {
+  // Note: `faceSuffering` and `investigateSelf` are pure analysis methods — they
+  // don't mutate any Being state that gets serialized, so the persisted JSON is
+  // byte-identical before and after the handler runs. A before/after file-content
+  // diff would therefore be a false assertion here. Instead, spy on the actual
+  // write call so the test fails precisely when `sm.saveBeing(...)` is removed
+  // from the handler (verified locally by commenting it out — see fixwave report).
+  test('diagnose persists the being via a save call', () => {
+    const beingFile = join(tempDir, 'beings', 'meditator.json');
+    expect(readFileSync(beingFile, 'utf-8').length).toBeGreaterThan(0);
+
+    const saveSpy = vi.spyOn(sm, 'saveBeing');
     diagnose(sm, 'meditator', ['dukkha-dukkha'], ['sensory']);
-    const being = sm.loadExistingBeing('meditator');
-    expect(being).toBeDefined();
+
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(saveSpy).toHaveBeenCalledWith('meditator', expect.anything());
+    saveSpy.mockRestore();
   });
 
-  test('inquiry persists mutations to the saved being', () => {
+  test('inquiry persists the being via a save call', () => {
+    const beingFile = join(tempDir, 'beings', 'meditator.json');
+    expect(readFileSync(beingFile, 'utf-8').length).toBeGreaterThan(0);
+
+    const saveSpy = vi.spyOn(sm, 'saveBeing');
     inquiry(sm, 'meditator');
-    const being = sm.loadExistingBeing('meditator');
-    expect(being).toBeDefined();
+
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(saveSpy).toHaveBeenCalledWith('meditator', expect.anything());
+    saveSpy.mockRestore();
   });
 
   test('chain returns dependent origination visualization', () => {

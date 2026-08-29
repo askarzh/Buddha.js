@@ -29,7 +29,7 @@ describe('StateManager', () => {
 
   it('should save and load a being with state preserved', () => {
     const being = new Being();
-    being.act('Give generously', 'wholesome', 7, 'non-greed');
+    being.act('Give generously', 7, 'non-greed');
     being.meditate(10, 8);
     mgr.saveBeing('default', being);
 
@@ -45,7 +45,7 @@ describe('StateManager', () => {
     mgr.saveBeing('monk', monk);
 
     const student = new Being();
-    student.act('Study hard', 'wholesome', 5, 'non-delusion');
+    student.act('Study hard', 5, 'non-delusion');
     mgr.saveBeing('student', student);
 
     const names = mgr.listBeings();

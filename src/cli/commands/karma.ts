@@ -27,18 +27,34 @@ export async function karma(localOpts: KarmaLocalOpts, cmd: Command): Promise<vo
   mgr.saveBeing(globalOpts.being, being);
 }
 
+const UNWHOLESOME_ROOTS: UnwholesomeRoot[] = ['greed', 'aversion', 'delusion'];
+
+function deriveQuality(root: UnwholesomeRoot | WholesomeRoot): KarmaQuality {
+  return UNWHOLESOME_ROOTS.includes(root as UnwholesomeRoot) ? 'unwholesome' : 'wholesome';
+}
+
 async function jsonMode(
   being: Being,
   localOpts: KarmaLocalOpts,
   globalOpts: GlobalOpts,
   mgr: ReturnType<typeof getStateManager>,
 ): Promise<void> {
-  if (localOpts.quality && localOpts.description && localOpts.intensity && localOpts.root) {
-    const quality = localOpts.quality as KarmaQuality;
+  if (localOpts.description && localOpts.intensity && localOpts.root) {
     const intensity = Number(localOpts.intensity) as Intensity;
     const root = localOpts.root as WholesomeRoot | UnwholesomeRoot;
 
-    being.act(localOpts.description, quality, intensity, root);
+    if (localOpts.quality) {
+      const derivedQuality = deriveQuality(root);
+      if (localOpts.quality !== derivedQuality) {
+        console.log(JSON.stringify({
+          error: `Quality '${localOpts.quality}' contradicts root '${root}' — quality is determined by the root`,
+        }, null, 2));
+        process.exitCode = 1;
+        return;
+      }
+    }
+
+    being.act(localOpts.description, intensity, root);
     mgr.saveBeing(globalOpts.being, being);
   }
 
@@ -109,7 +125,7 @@ async function interactiveMode(being: Being): Promise<void> {
               ],
             });
 
-        const k = being.act(description, quality, intensity, root);
+        const k = being.act(description, intensity, root);
         console.log(success(`\n  Karma created: ${k.quality} (intensity ${k.intensity})\n`));
         break;
       }

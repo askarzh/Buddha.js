@@ -24,17 +24,17 @@ This shows pending seeds, recent results, and the overall karmic balance.
 To plant a new karmic seed:
 
 ```bash
-node dist/cli.mjs karma --json --being default --quality wholesome --description "Helping a colleague" --intensity 7 --root non-aversion
+node dist/cli.mjs karma --json --being default --description "Helping a colleague" --intensity 7 --root non-aversion
 ```
 
 **Flags:**
 
 | Flag | Values | Description |
 |------|--------|-------------|
-| `--quality` | `wholesome`, `unwholesome` | The moral quality of the intention |
 | `--description` | any string | A description of the action |
 | `--intensity` | `1` to `10` | How strong the intention is |
-| `--root` | `non-greed`, `non-aversion`, `non-delusion`, `greed`, `aversion`, `delusion` | The root motivation |
+| `--root` | `non-greed`, `non-aversion`, `non-delusion`, `greed`, `aversion`, `delusion` | The root motivation — moral quality is derived from this, not assigned independently |
+| `--quality` | `wholesome`, `unwholesome` | Optional: validates the expected quality against the quality derived from `--root`; errors if they contradict |
 
 ### Presentation
 

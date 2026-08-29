@@ -15,7 +15,7 @@ import { Intention } from '../karma/Intention';
 import { KarmicResult } from '../karma/KarmicResult';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
-import { Intensity, KarmaQuality, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, BeingData, Serializable } from '../utils/types';
+import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, BeingData, Serializable } from '../utils/types';
 import { serializeBeing, deserializeBeing } from './BeingSerializer';
 
 /**
@@ -116,11 +116,13 @@ export class Being implements Serializable<BeingData> {
   }
 
   /**
-   * Perform an intentional action (creates karma)
+   * Perform an intentional action (creates karma).
+   * Quality is determined by the root motivation — "greed is a root of the
+   * unwholesome... non-greed is a root of the wholesome" (M. I.46-47) — and
+   * cannot be assigned independently of it.
    */
   act(
     description: string,
-    _quality: KarmaQuality,
     intensity: Intensity,
     root?: UnwholesomeRoot | WholesomeRoot
   ): Karma {

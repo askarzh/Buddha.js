@@ -2,7 +2,7 @@ import { StateManager } from '../cli/utils/state';
 import { Being } from '../simulation/Being';
 import { KoanGenerator } from '../koan/KoanGenerator';
 import type {
-  SenseBase, Intensity, KarmaQuality,
+  SenseBase, Intensity,
   UnwholesomeRoot, WholesomeRoot,
   DukkhaType, CravingType, FeelingTone,
 } from '../utils/types';
@@ -44,12 +44,11 @@ export function act(
   sm: StateManager,
   name: string,
   description: string,
-  quality: KarmaQuality,
   intensity: Intensity,
   root?: UnwholesomeRoot | WholesomeRoot,
 ) {
   const being = sm.loadBeing(name);
-  const karma = being.act(description, quality, intensity, root);
+  const karma = being.act(description, intensity, root);
   sm.saveBeing(name, being);
   return karma;
 }

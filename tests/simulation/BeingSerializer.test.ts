@@ -29,7 +29,7 @@ describe('BeingSerializer', () => {
     it('should produce same output as Being.toJSON()', () => {
       const being = new Being();
       being.meditate(10, 7);
-      being.act('help', 'wholesome', 5, 'non-greed');
+      being.act('help', 5, 'non-greed');
       being.experience({ senseBase: 'ear', object: 'music', intensity: 6 });
 
       const fromMethod = being.toJSON();
@@ -43,7 +43,7 @@ describe('BeingSerializer', () => {
     it('should restore a being from serialized data', () => {
       const being = new Being();
       being.meditate(10, 8);
-      being.act('donate', 'wholesome', 7, 'non-greed');
+      being.act('donate', 7, 'non-greed');
 
       const data = serializeBeing(being);
       const restored = deserializeBeing(data);

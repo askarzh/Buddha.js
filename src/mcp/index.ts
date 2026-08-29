@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { StateManager } from '../cli/utils/state';
 import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan } from './handlers';
-import type { SenseBase, KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType, FeelingTone } from '../utils/types';
+import type { SenseBase, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType, FeelingTone } from '../utils/types';
 
 const stateDir = process.env.BUDDHA_STATE_DIR || path.join(os.homedir(), '.buddha');
 const sm = new StateManager(stateDir);
@@ -21,7 +21,6 @@ const nameSchema = {
 
 const intensitySchema = z.number().int().min(0).max(10).describe('Intensity level (0-10)');
 const senseBaseSchema = z.enum(['eye', 'ear', 'nose', 'tongue', 'body', 'mind']).describe('Sense base');
-const karmaQualitySchema = z.enum(['wholesome', 'unwholesome', 'neutral']).describe('Moral quality');
 const rootSchema = z.enum([
   'greed', 'aversion', 'delusion',
   'non-greed', 'non-aversion', 'non-delusion',
@@ -132,19 +131,17 @@ server.tool(
 
 server.tool(
   'buddha_act',
-  'Perform an intentional action that creates karma',
+  "Perform an intentional action that creates karma. Karmic quality (wholesome/unwholesome) is determined by the root; omit root for a neutral act.",
   {
     ...nameSchema,
     description: z.string().describe('Description of the intentional action'),
-    quality: karmaQualitySchema,
     intensity: intensitySchema,
     root: rootSchema,
   },
-  async ({ name, description, quality, intensity, root }) => {
+  async ({ name, description, intensity, root }) => {
     try {
       const result = act(
         sm, name, description,
-        quality as KarmaQuality,
         intensity as Intensity,
         root as UnwholesomeRoot | WholesomeRoot | undefined,
       );

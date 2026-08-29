@@ -506,7 +506,7 @@ import { Being } from 'buddha-js';
 
 const being = new Being();
 being.meditate(30, 8);
-being.act('Practiced generosity', 'wholesome', 7, 'non-greed');
+being.act('Practiced generosity', 7, 'non-greed');
 
 // Serialize
 const json = being.toJSON();
@@ -757,7 +757,7 @@ State directory priority: `--state-dir` flag > `BUDDHA_STATE_DIR` env var > `~/.
 | `buddha koan [--id ID]` | Contemplate a Zen koan |
 | `buddha inquiry` | Investigate the nature of self |
 | `buddha diagnose [--dukkha-types T] [--craving-types T]` | Diagnose suffering using the Four Noble Truths |
-| `buddha karma [--quality Q] [--description D] [--intensity N] [--root R]` | Explore intentional action and karmic results |
+| `buddha karma [--description D] [--intensity N] [--root R] [--quality Q]` | Explore intentional action and karmic results (quality is derived from root; `--quality` optionally validates it) |
 | `buddha chain` | Display the 12 links of dependent origination |
 | `buddha status` | Show the current state of a being |
 | `buddha beings` | List saved beings |
@@ -770,11 +770,11 @@ Being-based commands (`inquiry`, `status`, `karma`) automatically save and resto
 
 ```bash
 # Actions accumulate across sessions
-buddha karma --json --quality wholesome --description "Practiced generosity" --intensity 7
+buddha karma --json --description "Practiced generosity" --intensity 7 --root non-greed
 buddha status --json    # Shows the karma from above
 
 # Work with multiple named beings
-buddha karma --being monk --quality wholesome --description "Morning meditation"
+buddha karma --being monk --description "Morning meditation" --intensity 7 --root non-delusion
 buddha status --being monk
 
 # Manage beings
@@ -871,7 +871,6 @@ const exp = being.experience({
 // ===== INTENTIONAL ACTION =====
 const karma = being.act(
   'Helped a friend',
-  'wholesome',
   7,
   'non-greed'
 );

@@ -29,7 +29,7 @@ describe('Being Persistence', () => {
 
     it('should serialize after acting', () => {
       const being = new Being();
-      being.act('helping', 'wholesome', 5, 'non-greed');
+      being.act('helping', 5, 'non-greed');
 
       const data = being.toJSON();
       expect(data.karmicStream).toHaveLength(1);
@@ -103,8 +103,8 @@ describe('Being Persistence', () => {
 
     it('should restore karmic stream', () => {
       const being = new Being();
-      being.act('donate', 'wholesome', 7, 'non-greed');
-      being.act('insult', 'unwholesome', 3, 'aversion');
+      being.act('donate', 7, 'non-greed');
+      being.act('insult', 3, 'aversion');
 
       const data = being.toJSON();
       const restored = Being.fromJSON(data);
@@ -115,7 +115,7 @@ describe('Being Persistence', () => {
     it('should survive full round-trip via JSON.stringify', () => {
       const being = new Being();
       being.meditate(10, 6);
-      being.act('help', 'wholesome', 5, 'non-greed');
+      being.act('help', 5, 'non-greed');
       being.experience({ senseBase: 'ear', object: 'birdsong', intensity: 6 });
 
       const str = JSON.stringify(being);

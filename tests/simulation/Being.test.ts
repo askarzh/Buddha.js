@@ -43,36 +43,42 @@ describe('Being', () => {
 
   describe('Karma', () => {
     it('should create karma through action', () => {
-      const karma = being.act('help someone', 'wholesome', 5, 'non-greed');
+      const karma = being.act('help someone', 5, 'non-greed');
 
       expect(karma.quality).toBe('wholesome');
       expect(karma.isCompleted).toBe(true);
     });
 
+    it('derives karma quality from the root', () => {
+      expect(being.act('donate', 5, 'non-greed').quality).toBe('wholesome');
+      expect(being.act('steal', 5, 'greed').quality).toBe('unwholesome');
+      expect(being.act('walk', 5).quality).toBe('neutral');
+    });
+
     it('should track karma in stream', () => {
-      being.act('action 1', 'wholesome', 5);
-      being.act('action 2', 'unwholesome', 3);
+      being.act('action 1', 5, 'non-greed');
+      being.act('action 2', 3, 'greed');
 
       const stream = being.getKarmicStream();
       expect(stream).toHaveLength(2);
     });
 
     it('should have pending karma', () => {
-      being.act('action', 'wholesome', 5);
+      being.act('action', 5, 'non-greed');
 
       const state = being.getState();
       expect(state.pendingKarma).toBe(1);
     });
 
     it('should receive karmic results', () => {
-      being.act('give', 'wholesome', 5, 'non-greed');
+      being.act('give', 5, 'non-greed');
 
       const results = being.receiveKarmicResults();
       expect(results.length).toBeGreaterThan(0);
     });
 
     it('experiences unwholesome karmic results as unpleasant', () => {
-      being.act('harsh speech', 'unwholesome', 7, 'aversion');
+      being.act('harsh speech', 7, 'aversion');
       being.receiveKarmicResults();
       const last = being.getExperienceHistory(1)[0];
       expect(last.feelingTone).toBe('unpleasant');

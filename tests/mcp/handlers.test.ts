@@ -74,13 +74,18 @@ describe('MCP handlers — stateful actions', () => {
   });
 
   test('act creates karma and saves state', () => {
-    const result = act(sm, 'actor', 'gave food to a hungry person', 'wholesome', 7, 'non-greed');
+    const result = act(sm, 'actor', 'gave food to a hungry person', 7, 'non-greed');
     expect(result).toHaveProperty('quality', 'wholesome');
     expect(result).toHaveProperty('intention.description');
   });
 
+  test('act derives quality from root, ignoring any independently-assigned quality', () => {
+    const result = act(sm, 'actor', 'stole food', 7, 'greed');
+    expect(result).toHaveProperty('quality', 'unwholesome');
+  });
+
   test('ripenKarma returns array of results', () => {
-    act(sm, 'actor', 'small kind act', 'wholesome', 3);
+    act(sm, 'actor', 'small kind act', 3);
     const results = ripenKarma(sm, 'actor');
     expect(Array.isArray(results)).toBe(true);
   });

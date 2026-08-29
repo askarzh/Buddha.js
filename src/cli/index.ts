@@ -57,7 +57,7 @@ program
 program
   .command('karma')
   .description('Explore intentional action and karmic results')
-  .option('--quality <quality>', 'Karma quality: wholesome or unwholesome (for --json)')
+  .option('--quality <quality>', 'Optional: validate expected karma quality against the derived quality (for --json)')
   .option('--description <desc>', 'Action description (for --json)')
   .option('--intensity <n>', 'Action intensity 1-10 (for --json)')
   .option('--root <root>', 'Root: greed, aversion, delusion, non-greed, non-aversion, non-delusion (for --json)')

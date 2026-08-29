@@ -362,7 +362,7 @@ karma.complete();
 // Later, karma ripens
 if (karma.isPotential()) {
   const result = karma.manifest();
-  console.log(result?.feeling);     // 'pleasant' (from wholesome action)
+  console.log(result?.experienceQuality); // 'pleasant' (from wholesome action)
   console.log(result?.intensity);   // Based on original intensity
 }
 ```
@@ -813,6 +813,54 @@ buddha koan --id mu
 # Diagnose suffering (non-interactive)
 buddha diagnose --json --dukkha-types "dukkha-dukkha,sankhara-dukkha" --craving-types "sensory"
 ```
+
+---
+
+## MCP Server
+
+`buddha-mcp` exposes the full Being API as 13 MCP tools over stdio transport. State is shared with the CLI (`~/.buddha/beings/`, override with `BUDDHA_STATE_DIR`).
+
+### Build & Run
+
+```bash
+npm run build:mcp
+node dist/mcp.mjs
+```
+
+### Configuration
+
+```json
+{
+  "mcpServers": {
+    "buddha-js": {
+      "command": "node",
+      "args": ["/path/to/buddha.js/dist/mcp.mjs"]
+    }
+  }
+}
+```
+
+This works in Claude Desktop (`claude_desktop_config.json`) and Claude Code (`.mcp.json`, or `claude mcp add buddha-js -- node /path/to/buddha.js/dist/mcp.mjs`).
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `buddha_create_being` | Create a new being and persist it to disk |
+| `buddha_list_beings` | List all saved beings |
+| `buddha_delete_being` | Delete a saved being |
+| `buddha_status` | Get the current status of a being |
+| `buddha_experience` | Process a sensory experience through the five aggregates (accepts an optional `valence` parameter — pleasant/unpleasant/neutral — independent of intensity) |
+| `buddha_act` | Perform an intentional action that creates karma (karmic quality is derived from `root`; there is no separate quality parameter) |
+| `buddha_karma_ripen` | Check for and receive any ripened karmic results |
+| `buddha_meditate` | Conduct a meditation session — develops path factors, mindfulness, and generates insights |
+| `buddha_diagnose` | Diagnose suffering using the Four Noble Truths framework |
+| `buddha_inquiry` | Investigate the nature of self across the five aggregates |
+| `buddha_chain` | Visualize the 12 links of dependent origination |
+| `buddha_koan` | Present a Zen koan for contemplation |
+| `buddha_contemplate` | Submit a response to a koan and evaluate it for dualism traps |
+
+All tools except `buddha_create_being` and `buddha_list_beings` require an existing being. This is deliberate: unlike the CLI, which auto-creates a being on first use, the MCP server rejects unknown names with `Being not found: "<name>". Create it with buddha_create_being or list existing beings with buddha_list_beings.`
 
 ---
 

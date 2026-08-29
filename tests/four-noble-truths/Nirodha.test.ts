@@ -9,4 +9,12 @@ describe('Nirodha', () => {
     expect(nirodha.notSelf).toBe(true);
     expect('arise' in nirodha).toBe(false);
   });
+
+  it('reports zero progress for an empty analysis instead of near-liberation', () => {
+    const nirodha = new Nirodha();
+    const assessment = nirodha.isPossible({
+      cravingsPresent: [], rootCauses: [], intensity: 0, primaryDriver: null,
+    });
+    expect(assessment.progressLevel).toBe(0);
+  });
 });

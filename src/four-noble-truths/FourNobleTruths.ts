@@ -194,10 +194,15 @@ This is why Buddhism is often compared to medicine:
   }
 
   /**
-   * Check if all truths have been understood (arisen)
+   * All four truths understood: dukkha fully comprehended (1st truth's task)
+   * and the path substantially developed (4th truth's task). The 2nd and 3rd
+   * truths' tasks (abandoning, realizing) are reflected in path development.
    */
   allTruthsUnderstood(): boolean {
-    return this.firstTruth.isFullyUnderstood();
+    const path = this.fourthTruth.getPath();
+    return this.firstTruth.isFullyUnderstood()
+      && path !== undefined
+      && path.getOverallDevelopment() >= 8;
   }
 
   /**

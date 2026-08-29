@@ -85,6 +85,11 @@ export class Nirodha extends UnconditionedDharma {
    * Assess progress toward cessation
    */
   private assessProgress(analysis: CauseAnalysis): number {
+    // An empty analysis is absence of evidence, not evidence of liberation.
+    if (analysis.cravingsPresent.length === 0 && analysis.rootCauses.length === 0) {
+      return 0;
+    }
+
     let progress = 5; // Start at middle
 
     // Lower intensity craving = more progress

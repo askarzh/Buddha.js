@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { FourNobleTruths } from '../../src/four-noble-truths/FourNobleTruths';
 import { Dukkha } from '../../src/four-noble-truths/Dukkha';
+import { EightfoldPath } from '../../src/eightfold-path/EightfoldPath';
 
 describe('FourNobleTruths', () => {
   let truths: FourNobleTruths;
@@ -87,6 +88,17 @@ describe('FourNobleTruths', () => {
       expect(diagnosis.path.focusArea).toBeDefined();
       expect(diagnosis.path.practices).toBeInstanceOf(Array);
       expect(diagnosis.path.practices.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('allTruthsUnderstood', () => {
+    it('requires a developed path, not just the first truth', () => {
+      const path = new EightfoldPath();
+      const truthsWithPath = new FourNobleTruths(path);
+      // First truth alone must not be sufficient
+      truthsWithPath.dukkha.analyze(['dukkha-dukkha', 'viparinama-dukkha', 'sankhara-dukkha']);
+      expect(truthsWithPath.dukkha.isFullyUnderstood()).toBe(true);
+      expect(truthsWithPath.allTruthsUnderstood()).toBe(false);
     });
   });
 

@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { StateManager } from '../cli/utils/state';
 import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan } from './handlers';
-import type { SenseBase, KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType } from '../utils/types';
+import type { SenseBase, KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType, FeelingTone } from '../utils/types';
 
 const stateDir = process.env.BUDDHA_STATE_DIR || path.join(os.homedir(), '.buddha');
 const sm = new StateManager(stateDir);
@@ -112,13 +112,16 @@ server.tool(
     senseBase: senseBaseSchema,
     object: z.string().describe('What is experienced'),
     intensity: intensitySchema,
+    valence: z.enum(['pleasant', 'unpleasant', 'neutral']).optional()
+      .describe('Hedonic tone of the experience (default: neutral). Independent of intensity.'),
   },
-  async ({ name, senseBase, object, intensity }) => {
+  async ({ name, senseBase, object, intensity, valence }) => {
     try {
       const result = experienceSensory(sm, name, {
         senseBase: senseBase as SenseBase,
         object,
         intensity: intensity as Intensity,
+        valence: valence as FeelingTone | undefined,
       });
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     } catch (e) {

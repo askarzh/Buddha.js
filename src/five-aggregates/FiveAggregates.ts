@@ -22,7 +22,9 @@ import { SenseBase, FeelingTone } from '../utils/types';
 export interface SensoryInput {
   senseBase: SenseBase;
   object: unknown;
-  intensity: number; // 1-10
+  intensity: number; // 1-10 magnitude of the experience
+  /** Hedonic tone of the contact. Orthogonal to intensity. Default: 'neutral'. */
+  valence?: FeelingTone;
 }
 
 /**
@@ -129,10 +131,11 @@ export class FiveAggregates {
     // 3. Perception recognizes and labels
     const label = this.perception.recognize(input.object);
 
-    // 4. Feeling determines the hedonic tone
+    // 4. Feeling determines the hedonic tone (valence), with its own magnitude
     const feelingTone = this.feeling.feel({
       senseBase: input.senseBase,
-      pleasantness: input.intensity
+      valence: input.valence ?? 'neutral',
+      intensity: input.intensity
     });
 
     // 5. Mental formations react

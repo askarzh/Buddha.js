@@ -147,7 +147,8 @@ export class Being implements Serializable<BeingData> {
           this.experience({
             senseBase: 'mind',
             object: result.description,
-            intensity: result.intensity
+            intensity: result.intensity,
+            valence: result.experienceQuality
           });
         }
       }

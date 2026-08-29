@@ -4,7 +4,7 @@ import { KoanGenerator } from '../koan/KoanGenerator';
 import type {
   SenseBase, Intensity, KarmaQuality,
   UnwholesomeRoot, WholesomeRoot,
-  DukkhaType, CravingType,
+  DukkhaType, CravingType, FeelingTone,
 } from '../utils/types';
 
 const koanGenerator = new KoanGenerator();
@@ -32,7 +32,7 @@ export function getStatus(sm: StateManager, name: string) {
 export function experienceSensory(
   sm: StateManager,
   name: string,
-  input: { senseBase: SenseBase; object: unknown; intensity: Intensity },
+  input: { senseBase: SenseBase; object: unknown; intensity: Intensity; valence?: FeelingTone },
 ) {
   const being = sm.loadBeing(name);
   const result = being.experience(input);

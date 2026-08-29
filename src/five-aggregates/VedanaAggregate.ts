@@ -63,26 +63,17 @@ export class VedanaAggregate extends Skandha {
   }
 
   /**
-   * Process sensory input and determine feeling tone
+   * Register a feeling. Tone (valence) and intensity are orthogonal:
+   * intense pain is MORE unpleasant, not pleasant.
    */
-  feel(input: { senseBase: SenseBase; pleasantness: number }): FeelingTone {
-    let tone: FeelingTone;
-
-    if (input.pleasantness > 6) {
-      tone = 'pleasant';
-    } else if (input.pleasantness < 4) {
-      tone = 'unpleasant';
-    } else {
-      tone = 'neutral';
-    }
-
+  feel(input: { senseBase: SenseBase; valence: FeelingTone; intensity: number }): FeelingTone {
+    const clamped = Math.min(10, Math.max(0, Math.round(input.intensity))) as Intensity;
     this.update({
-      tone,
+      tone: input.valence,
       source: input.senseBase,
-      intensity: Math.abs(input.pleasantness - 5) as Intensity
+      intensity: clamped
     });
-
-    return tone;
+    return input.valence;
   }
 
   /**

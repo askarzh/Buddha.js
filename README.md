@@ -38,9 +38,10 @@ const being = new Being();
 const experience = being.experience({
   senseBase: 'eye',
   object: 'beautiful flower',
-  intensity: 7
+  intensity: 7,
+  valence: 'pleasant'
 });
-console.log(experience.feeling);  // 'pleasant'
+console.log(experience.feelingTone);  // 'pleasant'
 console.log(experience.reactions); // Mental reactions to the experience
 
 // Practice meditation
@@ -310,10 +311,11 @@ const aggregates = new FiveAggregates();
 const experience = aggregates.processExperience({
   senseBase: 'eye',
   object: 'sunset',
-  intensity: 8
+  intensity: 8,
+  valence: 'pleasant'
 });
 
-console.log(experience.feeling);    // 'pleasant' | 'unpleasant' | 'neutral'
+console.log(experience.feelingTone);    // 'pleasant' | 'unpleasant' | 'neutral'
 console.log(experience.perception); // 'sunset perceived as sunset'
 console.log(experience.reactions);  // Mental reactions
 

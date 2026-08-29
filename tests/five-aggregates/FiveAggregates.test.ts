@@ -38,20 +38,36 @@ describe('FiveAggregates', () => {
       expect(experience.reactions).toBeInstanceOf(Array);
     });
 
-    it('should determine feeling tone based on intensity', () => {
+    it('should determine feeling tone based on explicit valence', () => {
       const pleasant = aggregates.processExperience({
         senseBase: 'eye',
         object: 'beautiful',
-        intensity: 8
+        intensity: 8,
+        valence: 'pleasant'
       });
       expect(pleasant.feelingTone).toBe('pleasant');
 
       const unpleasant = aggregates.processExperience({
         senseBase: 'eye',
         object: 'ugly',
-        intensity: 2
+        intensity: 2,
+        valence: 'unpleasant'
       });
       expect(unpleasant.feelingTone).toBe('unpleasant');
+    });
+
+    it('classifies intense unpleasant input as unpleasant', () => {
+      const agg = new FiveAggregates();
+      const exp = agg.processExperience({
+        senseBase: 'body', object: 'sharp pain', intensity: 9, valence: 'unpleasant',
+      });
+      expect(exp.feelingTone).toBe('unpleasant');
+    });
+
+    it('defaults valence to neutral when omitted', () => {
+      const agg = new FiveAggregates();
+      const exp = agg.processExperience({ senseBase: 'eye', object: 'wall', intensity: 8 });
+      expect(exp.feelingTone).toBe('neutral');
     });
   });
 

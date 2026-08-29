@@ -70,6 +70,13 @@ describe('Being', () => {
       const results = being.receiveKarmicResults();
       expect(results.length).toBeGreaterThan(0);
     });
+
+    it('experiences unwholesome karmic results as unpleasant', () => {
+      being.act('harsh speech', 'unwholesome', 7, 'aversion');
+      being.receiveKarmicResults();
+      const last = being.getExperienceHistory(1)[0];
+      expect(last.feelingTone).toBe('unpleasant');
+    });
   });
 
   describe('Meditation', () => {

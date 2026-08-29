@@ -213,8 +213,8 @@ export class DependentOrigination {
    */
   reset(): void {
     this.links.forEach(link => (link as Nidana).restoreLink());
-    // Ignorance starts arisen by default
-    this.ignorance.arise();
+    // Ignorance starts arisen by default (without cascading)
+    (this.ignorance as any)._hasArisen = true;
   }
 
   /**

@@ -70,6 +70,14 @@ export abstract class Nidana extends Phenomenon {
   }
 
   /**
+   * A broken link cannot arise: "when this does not exist, that does not come to be."
+   */
+  arise(): boolean {
+    if (this._isBroken) return false;
+    return super.arise();
+  }
+
+  /**
    * When this link arises, it conditions the next
    */
   protected onArise(): void {
@@ -80,15 +88,25 @@ export abstract class Nidana extends Phenomenon {
   }
 
   /**
-   * Breaking this link stops the chain
+   * "With the cessation of this, that ceases" — cessation cascades forward.
+   */
+  protected onCease(): void {
+    if (this.nextLink && this.nextLink.isPresent) {
+      this.nextLink.cease();
+    }
+  }
+
+  /**
+   * Breaking this link stops the chain: an arisen link ceases (cascading
+   * forward); an un-arisen link is blocked from ever arising.
    */
   breakLink(): boolean {
-    if (!this._isBroken) {
-      this._isBroken = true;
+    if (this._isBroken) return false;
+    this._isBroken = true;
+    if (this.isPresent) {
       this.cease();
-      return true;
     }
-    return false;
+    return true;
   }
 
   /**

@@ -104,6 +104,29 @@ describe('DependentOrigination', () => {
     });
   });
 
+  describe('cessation (patiloma)', () => {
+    it('a pre-broken link stops the arising sequence at that point', () => {
+      chain.reset();
+      chain.breakChainAt(8); // Tanha (craving)
+      chain.runFullSequence();
+      expect(chain.craving.hasArisen).toBe(false);
+      expect(chain.clinging.hasArisen).toBe(false);
+      expect(chain.agingDeath.hasArisen).toBe(false);
+      expect(chain.feeling.hasArisen).toBe(true); // links before the break still arise
+    });
+
+    it('breaking an arisen link cascades cessation through all subsequent links', () => {
+      chain.reset();
+      chain.runFullSequence();
+      expect(chain.agingDeath.hasArisen).toBe(true);
+      chain.breakChainAt(8);
+      expect(chain.craving.hasCeased).toBe(true);
+      expect(chain.clinging.hasCeased).toBe(true);
+      expect(chain.agingDeath.hasCeased).toBe(true);
+      expect(chain.contact.hasCeased).toBe(false); // upstream links unaffected
+    });
+  });
+
   describe('Summary', () => {
     it('should provide summary', () => {
       const summary = chain.getSummary();

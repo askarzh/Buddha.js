@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Karma } from '../../src/karma/Karma';
 import { Intention } from '../../src/karma/Intention';
 

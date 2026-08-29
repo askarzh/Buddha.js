@@ -23,7 +23,7 @@ const INTELLECTUAL_LENGTH = 15;
 /** Patterns for each dualism trap */
 const TRAP_PATTERNS: Record<DualismTrap, RegExp[]> = {
   binary: [
-    /^(yes|no|true|false|right|wrong)[\.\!\?\s]*$/i,
+    /^(yes|no|true|false|right|wrong)[.!?\s]*$/i,
     /\b(both|neither)\b/i,
     /\b(exists?|does(?:n't| not) exist)\b/i,
     /\b(it is|it isn't|it does|it doesn't)\s*$/i,

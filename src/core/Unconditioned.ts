@@ -22,9 +22,9 @@ export interface AsankhataMarks {
  * arising, or cessation — that is the point.
  */
 export abstract class UnconditionedDharma implements AsankhataMarks, TwoTruthsExaminable {
-  readonly impermanence: false = false;
-  readonly unsatisfactoriness: false = false;
-  readonly notSelf: true = true;
+  readonly impermanence = false as const;
+  readonly unsatisfactoriness = false as const;
+  readonly notSelf = true as const;
 
   readonly id: string;
   abstract readonly name: string;

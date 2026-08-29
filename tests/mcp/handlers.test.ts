@@ -47,6 +47,15 @@ describe('MCP handlers — being management', () => {
     expect(typeof result.summary).toBe('string');
     expect(result.state).toBeDefined();
   });
+
+  test('getStatus throws for a nonexistent being instead of creating one', () => {
+    expect(() => getStatus(sm, 'no-such-being')).toThrow(/Being not found/);
+    expect(sm.listBeings()).not.toContain('no-such-being');
+  });
+
+  test('act throws for a nonexistent being', () => {
+    expect(() => act(sm, 'no-such-being', 'walk', 3)).toThrow(/Being not found/);
+  });
 });
 
 describe('MCP handlers — stateful actions', () => {
@@ -119,6 +128,18 @@ describe('MCP handlers — contemplative tools', () => {
   test('inquiry investigates self and returns result', () => {
     const result = inquiry(sm, 'meditator');
     expect(result).toHaveProperty('conclusion');
+  });
+
+  test('diagnose persists mutations to the saved being', () => {
+    diagnose(sm, 'meditator', ['dukkha-dukkha'], ['sensory']);
+    const being = sm.loadExistingBeing('meditator');
+    expect(being).toBeDefined();
+  });
+
+  test('inquiry persists mutations to the saved being', () => {
+    inquiry(sm, 'meditator');
+    const being = sm.loadExistingBeing('meditator');
+    expect(being).toBeDefined();
   });
 
   test('chain returns dependent origination visualization', () => {

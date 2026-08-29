@@ -83,6 +83,24 @@ describe('StateManager', () => {
     expect(() => mgr.loadBeing('corrupt')).toThrow('Failed to load being "corrupt"');
   });
 
+  it('hasBeing reflects persisted files', () => {
+    expect(mgr.hasBeing('nobody')).toBe(false);
+    mgr.saveBeing('somebody', new Being());
+    expect(mgr.hasBeing('somebody')).toBe(true);
+  });
+
+  it('loadExistingBeing throws a clear error when the being does not exist', () => {
+    expect(() => mgr.loadExistingBeing('ghost')).toThrow(/Being not found: "ghost"/);
+  });
+
+  it('loadExistingBeing loads a persisted being', () => {
+    const being = new Being();
+    being.meditate(10, 8);
+    mgr.saveBeing('real', being);
+    const restored = mgr.loadExistingBeing('real');
+    expect(restored.getState().mindfulnessLevel).toBeGreaterThan(0);
+  });
+
   it('should create the state directory if it does not exist', () => {
     const nested = path.join(tmpDir, 'nested', 'deep');
     const mgr2 = new StateManager(nested);

@@ -40,6 +40,20 @@ export class StateManager {
     }
   }
 
+  hasBeing(name: string): boolean {
+    return fs.existsSync(this.beingPath(name));
+  }
+
+  /** Load a being that must already exist (used by the MCP server). */
+  loadExistingBeing(name: string): Being {
+    if (!this.hasBeing(name)) {
+      throw new Error(
+        `Being not found: "${name}". Create it with buddha_create_being or list existing beings with buddha_list_beings.`
+      );
+    }
+    return this.loadBeing(name);
+  }
+
   saveBeing(name: string, being: Being): void {
     fs.mkdirSync(this.beingsDir, { recursive: true });
     const filePath = this.beingPath(name);

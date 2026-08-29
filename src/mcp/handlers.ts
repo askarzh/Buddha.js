@@ -25,7 +25,7 @@ export function deleteBeing(sm: StateManager, name: string): string {
 }
 
 export function getStatus(sm: StateManager, name: string) {
-  const being = sm.loadBeing(name);
+  const being = sm.loadExistingBeing(name);
   return { summary: being.getSummary(), state: being.getState() };
 }
 
@@ -34,7 +34,7 @@ export function experienceSensory(
   name: string,
   input: { senseBase: SenseBase; object: unknown; intensity: Intensity; valence?: FeelingTone },
 ) {
-  const being = sm.loadBeing(name);
+  const being = sm.loadExistingBeing(name);
   const result = being.experience(input);
   sm.saveBeing(name, being);
   return result;
@@ -47,14 +47,14 @@ export function act(
   intensity: Intensity,
   root?: UnwholesomeRoot | WholesomeRoot,
 ) {
-  const being = sm.loadBeing(name);
+  const being = sm.loadExistingBeing(name);
   const karma = being.act(description, intensity, root);
   sm.saveBeing(name, being);
   return karma;
 }
 
 export function ripenKarma(sm: StateManager, name: string) {
-  const being = sm.loadBeing(name);
+  const being = sm.loadExistingBeing(name);
   const results = being.receiveKarmicResults();
   sm.saveBeing(name, being);
   return results;
@@ -66,7 +66,7 @@ export function meditate(
   duration: number,
   effort: Intensity,
 ) {
-  const being = sm.loadBeing(name);
+  const being = sm.loadExistingBeing(name);
   const result = being.meditate(duration, effort);
   sm.saveBeing(name, being);
   return result;
@@ -78,17 +78,21 @@ export function diagnose(
   suffering: DukkhaType[],
   cravings: CravingType[],
 ) {
-  const being = sm.loadBeing(name);
-  return being.faceSuffering(suffering, cravings);
+  const being = sm.loadExistingBeing(name);
+  const result = being.faceSuffering(suffering, cravings);
+  sm.saveBeing(name, being);
+  return result;
 }
 
 export function inquiry(sm: StateManager, name: string) {
-  const being = sm.loadBeing(name);
-  return being.investigateSelf();
+  const being = sm.loadExistingBeing(name);
+  const result = being.investigateSelf();
+  sm.saveBeing(name, being);
+  return result;
 }
 
 export function chain(sm: StateManager, name: string): string {
-  const being = sm.loadBeing(name);
+  const being = sm.loadExistingBeing(name);
   return being.observeDependentOrigination();
 }
 

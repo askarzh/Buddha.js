@@ -18,6 +18,10 @@ v0.2's `rebirth()` increments a counter on the same object. Doctrinally, rebirth
 
 **Non-goals (v0.4+):** Bardo intermediate state (school switch); asura-specific mechanics beyond the selector; realm-specific new tools.
 
+**v0.4 candidates (approved for the roadmap 2026-08-30, not for this phase):**
+- **Living koans** — koans are historically canonized records of live encounters, not a fixed set; the generative move returns to the tradition's origin. Design sketch: (a) `buddha_koan` gains a `custom` parameter (title + case) so LLM-crafted, situation-targeted koans flow through the existing `contemplate` trap-detection machinery; (b) a contemplation journal on `Being` records TRAPS (binary/intellectual/seeking/nihilistic/grasping patterns over time) but never canonizes "answers" — optional summaries expire like seeds (anicca for insights: unrealized insight fades); (c) trap-pattern statistics surface in `status` as agent metacognition; (d) expand the canonical set from 8 toward the public-domain Mumonkan cases; (e) a skill teaching Claude to craft a koan aimed at the agent's current attachment (to a hypothesis, to a fix). Doctrinal guard: record the finger-pointing patterns, not the moon.
+- Bardo school switch (Theravāda: none; Tibetan: up to 49 units between death and rebirth, with practice influencing the realm selector).
+
 ## Task 0 — pre-fixes (from the 2026-08-30 Antigravity/Gemini cross-review, each verified against source)
 
 **Status: SHIPPED separately as v0.2.1 — PR #9 (commit 4d599d2), 2026-08-30. All seven fixed, 291 tests. The v0.3 implementation plan starts from this baseline and must NOT re-plan these items.** Original list, for the record:

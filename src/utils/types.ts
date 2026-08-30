@@ -321,6 +321,10 @@ export interface BeingData {
   dependentOrigination: NidanaChainData;
   /** Optional for legacy-save tolerance: saves predating the karmic seed ledger omit it. */
   karmicStore?: KarmicStoreData;
+  /** Incarnation counter. Optional for legacy-save tolerance: missing defaults to 1. */
+  incarnation?: number;
+  /** Wall-clock time this save was written, refreshed on every toJSON() call. Optional for legacy-save tolerance: missing defaults to now (no spurious incarnation advance). */
+  lastActiveAt?: number;
 }
 
 // =============================================================================

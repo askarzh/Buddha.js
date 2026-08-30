@@ -35,7 +35,9 @@ describe('BeingSerializer', () => {
       const fromMethod = being.toJSON();
       const fromSerializer = serializeBeing(being);
 
-      expect(fromSerializer).toEqual(fromMethod);
+      // lastActiveAt is refreshed with Date.now() on every call, so the two
+      // separate serializations legitimately differ on that one field.
+      expect(fromSerializer).toEqual({ ...fromMethod, lastActiveAt: fromSerializer.lastActiveAt });
     });
   });
 

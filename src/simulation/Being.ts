@@ -13,7 +13,7 @@ import { FourNobleTruths, Diagnosis } from '../four-noble-truths/FourNobleTruths
 import { Karma } from '../karma/Karma';
 import { Intention } from '../karma/Intention';
 import { KarmicResult } from '../karma/KarmicResult';
-import { KarmicStore, KarmicVipaka, RipeningCondition } from '../karma/KarmicEventSystem';
+import { KarmicStore, KarmicVipaka, RipeningCondition, KarmicSeed, RipeningTiming } from '../karma/KarmicEventSystem';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
 import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, KarmaQuality, BeingData, Serializable } from '../utils/types';
@@ -48,6 +48,17 @@ export interface KarmicResultsReport {
   results: KarmicResult[];
   seedVipakas: KarmicVipaka[];
   whyNot: Array<{ seedId: string; description: string; unmet: string[] }>;
+}
+
+/**
+ * Result of Being.rebirth(): the incarnation moved into, how many ahosi
+ * (timed-out) seeds were expired in the transition, and which active seed
+ * (if any) shapes the new incarnation.
+ */
+export interface RebirthResult {
+  incarnation: number;
+  expiredSeeds: number;
+  shapingSeed: { id: string; description: string; reason: 'weighty' | 'habitual' | 'reserve' } | null;
 }
 
 /**
@@ -108,6 +119,13 @@ export class Being implements Serializable<BeingData> {
 
   /** Current mindfulness level */
   private _mindfulnessLevel: Intensity = 0;
+
+  /**
+   * Incarnation counter. Starts at 1; advances via rebirth() (explicit) or
+   * BeingSerializer's gap detection on load (implicit, when the elapsed
+   * wall-clock time since the last save exceeds BUDDHA_INCARNATION_GAP_MS).
+   */
+  private _incarnation = 1;
 
   constructor() {
     this.aggregates = new FiveAggregates();
@@ -221,8 +239,6 @@ export class Being implements Serializable<BeingData> {
       });
     }
 
-    // NOTE: 'incarnation:1' is hardcoded for now; Task 5 replaces it with a
-    // live incarnation counter.
     this.karmicStore.plantSeed({
       quality,
       description,
@@ -232,7 +248,7 @@ export class Being implements Serializable<BeingData> {
       ripeningTiming: 'deferred',
       minDelay: 0,
       maxDelay: Number.MAX_SAFE_INTEGER,
-      tags: [root ?? 'neutral', 'act', slug, 'incarnation:1'],
+      tags: [root ?? 'neutral', 'act', slug, `incarnation:${this._incarnation}`],
       conditions,
     });
   }
@@ -276,7 +292,24 @@ export class Being implements Serializable<BeingData> {
     const seedVipakas: KarmicVipaka[] = [];
     const candidateSeeds = this.karmicStore.getSeeds({ state: 'active' });
 
+    // Incarnation-window pass: seeds whose timing window has lapsed are
+    // expired (ahosi-kamma) here as a safety net (rebirth() already expires
+    // them at the transition); seeds not yet in their window are excluded
+    // from this pass and explained in whyNot instead.
+    const windowNotes = new Map<string, string>();
+    const eligibleSeeds: KarmicSeed[] = [];
     for (const seed of candidateSeeds) {
+      const window = this.evaluateSeedWindow(seed);
+      if (window.eligible) {
+        eligibleSeeds.push(seed);
+      } else if (window.expired) {
+        seed.state = 'exhausted';
+      } else if (window.reason) {
+        windowNotes.set(seed.id, window.reason);
+      }
+    }
+
+    for (const seed of eligibleSeeds) {
       const vipaka = force
         ? this.karmicStore.forceRipen(seed.id)
         : this.karmicStore.attemptRipening(seed.id);
@@ -296,17 +329,144 @@ export class Being implements Serializable<BeingData> {
     for (const seed of candidateSeeds) {
       const current = this.karmicStore.getSeed(seed.id);
       if (current && current.state === 'active') {
+        const windowNote = windowNotes.get(current.id);
+        const unmetConditions = current.ripeningConditions
+          .filter(condition => !condition.check())
+          .map(condition => condition.description);
         whyNot.push({
           seedId: current.id,
           description: current.description,
-          unmet: current.ripeningConditions
-            .filter(condition => !condition.check())
-            .map(condition => condition.description)
+          unmet: windowNote ? [windowNote, ...unmetConditions] : unmetConditions
         });
       }
     }
 
     return { results, seedVipakas, whyNot };
+  }
+
+  /**
+   * Evaluate a seed's incarnation-window eligibility for ripening.
+   * `immediate` (diṭṭhadhamma) ripens only in its planting incarnation;
+   * `next-life` (upapajja) only in planting+1; `distant-future`
+   * (aparāpariya) from planting+1 onward, never expiring; `deferred`
+   * (and any seed without an incarnation tag) is always eligible.
+   */
+  private evaluateSeedWindow(
+    seed: KarmicSeed
+  ): { eligible: boolean; expired: boolean; reason?: string } {
+    const tag = seed.tags.find(t => t.startsWith('incarnation:'));
+    if (!tag) return { eligible: true, expired: false };
+
+    const plantedAt = Number(tag.slice('incarnation:'.length));
+    if (Number.isNaN(plantedAt)) return { eligible: true, expired: false };
+
+    const timing: RipeningTiming = seed.ripeningTiming;
+    switch (timing) {
+      case 'immediate':
+        if (this._incarnation === plantedAt) return { eligible: true, expired: false };
+        return {
+          eligible: false,
+          expired: true,
+          reason: `immediate seed: only ripens in incarnation ${plantedAt}`
+        };
+      case 'next-life':
+        if (this._incarnation === plantedAt + 1) return { eligible: true, expired: false };
+        if (this._incarnation > plantedAt + 1) {
+          return {
+            eligible: false,
+            expired: true,
+            reason: `next-life seed: only ripened in incarnation ${plantedAt + 1}`
+          };
+        }
+        return {
+          eligible: false,
+          expired: false,
+          reason: `next-life seed: ripens in incarnation ${plantedAt + 1}`
+        };
+      case 'distant-future':
+        if (this._incarnation >= plantedAt + 1) return { eligible: true, expired: false };
+        return {
+          eligible: false,
+          expired: false,
+          reason: `distant-future seed: ripens from incarnation ${plantedAt + 1} onward`
+        };
+      case 'deferred':
+      default:
+        return { eligible: true, expired: false };
+    }
+  }
+
+  /**
+   * Pick the seed that shapes the next incarnation: a weighty seed takes
+   * priority (garuka-kamma), then the most habitually-repeated slug
+   * (āciṇṇa-kamma), then the oldest active seed as a reserve
+   * (kaṭattā-kamma). Null when the store holds no active seeds.
+   */
+  private pickShapingSeed(): RebirthResult['shapingSeed'] {
+    const seeds = this.karmicStore.getSeeds({ state: 'active' });
+    if (seeds.length === 0) return null;
+
+    const weighty = seeds.find(s => s.strength === 'weighty');
+    if (weighty) {
+      return { id: weighty.id, description: weighty.description, reason: 'weighty' };
+    }
+
+    const slugOf = (seed: KarmicSeed): string | undefined =>
+      seed.tags.find(t => t !== 'act' && t !== seed.root && !t.startsWith('incarnation:'));
+
+    const counts = new Map<string, number>();
+    for (const seed of seeds) {
+      const slug = slugOf(seed);
+      if (!slug) continue;
+      counts.set(slug, (counts.get(slug) ?? 0) + 1);
+    }
+
+    let bestSlug: string | undefined;
+    let bestCount = 1;
+    for (const [slug, count] of counts) {
+      if (count > bestCount) {
+        bestCount = count;
+        bestSlug = slug;
+      }
+    }
+    if (bestSlug) {
+      const habitual = seeds.find(s => slugOf(s) === bestSlug);
+      if (habitual) {
+        return { id: habitual.id, description: habitual.description, reason: 'habitual' };
+      }
+    }
+
+    const oldest = seeds.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b));
+    return { id: oldest.id, description: oldest.description, reason: 'reserve' };
+  }
+
+  /**
+   * Enact rebirth: advance the incarnation counter, expire any active seed
+   * whose timing window has now lapsed (ahosi-kamma — its potential to
+   * ripen is spent, unfulfilled), and name the seed that shapes the new
+   * incarnation.
+   */
+  rebirth(): RebirthResult {
+    const shapingSeed = this.pickShapingSeed();
+    this._incarnation += 1;
+
+    let expiredSeeds = 0;
+    for (const seed of this.karmicStore.getSeeds({ state: 'active' })) {
+      const window = this.evaluateSeedWindow(seed);
+      if (window.expired) {
+        seed.state = 'exhausted';
+        expiredSeeds++;
+      }
+    }
+
+    return { incarnation: this._incarnation, expiredSeeds, shapingSeed };
+  }
+
+  /**
+   * Get the current incarnation number (starts at 1).
+   */
+  get incarnation(): number {
+    return this._incarnation;
   }
 
   /**
@@ -455,10 +615,12 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     karmicStream: Karma[];
     experienceHistory: ProcessedExperience[];
     karmicStore?: KarmicStore;
+    incarnation?: number;
   }): void {
     this._mindfulnessLevel = state.mindfulnessLevel;
     this.karmicStream = state.karmicStream;
     this.experienceHistory = state.experienceHistory;
+    this._incarnation = state.incarnation ?? 1;
     if (state.karmicStore) {
       (this as any).karmicStore = state.karmicStore;
       // The restored store's seeds carry dead-stub checks for named

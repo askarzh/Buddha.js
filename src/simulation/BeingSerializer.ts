@@ -127,6 +127,10 @@ export function serializeBeing(being: Being): BeingData {
     mind,
     dependentOrigination,
     karmicStore: being.karmicStore.toJSON(),
+    incarnation: being.incarnation,
+    // Refreshed on every serialization; deserializeBeing compares this
+    // against the wall clock at load time to detect a rebirth-worthy gap.
+    lastActiveAt: Date.now(),
   };
 }
 
@@ -215,12 +219,31 @@ export function deserializeBeing(data: BeingData): Being {
     karmicStore.stopRipeningCheck();
   }
 
+  // Incarnation-window gap detection: a load that arrives more than
+  // BUDDHA_INCARNATION_GAP_MS after the save was written advances the
+  // incarnation once, as if time itself carried the being into a new life.
+  // Legacy saves (no lastActiveAt) default to "now", producing a ~0 elapsed
+  // gap so no spurious increment occurs; legacy saves (no incarnation)
+  // default to 1.
+  const gapMs = Number(process.env.BUDDHA_INCARNATION_GAP_MS ?? 21600000);
+  const lastActiveAt = data.lastActiveAt ?? Date.now();
+  let incarnation = data.incarnation ?? 1;
+  // >= rather than a strict > : with the default gapMs (6h) the boundary
+  // is never observable in practice, but BUDDHA_INCARNATION_GAP_MS=0 (used
+  // to force a rebirth-on-load deterministically, e.g. in tests) needs an
+  // elapsed-time-of-zero to still count as "past the gap".
+  const elapsed = Date.now() - lastActiveAt;
+  if (elapsed >= gapMs) {
+    incarnation += 1;
+  }
+
   // Use _restoreState to set private fields
   being._restoreState({
     mindfulnessLevel: data.mindfulnessLevel,
     karmicStream,
     experienceHistory,
     karmicStore,
+    incarnation,
   });
 
   return being;

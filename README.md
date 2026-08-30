@@ -842,6 +842,16 @@ node dist/mcp.mjs
 
 This works in Claude Desktop (`claude_desktop_config.json`) and Claude Code (`.mcp.json`, or `claude mcp add buddha-js -- node /path/to/buddha.js/dist/mcp.mjs`).
 
+### Claude Desktop (one-click)
+
+For Claude Desktop, skip the manual JSON config and install the packaged bundle instead:
+
+```bash
+npm run build:mcpb
+```
+
+This produces `dist/buddha-js.mcpb`. Open or drag it onto Claude Desktop (Settings → Extensions) to install. The installer shows a folder picker for the state directory (defaults to `~/.buddha`, shared with the CLI). The manual JSON config above remains available, and is still the way to configure Claude Code.
+
 ### Tools
 
 | Tool | Description |

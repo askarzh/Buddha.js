@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
+  "manifest_version": "0.4",
+  "name": "buddha-js",
+  "display_name": "Buddha.js",
+  "version": "0.2.0",
+  "description": "Buddhist philosophy tools: meditation, karma, koans, self-inquiry, and the Poison Arrow method — 14 tools over a persistent simulated being.",
+  "author": { "name": "Askar Zhakenov", "email": "askar@zhakenov.pro" },
+  "homepage": "https://github.com/askarzh/Buddha.js",
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.mjs"],
+      "env": {
+        "BUDDHA_STATE_DIR": "${user_config.stateDir}"
+      }
+    }
+  },
+  "user_config": {
+    "stateDir": {
+      "type": "directory",
+      "title": "State directory",
+      "description": "Where beings are saved as JSON (shared with the buddha CLI if installed).",
+      "default": "${HOME}/.buddha",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["darwin", "win32", "linux"]
+  }
+}

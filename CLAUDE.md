@@ -15,6 +15,7 @@ npm run lint          # ESLint (note: no .eslintrc config yet)
 npm run build:cli     # Build CLI to dist/cli.mjs
 npm run build:mcp     # Build MCP server to dist/mcp.mjs
 npm run build:plugin   # Rebuild bundled plugin server (run after any src/mcp change)
+npm run build:mcpb   # Package Claude Desktop bundle to dist/buddha-js.mcpb
 node dist/cli.mjs     # Run CLI (or: buddha <command> if installed globally)
 node dist/mcp.mjs     # Run MCP server (stdio transport)
 

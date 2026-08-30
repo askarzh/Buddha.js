@@ -16,7 +16,8 @@ import { KarmicResult } from '../karma/KarmicResult';
 import { KarmicStore, KarmicVipaka, RipeningCondition, KarmicSeed, RipeningTiming } from '../karma/KarmicEventSystem';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
-import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, KarmaQuality, BeingData, Serializable } from '../utils/types';
+import { Citta, Ārammaṇa, CittaMoment } from '../mind/Citta';
+import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, KarmaQuality, BeingData, Serializable, SenseBase, CittaDoor, CittaQuality } from '../utils/types';
 import { serializeBeing, deserializeBeing } from './BeingSerializer';
 
 /**
@@ -59,6 +60,18 @@ export interface RebirthResult {
   incarnation: number;
   expiredSeeds: number;
   shapingSeed: { id: string; description: string; reason: 'weighty' | 'habitual' | 'reserve' } | null;
+}
+
+/**
+ * Result of Being.cognize(): the full moment stream produced by the citta-
+ * vīthi, the overall javana quality, the resulting karmic impact, and the
+ * (at most three) karmic seeds planted from the javana moments.
+ */
+export interface CognitionResult {
+  moments: CittaMoment[];
+  quality: CittaQuality;
+  karmicImpact: 'strong' | 'weak' | 'none';
+  seedsPlanted: Array<{ id: string; timing: string; strength: string; quality: KarmaQuality }>;
 }
 
 /**
@@ -106,6 +119,14 @@ export class Being implements Serializable<BeingData> {
   readonly mind: Mind;
 
   /**
+   * Consciousness (Abhidhamma model) driving the citta-vīthi cognitive
+   * process. Fresh per instance, synced from `mind` before each cognize()
+   * call, and never serialized — a new Citta is always created in the
+   * constructor, including on deserialization.
+   */
+  readonly citta: Citta;
+
+  /**
    * Karmic seed ledger. Auto-ripening is always disabled here — Being drives
    * karmic ripening explicitly via receiveKarmicResults(), never a timer.
    */
@@ -127,6 +148,15 @@ export class Being implements Serializable<BeingData> {
    */
   private _incarnation = 1;
 
+  /** Sense-door mapping for cognize(): SenseBase -> Citta's Pali door enum. */
+  private static readonly senseDoors: Record<Exclude<SenseBase, 'mind'>, CittaDoor> = {
+    eye: 'cakkhu-dvāra',
+    ear: 'sota-dvāra',
+    nose: 'ghāna-dvāra',
+    tongue: 'jivhā-dvāra',
+    body: 'kāya-dvāra',
+  };
+
   constructor() {
     this.aggregates = new FiveAggregates();
     this.path = new EightfoldPath();
@@ -134,6 +164,7 @@ export class Being implements Serializable<BeingData> {
     this.fourNobleTruths = new FourNobleTruths(this.path);
     this.emptiness = new Sunyata();
     this.mind = new Mind();
+    this.citta = new Citta();
     this.karmicStore = new KarmicStore({ enableAutoRipening: false });
     this.registerRipeningConditions();
   }
@@ -215,11 +246,29 @@ export class Being implements Serializable<BeingData> {
 
     const slug = description.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-    // habitual-accumulation is attached to every seed planted by Being;
-    // mindfulness-support is attached only to wholesome seeds. Both closures
-    // are seed-specific at plant time; the identically-named conditions
-    // registered in registerRipeningConditions() are the generic fallbacks
-    // used after rebindConditions() restores a seed from serialized data.
+    this.karmicStore.plantSeed({
+      quality,
+      description,
+      intentionStrength: intensity,
+      ...(root ? { root } : {}),
+      potency: intensity * 7,
+      ripeningTiming: 'deferred',
+      minDelay: 0,
+      maxDelay: Number.MAX_SAFE_INTEGER,
+      tags: [root ?? 'neutral', 'act', slug, `incarnation:${this._incarnation}`],
+      conditions: this.buildSeedConditions(quality, slug),
+    });
+  }
+
+  /**
+   * Ripening conditions shared by every seed Being plants: habitual-
+   * accumulation is attached to every seed; mindfulness-support only to
+   * wholesome seeds. Both closures are seed-specific at plant time; the
+   * identically-named conditions registered in registerRipeningConditions()
+   * are the generic fallbacks used after rebindConditions() restores a seed
+   * from serialized data.
+   */
+  private buildSeedConditions(quality: KarmaQuality, slug: string): RipeningCondition[] {
     const conditions: RipeningCondition[] = [
       {
         type: 'accumulation',
@@ -238,19 +287,118 @@ export class Being implements Serializable<BeingData> {
         check: () => this.mindfulnessLevel >= 5,
       });
     }
+    return conditions;
+  }
 
-    this.karmicStore.plantSeed({
-      quality,
-      description,
-      intentionStrength: intensity,
-      ...(root ? { root } : {}),
-      potency: intensity * 7,
-      ripeningTiming: 'deferred',
-      minDelay: 0,
-      maxDelay: Number.MAX_SAFE_INTEGER,
-      tags: [root ?? 'neutral', 'act', slug, `incarnation:${this._incarnation}`],
-      conditions,
+  /**
+   * Run a full cognitive process (citta-vīthi) over content, then plant
+   * karmic seeds from its javana moments — the mind, working.
+   *
+   * `senseBase` undefined or `'mind'` runs the 13-moment mind-door process
+   * (processMentalObject); any other sense base runs the 17-moment five-door
+   * process (processSenseObject) through the matching door.
+   */
+  cognize(content: string, senseBase?: SenseBase): CognitionResult {
+    this.syncCittaFromMind();
+
+    const object: Ārammaṇa = senseBase && senseBase !== 'mind'
+      ? { type: 'sense-object', content, senseBase }
+      : { type: 'mental-object', content };
+
+    const vithi = senseBase && senseBase !== 'mind'
+      ? this.citta.processSenseObject(object, Being.senseDoors[senseBase])
+      : this.citta.processMentalObject(object);
+
+    const seedsPlanted = this.plantSeedsFromJavanas(vithi.quality, content);
+
+    return {
+      moments: vithi.moments,
+      quality: vithi.quality,
+      karmicImpact: vithi.karmicImpact,
+      seedsPlanted,
+    };
+  }
+
+  /**
+   * Sync the five aliased mental factors from Mind into Citta's cetasikas
+   * ahead of a cognitive process, so javana quality reflects the being's
+   * current mental state.
+   */
+  private syncCittaFromMind(): void {
+    const keys = ['mindfulness', 'wisdom', 'greed', 'aversion', 'delusion'] as const;
+    for (const key of keys) {
+      const factor = this.mind.getFactor(key);
+      if (factor && factor.isActive && factor.intensity > 0) {
+        this.citta.activateCetasika(key, factor.intensity);
+      } else {
+        this.citta.deactivateCetasika(key);
+      }
+    }
+  }
+
+  /**
+   * Plant karmic seeds from the javana moments of a vīthi (canonical
+   * mapping: javana position -> ripening-timing category). Javana 1 is
+   * accumulating (weak, immediate); javanas 2-6 are full strength (moderate,
+   * distant-future); javana 7 is fading (weak, next-life).
+   */
+  private plantSeedsFromJavanas(
+    javanaQuality: CittaQuality,
+    content: string
+  ): CognitionResult['seedsPlanted'] {
+    // determineJavanaQuality only ever returns 'kusala' or 'akusala' — vipāka
+    // and kiriya cittas never run javana, so no seeds are planted for them.
+    if (javanaQuality !== 'kusala' && javanaQuality !== 'akusala') {
+      return [];
+    }
+
+    const quality: KarmaQuality = javanaQuality === 'kusala' ? 'wholesome' : 'unwholesome';
+    const root = javanaQuality === 'kusala' ? 'non-delusion' : this.determineActiveUnwholesomeRoot();
+    const slug = content.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+    const groups: Array<{ timing: RipeningTiming; potency: number }> = [
+      { timing: 'immediate', potency: 10 },       // javana 1: weak
+      { timing: 'distant-future', potency: 30 },  // javanas 2-6: moderate
+      { timing: 'next-life', potency: 10 },        // javana 7: weak
+    ];
+
+    return groups.map(group => {
+      const seed = this.karmicStore.plantSeed({
+        quality,
+        description: content,
+        intentionStrength: 5,
+        root,
+        potency: group.potency,
+        ripeningTiming: group.timing,
+        minDelay: 0,
+        maxDelay: Number.MAX_SAFE_INTEGER,
+        tags: [root, 'cognize', slug, `incarnation:${this._incarnation}`],
+        conditions: this.buildSeedConditions(quality, slug),
+      });
+      return { id: seed.id, timing: seed.ripeningTiming, strength: seed.strength, quality: seed.quality };
     });
+  }
+
+  /**
+   * The highest-intensity active unwholesome root cetasika on citta
+   * (greed, aversion, delusion) — the root motivation behind an akusala
+   * javana. determineJavanaQuality guarantees at least one is active
+   * whenever it returns 'akusala', so this always resolves to a real root.
+   */
+  private determineActiveUnwholesomeRoot(): UnwholesomeRoot {
+    const roots: UnwholesomeRoot[] = ['greed', 'aversion', 'delusion'];
+    const cetasikas = this.citta.getCetasikas();
+
+    let best: UnwholesomeRoot = 'delusion';
+    let bestIntensity = -1;
+    for (const root of roots) {
+      const factor = cetasikas.get(root);
+      if (factor?.isActive && factor.intensity > bestIntensity) {
+        bestIntensity = factor.intensity;
+        best = root;
+      }
+    }
+    return best;
   }
 
   /**

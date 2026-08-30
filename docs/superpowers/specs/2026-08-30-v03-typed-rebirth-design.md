@@ -20,7 +20,7 @@ v0.2's `rebirth()` increments a counter on the same object. Doctrinally, rebirth
 
 ## Task 0 — pre-fixes (from the 2026-08-30 Antigravity/Gemini cross-review, each verified against source)
 
-Fixed before any v0.3 feature work, in one small task:
+**Status: SHIPPED separately as v0.2.1 — PR #9 (commit 4d599d2), 2026-08-30. All seven fixed, 291 tests. The v0.3 implementation plan starts from this baseline and must NOT re-plan these items.** Original list, for the record:
 1. `KarmicEventSystem.ts:~485` — `isPartial` computed before `timesRipened` increment (always true; currently dead field — fix and add a consumer-facing test).
 2. Proper per-slug rebind for `habitual-accumulation` after restore (replaces the v0.2 store-wide fallback; register `habitual-accumulation:<slug>` names from restored seeds' tags).
 3. `Citta.getActiveCetasikaNames()` returns alias duplicates (greed + lobha are one object under two keys) — dedupe by object identity.

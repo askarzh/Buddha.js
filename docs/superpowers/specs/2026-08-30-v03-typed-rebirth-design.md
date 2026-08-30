@@ -18,6 +18,17 @@ v0.2's `rebirth()` increments a counter on the same object. Doctrinally, rebirth
 
 **Non-goals (v0.4+):** Bardo intermediate state (school switch); asura-specific mechanics beyond the selector; realm-specific new tools.
 
+## Task 0 — pre-fixes (from the 2026-08-30 Antigravity/Gemini cross-review, each verified against source)
+
+Fixed before any v0.3 feature work, in one small task:
+1. `KarmicEventSystem.ts:~485` — `isPartial` computed before `timesRipened` increment (always true; currently dead field — fix and add a consumer-facing test).
+2. Proper per-slug rebind for `habitual-accumulation` after restore (replaces the v0.2 store-wide fallback; register `habitual-accumulation:<slug>` names from restored seeds' tags).
+3. `Citta.getActiveCetasikaNames()` returns alias duplicates (greed + lobha are one object under two keys) — dedupe by object identity.
+4. `Being.slugOf` can return `undefined` when the description equals a structural tag — fall back to a safe slug.
+5. `Citta.assessKarmicImpact` gates `'strong'` on wisdom only, so unwholesome karma can never be strong — canonically weighty unwholesome karma exists; gate on javana intensity/roots as well.
+6. Kusala cognize seeds always get root `'non-delusion'` — derive from the dominant wholesome cetasika (mindfulness/wisdom → non-delusion stays the default, but do not hardcode when non-greed/non-aversion analogues are active).
+7. CLI `status --json` parity: add `seeds` + `incarnation` (matches MCP `getStatus`).
+
 ## Design
 
 ### 1. Realm classes
@@ -59,33 +70,48 @@ The new object receives NOTHING from the old one except the inheritance: no path
 4. `transmigrate(inheritance, RealmClass)` → new being; apply **starting faculties** (§4); dispose the old being.
 5. Return `RebirthResult` extended with `{ fromRealm, toRealm, being }`.
 
-Since `rebirth()` now returns a new object, callers change: MCP/CLI handlers re-save the NEW being under the same name (the being's name is storage-level, not identity-level — doctrinally apt). The auto-gap path in deserialization ALSO transmigrates: a load that crosses the gap performs the full flow, so the wheel turns even without an explicit call.
+Since `rebirth()` now returns a new object, callers change (explicit sweep, verified against current code):
+- MCP `rebirthBeing` (src/mcp/handlers.ts ~:91-96) must save `result.being`, not the loaded (now-dead) object, and the tool response must render a summary + selected fields — never `JSON.stringify` the whole live Being.
+- Any other handler that mutates after a pending rebirth (see below) saves the new object it operated on.
+- CLI commands and tests that call `rebirth()` update to consume the returned being.
+
+**Observation does not rebirth (re-entrancy guard, approved 2026-08-30).** A gap-crossing load does NOT transmigrate: as in v0.2, it only advances the incarnation counter (lazy ahosi stays in the ripening pass) and sets a transient, non-persisted `pendingRebirth` flag on the loaded being. Read-only operations (`status`, `chain`, inquiry views) see the advanced counter but never change the realm and never write — repeated stale reads are idempotent. The realm transition executes at the FIRST MUTATING operation after the gap: mutating MCP/CLI handlers check `being.pendingRebirth` after load, call `rebirth()` first (obtaining the new realm-classed being), then perform the requested operation on it and save — one write, by an operation that writes anyway. The wheel is turned by karma, not by looking at it.
 
 ### 3. Realm selector (canonical mapping)
 
-From the shaping seed (or defaults when the store is empty):
+Explicit resolution order (edge cases resolved per the 2026-08-30 cross-review):
 
-| Shaping seed | Target realm |
-|---|---|
-| unwholesome, root greed | `preta` |
-| unwholesome, root aversion | `naraka` |
-| unwholesome, root delusion | `animal` |
-| wholesome, strength weighty or strong | `deva` |
-| wholesome, strength moderate/weak, **and** unwholesome balance ≥ 40% of total | `asura` (power tainted by envy/rivalry) |
-| wholesome, strength moderate/weak | `human` |
-| no shaping seed / neutral | `human` |
+```ts
+function selectRealm(shaping: KarmicSeed | null, balance: KarmicBalance): Realm {
+  if (!shaping || shaping.quality === 'neutral') return 'human';
+  if (shaping.quality === 'unwholesome') {
+    switch (shaping.root) {                       // canonical poison → lower realm
+      case 'greed':    return 'preta';
+      case 'aversion': return 'naraka';
+      default:         return 'animal';           // delusion and any unmapped root
+    }
+  }
+  // wholesome:
+  if (shaping.strength === 'weighty' || shaping.strength === 'strong') return 'deva';
+  const totalPotency = balance.wholesome + balance.unwholesome + balance.neutral;
+  const unwholesomeShare = totalPotency === 0 ? 0 : balance.unwholesome / totalPotency;
+  return unwholesomeShare >= 0.4 ? 'asura' : 'human'; // power tainted by rivalry/envy
+}
+```
+
+The 40% denominator explicitly includes neutral potency (full `getKarmicBalance()` volume), so a mostly-neutral continuum does not read as asura-grade rivalry.
 
 ### 4. Starting faculties as vipāka
 
 At construction after transmigration (not in the constructors themselves — a plain `new HumanBeing()` stays pristine):
 - starting `mindfulnessLevel` = clamp(round(wholesomeBalanceShare × 4), 0..4) — past practice conditions the new birth's faculties without copying them;
 - each path factor's starting `developmentLevel` = clamp(round(wholesomeBalanceShare × 3), 0..3), applied via `practice()`-equivalent internal seeding;
-- where `wholesomeBalanceShare = wholesome / (wholesome + unwholesome)` from `getKarmicBalance()` of the inherited store (0 when the store is empty).
+- where `wholesomeBalanceShare = wholesomePotency / (wholesomePotency + unwholesomePotency + neutralPotency)` from `getKarmicBalance()` of the inherited store, and 0 when the total potency is 0 (explicit zero-division guard; potency-weighted and including neutral volume, so one weak wholesome seed among many neutral ones does not read as a saintly continuum — amended per the 2026-08-30 cross-review).
 Caps (4 and 3) keep rebirth a real reset: a saint's continuum starts ahead, but nobody is born liberated.
 
 ### 5. Serialization
 
-`BeingData.realm?: Realm` (optional; missing → `'human'`). `deserializeBeing` becomes a factory: instantiate the class matching `realm`, then restore as today. Round-trip preserves the realm; legacy saves load as `Being` (human-equivalent). The gap-advance transmigration at load persists its result on the next save (same last-write-wins semantics as v0.2's counter).
+`BeingData.realm?: Realm` (optional; missing → `'human'`). `deserializeBeing` becomes a factory: instantiate the class matching `realm`, then restore as today — and **clamp restored faculties to the realm's caps** (e.g., an `animal` save with `rightView` above `wisdomCap()` — tampered or produced by an older version — is clamped on load, keeping the invariant unconditional). Round-trip preserves the realm; legacy saves load as `Being` (human-equivalent). Gap-advance at load changes only the counter + `pendingRebirth` flag (§2); the realm transition is persisted by the first mutating operation.
 
 ### 6. Surfaces
 

@@ -12,6 +12,8 @@ dist/
 build/
 lib/
 out/
+!plugin/dist/
+!plugin/dist/mcp.mjs
 
 # Misc
 .DS_Store

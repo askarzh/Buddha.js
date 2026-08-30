@@ -16,6 +16,7 @@
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "build:cli": "tsup --config tsup.cli.ts",
     "build:mcp": "tsup --config tsup.mcp.ts",
+    "build:plugin": "npm run build:mcp && mkdir -p plugin/dist && cp dist/mcp.mjs plugin/dist/mcp.mjs",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "test": "vitest",
     "test:run": "vitest run",

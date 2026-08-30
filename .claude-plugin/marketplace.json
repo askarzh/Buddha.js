@@ -1,0 +1,11 @@
+{
+  "name": "buddha-js",
+  "owner": { "name": "Askar Zhakenov", "email": "askar@zhakenov.pro" },
+  "plugins": [
+    {
+      "name": "buddha-js",
+      "source": "./plugin",
+      "description": "Buddhist philosophy tools — meditation, diagnosis, karma, koans, self-inquiry, and the Poison Arrow method, backed by a bundled MCP server"
+    }
+  ]
+}

@@ -99,4 +99,21 @@ describe('BeingSerializer', () => {
       expect(restored.getExperienceHistory(1)[0].input.valence).toBeUndefined();
     });
   });
+
+  describe('karmic store round-trip', () => {
+    it('round-trips the karmic store', () => {
+      const being = new Being();
+      being.act('planted a garden', 6, 'non-greed');
+      const restored = Being.fromJSON(being.toJSON());
+      expect(restored.karmicStore.getSeeds()).toHaveLength(1);
+      expect(restored.karmicStore.getSeeds()[0].quality).toBe('wholesome');
+    });
+
+    it('loads legacy saves without a karmicStore field', () => {
+      const data = new Being().toJSON();
+      delete (data as any).karmicStore;
+      const restored = Being.fromJSON(data);
+      expect(restored.karmicStore.getSeeds()).toHaveLength(0);
+    });
+  });
 });

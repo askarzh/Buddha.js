@@ -319,6 +319,8 @@ export interface BeingData {
   path: PathData;
   mind: MindData;
   dependentOrigination: NidanaChainData;
+  /** Optional for legacy-save tolerance: saves predating the karmic seed ledger omit it. */
+  karmicStore?: KarmicStoreData;
 }
 
 // =============================================================================

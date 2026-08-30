@@ -8,6 +8,7 @@
 import { Being } from './Being';
 import { Karma } from '../karma/Karma';
 import { Intention } from '../karma/Intention';
+import { KarmicStore } from '../karma/KarmicEventSystem';
 import { ProcessedExperience } from '../five-aggregates/FiveAggregates';
 import {
   BeingData,
@@ -125,6 +126,7 @@ export function serializeBeing(being: Being): BeingData {
     path,
     mind,
     dependentOrigination,
+    karmicStore: being.karmicStore.toJSON(),
   };
 }
 
@@ -203,11 +205,22 @@ export function deserializeBeing(data: BeingData): Being {
     timestamp: e.timestamp,
   }));
 
+  // Restore the karmic seed ledger (legacy saves omit this field, so the
+  // being keeps its freshly-constructed, empty store in that case).
+  let karmicStore: KarmicStore | undefined;
+  if (data.karmicStore) {
+    karmicStore = KarmicStore.fromJSON(data.karmicStore);
+    // fromJSON honors the persisted config, which may have restarted the
+    // auto-ripening interval — Being never runs a ripening timer.
+    karmicStore.stopRipeningCheck();
+  }
+
   // Use _restoreState to set private fields
   being._restoreState({
     mindfulnessLevel: data.mindfulnessLevel,
     karmicStream,
     experienceHistory,
+    karmicStore,
   });
 
   return being;

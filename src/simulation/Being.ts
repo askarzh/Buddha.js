@@ -13,9 +13,10 @@ import { FourNobleTruths, Diagnosis } from '../four-noble-truths/FourNobleTruths
 import { Karma } from '../karma/Karma';
 import { Intention } from '../karma/Intention';
 import { KarmicResult } from '../karma/KarmicResult';
+import { KarmicStore } from '../karma/KarmicEventSystem';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
-import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, BeingData, Serializable } from '../utils/types';
+import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, KarmaQuality, BeingData, Serializable } from '../utils/types';
 import { serializeBeing, deserializeBeing } from './BeingSerializer';
 
 /**
@@ -82,6 +83,12 @@ export class Being implements Serializable<BeingData> {
   /** Mind with mental factors */
   readonly mind: Mind;
 
+  /**
+   * Karmic seed ledger. Auto-ripening is always disabled here — Being drives
+   * karmic ripening explicitly via receiveKarmicResults(), never a timer.
+   */
+  readonly karmicStore: KarmicStore;
+
   /** Stream of karma */
   private karmicStream: Karma[] = [];
 
@@ -98,6 +105,7 @@ export class Being implements Serializable<BeingData> {
     this.fourNobleTruths = new FourNobleTruths(this.path);
     this.emptiness = new Sunyata();
     this.mind = new Mind();
+    this.karmicStore = new KarmicStore({ enableAutoRipening: false });
   }
 
   /**
@@ -130,7 +138,52 @@ export class Being implements Serializable<BeingData> {
     const karma = new Karma(intention, intensity);
     karma.complete();
     this.karmicStream.push(karma);
+    this.plantSeedFromAct(description, intensity, root);
     return karma;
+  }
+
+  /**
+   * Dual-write path: alongside the legacy karmicStream entry, plant a
+   * karmic seed in the KarmicStore. Quality is derived from the root
+   * (never caller-supplied) using the same rule as Intention.determineQuality:
+   * greed/aversion/delusion -> unwholesome, other roots -> wholesome,
+   * no root -> neutral.
+   */
+  private plantSeedFromAct(
+    description: string,
+    intensity: Intensity,
+    root?: UnwholesomeRoot | WholesomeRoot
+  ): void {
+    const unwholesomeRoots: UnwholesomeRoot[] = ['greed', 'aversion', 'delusion'];
+    const quality: KarmaQuality = !root
+      ? 'neutral'
+      : unwholesomeRoots.includes(root as UnwholesomeRoot)
+        ? 'unwholesome'
+        : 'wholesome';
+
+    const slug = description.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+    // NOTE: 'incarnation:1' is hardcoded for now; Task 5 replaces it with a
+    // live incarnation counter.
+    this.karmicStore.plantSeed({
+      quality,
+      description,
+      intentionStrength: intensity,
+      ...(root ? { root } : {}),
+      potency: intensity * 7,
+      ripeningTiming: 'deferred',
+      minDelay: 0,
+      maxDelay: Number.MAX_SAFE_INTEGER,
+      tags: [root ?? 'neutral', 'act', slug, 'incarnation:1'],
+    });
+  }
+
+  /**
+   * Release resources held by the karmic seed ledger (e.g. any ripening
+   * timers). Safe to call even though auto-ripening is always disabled here.
+   */
+  dispose(): void {
+    this.karmicStore.dispose();
   }
 
   /**
@@ -304,10 +357,14 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     mindfulnessLevel: Intensity;
     karmicStream: Karma[];
     experienceHistory: ProcessedExperience[];
+    karmicStore?: KarmicStore;
   }): void {
     this._mindfulnessLevel = state.mindfulnessLevel;
     this.karmicStream = state.karmicStream;
     this.experienceHistory = state.experienceHistory;
+    if (state.karmicStore) {
+      (this as any).karmicStore = state.karmicStore;
+    }
   }
 
   /**

@@ -203,4 +203,25 @@ describe('Being', () => {
       });
     });
   });
+
+  describe('karmic seed ledger', () => {
+    it('act() plants exactly one seed with quality derived from root', () => {
+      const being = new Being();
+      being.act('donated books', 5, 'non-greed');
+      const seeds = being.karmicStore.getSeeds();
+      expect(seeds).toHaveLength(1);
+      expect(seeds[0].quality).toBe('wholesome');
+      expect(seeds[0].strength).toBe('moderate');
+      expect(being.getKarmicStream()).toHaveLength(1); // legacy contract intact
+    });
+
+    it('maps intensity to seed strength boundaries', () => {
+      const being = new Being();
+      being.act('a', 3);            // neutral root
+      being.act('b', 4, 'greed');
+      being.act('c', 8, 'aversion');
+      const strengths = being.karmicStore.getSeeds().map(s => s.strength);
+      expect(strengths).toEqual(['weak', 'moderate', 'strong']);
+    });
+  });
 });

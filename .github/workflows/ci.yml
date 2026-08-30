@@ -22,4 +22,6 @@ jobs:
       - run: npm run build:mcp
       - run: npm run build:plugin
       - run: git diff --exit-code plugin/dist
+      - run: bash scripts/mcp-smoke.sh plugin/dist/mcp.mjs
       - run: npm run build:mcpb
+      - run: bash scripts/mcp-smoke.sh mcpb/server/index.mjs

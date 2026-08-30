@@ -73,13 +73,34 @@ describe('Being', () => {
     it('should receive karmic results', () => {
       being.act('give', 5, 'non-greed');
 
-      const results = being.receiveKarmicResults();
-      expect(results.length).toBeGreaterThan(0);
+      const report = being.receiveKarmicResults();
+      expect(report.results.length).toBeGreaterThan(0);
     });
 
     it('experiences unwholesome karmic results as unpleasant', () => {
       being.act('harsh speech', 7, 'aversion');
       being.receiveKarmicResults();
+      const last = being.getExperienceHistory(1)[0];
+      expect(last.feelingTone).toBe('unpleasant');
+    });
+
+    it('conditional ripening explains why seeds did not ripen', () => {
+      being.act('kind word', 5, 'non-aversion');
+      const report = being.receiveKarmicResults();
+      expect(report.whyNot.length).toBeGreaterThan(0);
+      expect(report.whyNot[0].unmet.join(' ')).toMatch(/mindfulness/);
+    });
+
+    it('force-ripening is deterministic', () => {
+      being.act('kind word', 5, 'non-aversion');
+      const report = being.receiveKarmicResults(true);
+      expect(report.seedVipakas).toHaveLength(1);
+      expect(being.karmicStore.getSeeds({ state: 'active' })).toHaveLength(0);
+    });
+
+    it('ripened seed vipakas are experienced with matching valence', () => {
+      being.act('harsh word', 5, 'aversion');
+      being.receiveKarmicResults(true);
       const last = being.getExperienceHistory(1)[0];
       expect(last.feelingTone).toBe('unpleasant');
     });

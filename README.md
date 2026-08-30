@@ -937,7 +937,7 @@ const karma = being.act(
 );
 
 // ===== RECEIVE KARMIC RESULTS =====
-const results = being.receiveKarmicResults();
+const report = being.receiveKarmicResults(); // { results, seedVipakas, whyNot }
 
 // ===== MEDITATION =====
 const meditation = being.meditate(30, 8);

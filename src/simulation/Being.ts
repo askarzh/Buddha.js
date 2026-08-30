@@ -13,7 +13,7 @@ import { FourNobleTruths, Diagnosis } from '../four-noble-truths/FourNobleTruths
 import { Karma } from '../karma/Karma';
 import { Intention } from '../karma/Intention';
 import { KarmicResult } from '../karma/KarmicResult';
-import { KarmicStore } from '../karma/KarmicEventSystem';
+import { KarmicStore, KarmicVipaka, RipeningCondition } from '../karma/KarmicEventSystem';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
 import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, KarmaQuality, BeingData, Serializable } from '../utils/types';
@@ -37,6 +37,17 @@ export interface SelfInvestigationResult {
   dependentOriginationInsight: string;
   emptinessInsight: EmptinessInsight | null;
   conclusion: string;
+}
+
+/**
+ * Report produced by receiveKarmicResults(): legacy karmic-stream results,
+ * any karmic-store seeds that ripened, and an explanation of why the
+ * remaining active seeds did not ripen this pass.
+ */
+export interface KarmicResultsReport {
+  results: KarmicResult[];
+  seedVipakas: KarmicVipaka[];
+  whyNot: Array<{ seedId: string; description: string; unmet: string[] }>;
 }
 
 /**
@@ -106,6 +117,29 @@ export class Being implements Serializable<BeingData> {
     this.emptiness = new Sunyata();
     this.mind = new Mind();
     this.karmicStore = new KarmicStore({ enableAutoRipening: false });
+    this.registerRipeningConditions();
+  }
+
+  /**
+   * Register the named ripening conditions used by seeds planted via act().
+   * Must be re-run (followed by karmicStore.rebindConditions()) whenever
+   * karmicStore is replaced — e.g. after deserialization — since the check
+   * functions on a restored store's seeds are dead stubs until rebound.
+   */
+  private registerRipeningConditions(): void {
+    this.karmicStore.registerCondition(
+      'mindfulness-support',
+      () => this.mindfulnessLevel >= 5
+    );
+    this.karmicStore.registerCondition('habitual-accumulation', () => {
+      const tagCounts = new Map<string, number>();
+      for (const seed of this.karmicStore.getSeeds()) {
+        for (const tag of seed.tags) {
+          tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+        }
+      }
+      return Array.from(tagCounts.values()).some(count => count >= 3);
+    });
   }
 
   /**
@@ -163,6 +197,30 @@ export class Being implements Serializable<BeingData> {
 
     const slug = description.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
+    // habitual-accumulation is attached to every seed planted by Being;
+    // mindfulness-support is attached only to wholesome seeds. Both closures
+    // are seed-specific at plant time; the identically-named conditions
+    // registered in registerRipeningConditions() are the generic fallbacks
+    // used after rebindConditions() restores a seed from serialized data.
+    const conditions: RipeningCondition[] = [
+      {
+        type: 'accumulation',
+        name: 'habitual-accumulation',
+        description: 'three or more similar actions',
+        weight: 0.5,
+        check: () => this.karmicStore.getSeedsByTag(slug).length >= 3,
+      },
+    ];
+    if (quality === 'wholesome') {
+      conditions.push({
+        type: 'state',
+        name: 'mindfulness-support',
+        description: 'mindfulness level at least 5',
+        weight: 0.5,
+        check: () => this.mindfulnessLevel >= 5,
+      });
+    }
+
     // NOTE: 'incarnation:1' is hardcoded for now; Task 5 replaces it with a
     // live incarnation counter.
     this.karmicStore.plantSeed({
@@ -175,6 +233,7 @@ export class Being implements Serializable<BeingData> {
       minDelay: 0,
       maxDelay: Number.MAX_SAFE_INTEGER,
       tags: [root ?? 'neutral', 'act', slug, 'incarnation:1'],
+      conditions,
     });
   }
 
@@ -187,9 +246,14 @@ export class Being implements Serializable<BeingData> {
   }
 
   /**
-   * Receive karmic results (ripen pending karma)
+   * Receive karmic results (ripen pending karma).
+   *
+   * Ripens both the legacy karmic stream (unconditional, as before) and the
+   * karmicStore's active seeds (conditional — subject to their attached
+   * ripening conditions, unless `force` is set). Seeds that remain active
+   * afterward are explained in `whyNot`.
    */
-  receiveKarmicResults(): KarmicResult[] {
+  receiveKarmicResults(force = false): KarmicResultsReport {
     const results: KarmicResult[] = [];
 
     for (const karma of this.karmicStream) {
@@ -209,7 +273,40 @@ export class Being implements Serializable<BeingData> {
       }
     }
 
-    return results;
+    const seedVipakas: KarmicVipaka[] = [];
+    const candidateSeeds = this.karmicStore.getSeeds({ state: 'active' });
+
+    for (const seed of candidateSeeds) {
+      const vipaka = force
+        ? this.karmicStore.forceRipen(seed.id)
+        : this.karmicStore.attemptRipening(seed.id);
+
+      if (vipaka) {
+        seedVipakas.push(vipaka);
+        this.experience({
+          senseBase: 'mind',
+          object: vipaka.description,
+          intensity: vipaka.intensity,
+          valence: vipaka.quality
+        });
+      }
+    }
+
+    const whyNot: KarmicResultsReport['whyNot'] = [];
+    for (const seed of candidateSeeds) {
+      const current = this.karmicStore.getSeed(seed.id);
+      if (current && current.state === 'active') {
+        whyNot.push({
+          seedId: current.id,
+          description: current.description,
+          unmet: current.ripeningConditions
+            .filter(condition => !condition.check())
+            .map(condition => condition.description)
+        });
+      }
+    }
+
+    return { results, seedVipakas, whyNot };
   }
 
   /**
@@ -364,6 +461,11 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     this.experienceHistory = state.experienceHistory;
     if (state.karmicStore) {
       (this as any).karmicStore = state.karmicStore;
+      // The restored store's seeds carry dead-stub checks for named
+      // conditions (functions aren't serializable) — re-register the
+      // conditions against this being's new store, then rebind seeds to them.
+      this.registerRipeningConditions();
+      this.karmicStore.rebindConditions();
     }
   }
 

@@ -131,16 +131,23 @@ async function interactiveMode(being: Being): Promise<void> {
       }
 
       case 'receive': {
-        const results = being.receiveKarmicResults();
-        if (results.length === 0) {
+        const report = being.receiveKarmicResults();
+        if (report.results.length === 0) {
           console.log(subtle('\n  No karma has ripened yet.\n'));
         } else {
           console.log(label('\n  Karmic Results:'));
-          for (const r of results) {
+          for (const r of report.results) {
             const color = r.experienceQuality === 'pleasant' ? chalk.green
               : r.experienceQuality === 'unpleasant' ? chalk.red
               : chalk.gray;
             console.log(`    ${color('•')} ${r.description} (${r.experienceQuality})`);
+          }
+          console.log();
+        }
+        if (report.whyNot.length > 0) {
+          console.log(subtle(`  ${report.whyNot.length} karmic seed(s) awaiting conditions:`));
+          for (const w of report.whyNot) {
+            console.log(subtle(`    - ${w.description}: unmet — ${w.unmet.join(', ')}`));
           }
           console.log();
         }

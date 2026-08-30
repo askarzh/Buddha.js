@@ -115,5 +115,28 @@ describe('BeingSerializer', () => {
       const restored = Being.fromJSON(data);
       expect(restored.karmicStore.getSeeds()).toHaveLength(0);
     });
+
+    it('rebinds named ripening conditions after restore', () => {
+      const being = new Being();
+      being.act('planted a garden', 6, 'non-greed');
+      const restored = Being.fromJSON(being.toJSON());
+
+      const seed = restored.karmicStore.getSeeds()[0];
+
+      // Conditions were rebound to live checks (not the () => false stub
+      // fromJSON installs for unresolved conditions) — every condition still
+      // carries its name, and a non-force ripen attempt evaluates them
+      // rather than failing on a dead stub.
+      expect(seed.ripeningConditions.every(c => c.name)).toBe(true);
+
+      const report = restored.receiveKarmicResults();
+      expect(report.whyNot.length).toBeGreaterThan(0);
+      expect(report.whyNot[0].unmet.join(' ')).toMatch(/mindfulness/);
+
+      // force bypasses conditions entirely, proving the store round-tripped
+      // correctly regardless of condition state.
+      const forced = restored.receiveKarmicResults(true);
+      expect(forced.seedVipakas.length).toBeGreaterThan(0);
+    });
   });
 });

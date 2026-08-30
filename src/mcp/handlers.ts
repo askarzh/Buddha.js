@@ -56,9 +56,10 @@ export function act(
 
 export function ripenKarma(sm: StateManager, name: string) {
   const being = sm.loadExistingBeing(name);
-  const results = being.receiveKarmicResults();
+  // TODO(Task 7): surface seedVipakas/whyNot properly in the tool response.
+  const report = being.receiveKarmicResults();
   sm.saveBeing(name, being);
-  return results;
+  return report;
 }
 
 export function meditate(

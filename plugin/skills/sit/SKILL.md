@@ -11,17 +11,16 @@ Guide the user through the Poison Arrow method for cessation of suffering. The B
 
 1. If the user describes a specific suffering or situation, use it directly. Otherwise, ask them briefly what is troubling them.
 
-2. Run the sit command:
+2. This tool is stateless — no being required. Call `buddha_sit` (from the bundled buddha-js MCP server) with:
+   - `suffering` (string, required, non-empty) — the suffering or problem being sat with
 
-```bash
-node dist/cli.mjs sit --json --situation "description of the suffering or problem"
-```
+   This is also the right tool to reach for when an agent (including yourself) is stuck looping on a problem and needs quick relief without deep analysis.
 
-3. Present the cessation steps from the JSON output:
-   - **Recognition**: Acknowledging what is present
-   - **The Arrow**: Identifying the immediate suffering (not its story)
-   - **Removal**: The direct letting-go, the cessation practice
-   - **Relief**: What opens up when the arrow is removed
+3. Present the four cessation steps from the returned JSON (each step has a `stage`, the `truth` it maps to, an `insight`, and `guidance`), one per Noble Truth:
+   - **`recognize`** (truth: `dukkha`): Acknowledging what is present
+   - **`investigate`** (truth: `samudaya`): Identifying the immediate suffering and what feeds it (not its story)
+   - **`release`** (truth: `nirodha`): The direct letting-go, the cessation practice
+   - **`practice`** (truth: `magga`): What opens up and how to carry it forward
 
 4. Keep the presentation gentle and spacious. This is a contemplative practice, not a debugging session. Allow pauses in the guidance.
 

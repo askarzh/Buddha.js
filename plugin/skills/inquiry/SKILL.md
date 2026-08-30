@@ -9,13 +9,12 @@ Investigate the nature of self through the Buddha.js anatta (not-self) analysis.
 
 ## Instructions
 
-1. Run the inquiry command:
+1. This is a stateful tool — it operates on an existing being. If you don't know the being's name, call `buddha_list_beings` (no parameters), or `buddha_create_being` with a `name` if none exists yet.
 
-```bash
-node dist/cli.mjs inquiry --json --being default
-```
+2. Call the `buddha_inquiry` tool (from the bundled buddha-js MCP server) with:
+   - `name` (string, required) — the being's name
 
-2. Parse the JSON output and present the investigation results:
+3. Parse the returned JSON and present the investigation results:
    - **Aggregate Search**: Walk through each of the five aggregates (form, feeling, perception, mental formations, consciousness) showing that none is a fixed self
    - **Dependent Origination Insight**: How the sense of self arises through conditions
    - **Emptiness Analysis**: The three natures examination (imagined, dependent, perfected)

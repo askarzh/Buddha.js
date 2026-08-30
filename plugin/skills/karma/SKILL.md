@@ -9,32 +9,25 @@ Explore intentional action (karma), plant karmic seeds, and examine the karmic s
 
 ## Instructions
 
+These are stateful tools — they operate on an existing being. If you don't know the being's name, call `buddha_list_beings` (no parameters), or `buddha_create_being` with a `name` if none exists yet.
+
 ### View Karmic Stream
 
-To see the current karmic state:
+To see the current karmic state, including any newly ripened results, call `buddha_karma_ripen` with:
+   - `name` (string, required) — the being's name
 
-```bash
-node dist/cli.mjs karma --json --being default
-```
-
-This shows pending seeds, recent results, and the overall karmic balance.
+For the full being state (including the complete karmic stream), call `buddha_status` with the same `name`.
 
 ### Perform a Karmic Action
 
-To plant a new karmic seed:
+To plant a new karmic seed, call `buddha_act` with:
 
-```bash
-node dist/cli.mjs karma --json --being default --description "Helping a colleague" --intensity 7 --root non-aversion
-```
-
-**Flags:**
-
-| Flag | Values | Description |
-|------|--------|-------------|
-| `--description` | any string | A description of the action |
-| `--intensity` | `1` to `10` | How strong the intention is |
-| `--root` | `non-greed`, `non-aversion`, `non-delusion`, `greed`, `aversion`, `delusion` | The root motivation — moral quality is derived from this, not assigned independently |
-| `--quality` | `wholesome`, `unwholesome` | Optional: validates the expected quality against the quality derived from `--root`; errors if they contradict |
+| Parameter | Type | Description |
+|-----------|------|--------------|
+| `name` | string, required | The being's name |
+| `description` | string, required | Description of the intentional action |
+| `intensity` | integer 0-10, required | How strong the intention is |
+| `root` | optional enum: `greed`, `aversion`, `delusion`, `non-greed`, `non-aversion`, `non-delusion` | The root motivation. Karmic quality (wholesome/unwholesome) is *derived* from this root — there is no separate `quality` parameter. Omit `root` entirely for a neutral act. |
 
 ### Presentation
 

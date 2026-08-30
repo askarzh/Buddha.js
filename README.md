@@ -867,14 +867,16 @@ All tools except `buddha_create_being`, `buddha_list_beings`, and `buddha_sit` r
 
 ## Claude Code Plugin
 
-Buddha.js ships as a [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-code/plugins) with auto-activating skills. When installed, Claude Code can invoke Buddhist philosophy tools based on conversational context.
+Buddha.js ships as a [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-code/plugins) with auto-activating skills and a bundled MCP server. When installed, Claude Code can invoke Buddhist philosophy tools based on conversational context.
 
 ### Installation
 
-```bash
-# From the project directory
-claude plugin add ./plugin
 ```
+/plugin marketplace add askarzh/Buddha.js
+/plugin install buddha-js@buddha-js
+```
+
+Installing the plugin auto-configures the bundled `buddha-js` MCP server (14 tools, see above) — no separate build or server setup is needed.
 
 ### Available Skills
 
@@ -897,7 +899,7 @@ Use `/buddha` to see all available commands and get started.
 
 ### How It Works
 
-Each skill calls `buddha <cmd> --json` under the hood and presents results conversationally. The plugin uses the CLI as its single source of truth — no separate logic layer.
+Each skill calls the corresponding `buddha_*` MCP tool from the bundled `buddha-js` server and presents results conversationally. Stateful tools follow a create-being-first workflow: list beings with `buddha_list_beings`, create one with `buddha_create_being` if needed, then call the tool with that being's name.
 
 ---
 

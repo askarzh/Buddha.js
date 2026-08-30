@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Being } from '../../src/simulation/Being';
 
 describe('Being incarnation tracking', () => {
@@ -64,13 +64,25 @@ describe('Being incarnation tracking', () => {
   });
 
   it('rebirth expires ahosi seeds and names the shaping seed', () => {
-    const being = new Being();
-    being.act('daily practice', 5, 'non-delusion');
-    being.act('daily practice', 5, 'non-delusion');
-    being.act('daily practice', 5, 'non-delusion');
-    const result = being.rebirth();
-    expect(result.incarnation).toBe(2);
-    expect(result.shapingSeed?.reason).toBe('habitual');
+    // Habitual (āciṇṇa) now counts distinct planting events (by createdAt)
+    // per slug, so these three separate act() calls must land at distinct
+    // timestamps — fake time keeps that deterministic instead of relying on
+    // three synchronous calls happening to cross a millisecond boundary.
+    vi.useFakeTimers();
+    try {
+      const being = new Being();
+      vi.setSystemTime(1000);
+      being.act('daily practice', 5, 'non-delusion');
+      vi.setSystemTime(2000);
+      being.act('daily practice', 5, 'non-delusion');
+      vi.setSystemTime(3000);
+      being.act('daily practice', 5, 'non-delusion');
+      const result = being.rebirth();
+      expect(result.incarnation).toBe(2);
+      expect(result.shapingSeed?.reason).toBe('habitual');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rebirth reports null shaping seed when the store is empty', () => {
@@ -113,6 +125,34 @@ describe('Being incarnation tracking', () => {
       .getSeeds()
       .find(s => s.description === 'instant fruit');
     expect(seed?.state).toBe('exhausted');
+  });
+
+  it('rebirth never names an expiring immediate-timing seed as the shaping seed', () => {
+    const being = new Being();
+    being.karmicStore.plantSeed({
+      quality: 'wholesome',
+      description: 'instant fruit',
+      potency: 10,
+      ripeningTiming: 'immediate',
+      tags: ['non-delusion', 'incarnation:1'],
+    });
+    being.karmicStore.plantSeed({
+      quality: 'wholesome',
+      description: 'distant fruit',
+      potency: 10,
+      ripeningTiming: 'distant-future',
+      tags: ['non-delusion', 'incarnation:1'],
+    });
+
+    const result = being.rebirth();
+
+    expect(result.shapingSeed?.description).not.toBe('instant fruit');
+    expect(result.shapingSeed?.description).toBe('distant fruit');
+
+    const instantSeed = being.karmicStore
+      .getSeeds()
+      .find(s => s.description === 'instant fruit');
+    expect(instantSeed?.state).toBe('exhausted');
   });
 
   it('a next-life seed does not ripen in its planting incarnation, ripens after rebirth', () => {

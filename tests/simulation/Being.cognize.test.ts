@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Being } from '../../src/simulation/Being';
 
 describe('Being.cognize()', () => {
@@ -22,5 +22,44 @@ describe('Being.cognize()', () => {
   it('mental cognition uses the 13-moment process', () => {
     const being = new Being();
     expect(being.cognize('a plan for tomorrow').moments).toHaveLength(13);
+  });
+
+  it('one cognize() does not count as habitual (āciṇṇa) — a single vīthi plants 3 seeds sharing one slug, not 3 repetitions', () => {
+    const being = new Being();
+    being.cognize('a single thought');
+
+    const seeds = being.karmicStore.getSeeds();
+    expect(seeds).toHaveLength(3);
+    for (const seed of seeds) {
+      const habitualCondition = seed.ripeningConditions.find(c => c.name === 'habitual-accumulation');
+      expect(habitualCondition?.check()).toBe(false);
+    }
+
+    expect(being.rebirth().shapingSeed?.reason).not.toBe('habitual');
+  });
+
+  it('three separate cognize() calls of the same content accumulate to habitual (āciṇṇa)', () => {
+    // Habitual-accumulation counts distinct planting events (by createdAt)
+    // per slug; fake time keeps the three separate calls at distinct
+    // timestamps deterministically rather than relying on synchronous calls
+    // happening to cross a millisecond boundary.
+    vi.useFakeTimers();
+    try {
+      const being = new Being();
+      vi.setSystemTime(1000);
+      being.cognize('the same thought');
+      vi.setSystemTime(2000);
+      being.cognize('the same thought');
+      vi.setSystemTime(3000);
+      being.cognize('the same thought');
+
+      const seeds = being.karmicStore.getSeeds();
+      const habitualCondition = seeds[0].ripeningConditions.find(c => c.name === 'habitual-accumulation');
+      expect(habitualCondition?.check()).toBe(true);
+
+      expect(being.rebirth().shapingSeed?.reason).toBe('habitual');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

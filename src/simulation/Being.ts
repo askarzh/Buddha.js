@@ -275,7 +275,7 @@ export class Being implements Serializable<BeingData> {
         name: 'habitual-accumulation',
         description: 'three or more similar actions',
         weight: 0.5,
-        check: () => this.karmicStore.getSeedsByTag(slug).length >= 3,
+        check: () => this.countDistinctPlantings(slug) >= 3,
       },
     ];
     if (quality === 'wholesome') {
@@ -288,6 +288,29 @@ export class Being implements Serializable<BeingData> {
       });
     }
     return conditions;
+  }
+
+  /**
+   * Count distinct planting events (by `createdAt`) among seeds tagged with
+   * `slug`. A single citta-vīthi (cognize() or act()) plants multiple seeds
+   * sharing one slug and one `createdAt`, so this counts repeated ACTIONS
+   * (āciṇṇa-kamma: habitually repeated action), not raw seed count — one
+   * cognition/action must not, by itself, look "habitual".
+   */
+  private countDistinctPlantings(slug: string): number {
+    const createdAts = new Set(this.karmicStore.getSeedsByTag(slug).map(seed => seed.createdAt));
+    return createdAts.size;
+  }
+
+  /**
+   * The description slug for a seed, derived from its tags — excludes the
+   * process-kind tags ('act', 'cognize'), the karmic root, and the
+   * incarnation tag, leaving the actual description-derived slug.
+   */
+  private slugOf(seed: KarmicSeed): string | undefined {
+    return seed.tags.find(
+      t => t !== 'act' && t !== 'cognize' && t !== seed.root && !t.startsWith('incarnation:')
+    );
   }
 
   /**
@@ -559,26 +582,24 @@ export class Being implements Serializable<BeingData> {
       return { id: weighty.id, description: weighty.description, reason: 'weighty' };
     }
 
-    const slugOf = (seed: KarmicSeed): string | undefined =>
-      seed.tags.find(t => t !== 'act' && t !== seed.root && !t.startsWith('incarnation:'));
-
-    const counts = new Map<string, number>();
+    const plantings = new Map<string, Set<number>>();
     for (const seed of seeds) {
-      const slug = slugOf(seed);
+      const slug = this.slugOf(seed);
       if (!slug) continue;
-      counts.set(slug, (counts.get(slug) ?? 0) + 1);
+      if (!plantings.has(slug)) plantings.set(slug, new Set());
+      plantings.get(slug)!.add(seed.createdAt);
     }
 
     let bestSlug: string | undefined;
     let bestCount = 1;
-    for (const [slug, count] of counts) {
-      if (count > bestCount) {
-        bestCount = count;
+    for (const [slug, createdAts] of plantings) {
+      if (createdAts.size > bestCount) {
+        bestCount = createdAts.size;
         bestSlug = slug;
       }
     }
     if (bestSlug) {
-      const habitual = seeds.find(s => slugOf(s) === bestSlug);
+      const habitual = seeds.find(s => this.slugOf(s) === bestSlug);
       if (habitual) {
         return { id: habitual.id, description: habitual.description, reason: 'habitual' };
       }
@@ -595,9 +616,11 @@ export class Being implements Serializable<BeingData> {
    * incarnation.
    */
   rebirth(): RebirthResult {
-    const shapingSeed = this.pickShapingSeed();
     this._incarnation += 1;
 
+    // Sweep expiring seeds first: a seed whose window has now lapsed
+    // (ahosi-kamma) is defunct at this transition and must not be eligible
+    // to shape the next incarnation.
     let expiredSeeds = 0;
     for (const seed of this.karmicStore.getSeeds({ state: 'active' })) {
       const window = this.evaluateSeedWindow(seed);
@@ -606,6 +629,8 @@ export class Being implements Serializable<BeingData> {
         expiredSeeds++;
       }
     }
+
+    const shapingSeed = this.pickShapingSeed();
 
     return { incarnation: this._incarnation, expiredSeeds, shapingSeed };
   }

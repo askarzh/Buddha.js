@@ -36694,7 +36694,7 @@ var Being = class _Being {
         name: "habitual-accumulation",
         description: "three or more similar actions",
         weight: 0.5,
-        check: () => this.karmicStore.getSeedsByTag(slug).length >= 3
+        check: () => this.countDistinctPlantings(slug) >= 3
       }
     ];
     if (quality === "wholesome") {
@@ -36707,6 +36707,27 @@ var Being = class _Being {
       });
     }
     return conditions;
+  }
+  /**
+   * Count distinct planting events (by `createdAt`) among seeds tagged with
+   * `slug`. A single citta-vīthi (cognize() or act()) plants multiple seeds
+   * sharing one slug and one `createdAt`, so this counts repeated ACTIONS
+   * (āciṇṇa-kamma: habitually repeated action), not raw seed count — one
+   * cognition/action must not, by itself, look "habitual".
+   */
+  countDistinctPlantings(slug) {
+    const createdAts = new Set(this.karmicStore.getSeedsByTag(slug).map((seed) => seed.createdAt));
+    return createdAts.size;
+  }
+  /**
+   * The description slug for a seed, derived from its tags — excludes the
+   * process-kind tags ('act', 'cognize'), the karmic root, and the
+   * incarnation tag, leaving the actual description-derived slug.
+   */
+  slugOf(seed) {
+    return seed.tags.find(
+      (t) => t !== "act" && t !== "cognize" && t !== seed.root && !t.startsWith("incarnation:")
+    );
   }
   /**
    * Run a full cognitive process (citta-vīthi) over content, then plant
@@ -36933,23 +36954,23 @@ var Being = class _Being {
     if (weighty) {
       return { id: weighty.id, description: weighty.description, reason: "weighty" };
     }
-    const slugOf = (seed) => seed.tags.find((t) => t !== "act" && t !== seed.root && !t.startsWith("incarnation:"));
-    const counts = /* @__PURE__ */ new Map();
+    const plantings = /* @__PURE__ */ new Map();
     for (const seed of seeds) {
-      const slug = slugOf(seed);
+      const slug = this.slugOf(seed);
       if (!slug) continue;
-      counts.set(slug, (counts.get(slug) ?? 0) + 1);
+      if (!plantings.has(slug)) plantings.set(slug, /* @__PURE__ */ new Set());
+      plantings.get(slug).add(seed.createdAt);
     }
     let bestSlug;
     let bestCount = 1;
-    for (const [slug, count] of counts) {
-      if (count > bestCount) {
-        bestCount = count;
+    for (const [slug, createdAts] of plantings) {
+      if (createdAts.size > bestCount) {
+        bestCount = createdAts.size;
         bestSlug = slug;
       }
     }
     if (bestSlug) {
-      const habitual = seeds.find((s) => slugOf(s) === bestSlug);
+      const habitual = seeds.find((s) => this.slugOf(s) === bestSlug);
       if (habitual) {
         return { id: habitual.id, description: habitual.description, reason: "habitual" };
       }
@@ -36964,7 +36985,6 @@ var Being = class _Being {
    * incarnation.
    */
   rebirth() {
-    const shapingSeed = this.pickShapingSeed();
     this._incarnation += 1;
     let expiredSeeds = 0;
     for (const seed of this.karmicStore.getSeeds({ state: "active" })) {
@@ -36974,6 +36994,7 @@ var Being = class _Being {
         expiredSeeds++;
       }
     }
+    const shapingSeed = this.pickShapingSeed();
     return { incarnation: this._incarnation, expiredSeeds, shapingSeed };
   }
   /**

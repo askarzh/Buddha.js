@@ -14,6 +14,7 @@ npm run test:coverage # Run tests with coverage report
 npm run lint          # ESLint (note: no .eslintrc config yet)
 npm run build:cli     # Build CLI to dist/cli.mjs
 npm run build:mcp     # Build MCP server to dist/mcp.mjs
+npm run build:plugin   # Rebuild bundled plugin server (run after any src/mcp change)
 node dist/cli.mjs     # Run CLI (or: buddha <command> if installed globally)
 node dist/mcp.mjs     # Run MCP server (stdio transport)
 
@@ -83,7 +84,7 @@ Built with Commander.js, @inquirer/prompts, and chalk v5. Separate build config 
 
 ### MCP Server
 
-Exposes the full Being API as 13 MCP tools via stdio transport. Built with `@modelcontextprotocol/sdk` and `zod`. Shares persistence with CLI (`~/.buddha/beings/`). Separate build config in `tsup.mcp.ts`.
+Exposes the full Being API as 14 MCP tools via stdio transport. Built with `@modelcontextprotocol/sdk` and `zod`. Shares persistence with CLI (`~/.buddha/beings/`). Separate build config in `tsup.mcp.ts`.
 
 **Configuration (Claude Code / Claude Desktop):**
 ```json

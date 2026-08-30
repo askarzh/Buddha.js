@@ -23,7 +23,7 @@
     "test:coverage": "vitest --coverage",
     "lint": "eslint src tests",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run typecheck && npm run lint && npm run test:run && npm run build && npm run build:cli && npm run build:mcp"
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run test:run && npm run build && npm run build:cli && npm run build:mcp && npm run build:plugin"
   },
   "keywords": [
     "buddhism",

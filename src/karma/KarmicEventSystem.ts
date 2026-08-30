@@ -497,8 +497,6 @@ export class KarmicStore implements Serializable<KarmicStoreData> {
       this.scheduleRipening(seed);
     }
 
-    seed.state = seed.timesRipened >= seed.maxRipenings ? 'ripened' : 'active';
-
     this.emit({
       type: 'seed:ripened',
       timestamp: Date.now(),

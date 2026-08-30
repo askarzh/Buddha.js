@@ -226,15 +226,20 @@ export function deserializeBeing(data: BeingData): Being {
   // gap so no spurious increment occurs; legacy saves (no incarnation)
   // default to 1.
   const gapMs = Number(process.env.BUDDHA_INCARNATION_GAP_MS ?? 21600000);
-  const lastActiveAt = data.lastActiveAt ?? Date.now();
   let incarnation = data.incarnation ?? 1;
-  // >= rather than a strict > : with the default gapMs (6h) the boundary
-  // is never observable in practice, but BUDDHA_INCARNATION_GAP_MS=0 (used
-  // to force a rebirth-on-load deterministically, e.g. in tests) needs an
-  // elapsed-time-of-zero to still count as "past the gap".
-  const elapsed = Date.now() - lastActiveAt;
-  if (elapsed >= gapMs) {
-    incarnation += 1;
+  // A legacy save has no lastActiveAt at all — there is no prior timestamp
+  // to measure a gap against, so it NEVER triggers an incarnation advance,
+  // regardless of gapMs (including gapMs=0). Only compare against the gap
+  // when the save actually recorded when it was written.
+  if (data.lastActiveAt !== undefined) {
+    // >= rather than a strict > : with the default gapMs (6h) the boundary
+    // is never observable in practice, but BUDDHA_INCARNATION_GAP_MS=0
+    // (used to force a rebirth-on-load deterministically, e.g. in tests)
+    // needs an elapsed-time-of-zero to still count as "past the gap".
+    const elapsed = Date.now() - data.lastActiveAt;
+    if (elapsed >= gapMs) {
+      incarnation += 1;
+    }
   }
 
   // Use _restoreState to set private fields

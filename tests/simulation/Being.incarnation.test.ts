@@ -35,6 +35,21 @@ describe('Being incarnation tracking', () => {
     expect(restored.incarnation).toBe(1);
   });
 
+  it('never advances a legacy save (no lastActiveAt) even with BUDDHA_INCARNATION_GAP_MS=0', () => {
+    process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+    try {
+      const being = new Being();
+      const data = being.toJSON();
+      delete (data as { incarnation?: number }).incarnation;
+      delete (data as { lastActiveAt?: number }).lastActiveAt;
+
+      const restored = Being.fromJSON(data);
+      expect(restored.incarnation).toBe(1);
+    } finally {
+      delete process.env.BUDDHA_INCARNATION_GAP_MS;
+    }
+  });
+
   it('plants seeds tagged with the live incarnation counter', () => {
     const being = new Being();
     being.act('daily practice', 5, 'non-delusion');

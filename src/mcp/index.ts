@@ -87,11 +87,12 @@ server.tool(
   nameSchema,
   async ({ name }) => {
     try {
-      const { summary, state } = getStatus(sm, name);
+      const { summary, state, seeds } = getStatus(sm, name);
       return {
         content: [
           { type: 'text' as const, text: summary },
           { type: 'text' as const, text: JSON.stringify(state, null, 2) },
+          { type: 'text' as const, text: JSON.stringify({ seeds }, null, 2) },
         ],
       };
     } catch (err) {
@@ -194,6 +195,8 @@ server.tool(
         '',
         'Seeds planted:',
         seedsText,
+        '',
+        JSON.stringify(result, null, 2),
       ].join('\n');
       return { content: [{ type: 'text' as const, text }] };
     } catch (e) {

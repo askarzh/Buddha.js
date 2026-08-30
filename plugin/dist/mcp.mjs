@@ -37661,11 +37661,12 @@ server.tool(
   nameSchema,
   async ({ name }) => {
     try {
-      const { summary, state } = getStatus(sm, name);
+      const { summary, state, seeds } = getStatus(sm, name);
       return {
         content: [
           { type: "text", text: summary },
-          { type: "text", text: JSON.stringify(state, null, 2) }
+          { type: "text", text: JSON.stringify(state, null, 2) },
+          { type: "text", text: JSON.stringify({ seeds }, null, 2) }
         ]
       };
     } catch (err) {
@@ -37758,7 +37759,9 @@ server.tool(
         momentsText,
         "",
         "Seeds planted:",
-        seedsText
+        seedsText,
+        "",
+        JSON.stringify(result, null, 2)
       ].join("\n");
       return { content: [{ type: "text", text }] };
     } catch (e) {

@@ -180,15 +180,47 @@ export class Being implements Serializable<BeingData> {
       'mindfulness-support',
       () => this.mindfulnessLevel >= 5
     );
+    // Legacy fallback for seeds serialized before per-slug condition names
+    // existed (plain 'habitual-accumulation', no ':<slug>' suffix). Excludes
+    // structural tags — 'act'/'cognize', the incarnation marker, and the
+    // seed's own root — so the count reflects description-derived groupings
+    // only, not every seed sharing a process-kind or root tag.
     this.karmicStore.registerCondition('habitual-accumulation', () => {
       const tagCounts = new Map<string, number>();
       for (const seed of this.karmicStore.getSeeds()) {
         for (const tag of seed.tags) {
+          if (
+            tag === 'act' ||
+            tag === 'cognize' ||
+            tag === seed.root ||
+            tag.startsWith('incarnation:')
+          ) {
+            continue;
+          }
           tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
         }
       }
       return Array.from(tagCounts.values()).some(count => count >= 3);
     });
+
+    // Per-slug habitual conditions: seeds planted after this fix carry a
+    // condition named 'habitual-accumulation:<slug>' whose check closure is
+    // NOT serializable, so on restore it's a dead stub until we re-register
+    // one closure per distinct slug actually present in the restored store.
+    const slugs = new Set<string>();
+    for (const seed of this.karmicStore.getSeeds()) {
+      for (const condition of seed.ripeningConditions) {
+        if (condition.name?.startsWith('habitual-accumulation:')) {
+          slugs.add(condition.name.slice('habitual-accumulation:'.length));
+        }
+      }
+    }
+    for (const slug of slugs) {
+      this.karmicStore.registerCondition(
+        `habitual-accumulation:${slug}`,
+        () => this.countDistinctPlantings(slug) >= 3
+      );
+    }
   }
 
   /**
@@ -244,7 +276,7 @@ export class Being implements Serializable<BeingData> {
         ? 'unwholesome'
         : 'wholesome';
 
-    const slug = description.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const slug = Being.slugify(description);
 
     this.karmicStore.plantSeed({
       quality,
@@ -272,7 +304,10 @@ export class Being implements Serializable<BeingData> {
     const conditions: RipeningCondition[] = [
       {
         type: 'accumulation',
-        name: 'habitual-accumulation',
+        // Per-slug name so restore-time rebinding (registerRipeningConditions)
+        // can register a closure scoped to THIS slug, instead of the v0.2
+        // store-wide fallback that made every seed's condition true together.
+        name: `habitual-accumulation:${slug}`,
         description: 'three or more similar actions',
         weight: 0.5,
         check: () => this.countDistinctPlantings(slug) >= 3,
@@ -306,10 +341,27 @@ export class Being implements Serializable<BeingData> {
    * The description slug for a seed, derived from its tags — excludes the
    * process-kind tags ('act', 'cognize'), the karmic root, and the
    * incarnation tag, leaving the actual description-derived slug.
+   *
+   * Falls back to the seed's own `id` when no description-derived tag
+   * remains (e.g. a description that slugifies to a structural tag name
+   * like "act", so `t !== 'act'` filters it out too) — the id is unique,
+   * so such a seed simply never groups with others as "habitual" instead
+   * of crashing downstream callers that assume a string.
    */
-  private slugOf(seed: KarmicSeed): string | undefined {
-    return seed.tags.find(
-      t => t !== 'act' && t !== 'cognize' && t !== seed.root && !t.startsWith('incarnation:')
+  /**
+   * Turn free text into a tag-safe slug: lowercase, non-alphanumeric runs
+   * collapsed to a single dash, leading/trailing dashes trimmed (so e.g.
+   * "act!" doesn't produce a trailing-dash slug distinct from "act").
+   */
+  private static slugify(text: string): string {
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  private slugOf(seed: KarmicSeed): string {
+    return (
+      seed.tags.find(
+        t => t !== 'act' && t !== 'cognize' && t !== seed.root && !t.startsWith('incarnation:')
+      ) ?? seed.id
     );
   }
 
@@ -376,8 +428,8 @@ export class Being implements Serializable<BeingData> {
     }
 
     const quality: KarmaQuality = javanaQuality === 'kusala' ? 'wholesome' : 'unwholesome';
-    const root = javanaQuality === 'kusala' ? 'non-delusion' : this.determineActiveUnwholesomeRoot();
-    const slug = content.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const root = javanaQuality === 'kusala' ? this.determineActiveWholesomeRoot() : this.determineActiveUnwholesomeRoot();
+    const slug = Being.slugify(content);
 
     const groups: Array<{ timing: RipeningTiming; potency: number }> = [
       { timing: 'immediate', potency: 10 },       // javana 1: weak
@@ -400,6 +452,41 @@ export class Being implements Serializable<BeingData> {
       });
       return { id: seed.id, timing: seed.ripeningTiming, strength: seed.strength, quality: seed.quality };
     });
+  }
+
+  /**
+   * The wholesome root behind a kusala javana, derived from which wholesome
+   * root cetasika is dominant on citta — not hardcoded to 'non-delusion'.
+   * alobha (non-greed) and adosa (non-aversion) aren't synced from Mind by
+   * syncCittaFromMind() (only mindfulness/wisdom/greed/aversion/delusion
+   * are), so they only become active when set directly on citta; when
+   * neither is active — or amoha (mindfulness/wisdom) is dominant — the
+   * default 'non-delusion' applies, covering mindfulness/wisdom-driven
+   * kusala moments.
+   */
+  private determineActiveWholesomeRoot(): WholesomeRoot {
+    const cetasikas = this.citta.getCetasikas();
+    const alobha = cetasikas.get('alobha');
+    const adosa = cetasikas.get('adosa');
+    // amoha stand-ins: wisdom (paññā) and mindfulness (sati) are the closest
+    // aliased cetasikas representing non-delusion in this model.
+    const wisdom = cetasikas.get('wisdom');
+    const mindfulness = cetasikas.get('mindfulness');
+
+    const alobhaIntensity = alobha?.isActive ? alobha.intensity : -1;
+    const adosaIntensity = adosa?.isActive ? adosa.intensity : -1;
+    const amohaIntensity = Math.max(
+      wisdom?.isActive ? wisdom.intensity : -1,
+      mindfulness?.isActive ? mindfulness.intensity : -1
+    );
+
+    if (alobhaIntensity >= 0 && alobhaIntensity >= adosaIntensity && alobhaIntensity >= amohaIntensity) {
+      return 'non-greed';
+    }
+    if (adosaIntensity >= 0 && adosaIntensity > alobhaIntensity && adosaIntensity >= amohaIntensity) {
+      return 'non-aversion';
+    }
+    return 'non-delusion';
   }
 
   /**
@@ -777,6 +864,27 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
    */
   getKarmicStream(): Karma[] {
     return [...this.karmicStream];
+  }
+
+  /**
+   * Karmic seed statistics — balance, seed counts by state and ripening
+   * timing, and the current incarnation. Single source of truth for both
+   * the MCP `buddha_status` handler and the CLI `status --json` output, so
+   * the two surfaces can't drift out of parity with each other.
+   */
+  getSeedStats(): {
+    balance: ReturnType<KarmicStore['getKarmicBalance']>;
+    byState: Record<string, number>;
+    byTiming: Record<string, number>;
+    incarnation: number;
+  } {
+    const balance = this.karmicStore.getKarmicBalance();
+    const { byState } = this.karmicStore.getStatistics();
+    const byTiming: Record<string, number> = {};
+    for (const seed of this.karmicStore.getSeeds()) {
+      byTiming[seed.ripeningTiming] = (byTiming[seed.ripeningTiming] ?? 0) + 1;
+    }
+    return { balance, byState, byTiming, incarnation: this._incarnation };
   }
 
   /**

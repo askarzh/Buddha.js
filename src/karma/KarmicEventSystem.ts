@@ -535,7 +535,10 @@ export class KarmicStore implements Serializable<KarmicStoreData> {
       quality,
       intensity,
       description: `Result of ${seed.quality} ${seed.type} karma: ${seed.description}`,
-      isPartial: seed.timesRipened < seed.maxRipenings
+      // Reflect post-ripening state: this ripening is the one about to be counted
+      // (timesRipened is incremented right after this vipaka is built), so add 1 here
+      // rather than reading the stale pre-increment value.
+      isPartial: seed.timesRipened + 1 < seed.maxRipenings
     };
   }
 

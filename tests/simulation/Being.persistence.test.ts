@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Being } from '../../src/simulation/Being';
 
 describe('Being Persistence', () => {
@@ -127,6 +127,46 @@ describe('Being Persistence', () => {
       expect(restored.getExperienceHistory(100)).toHaveLength(being.getExperienceHistory(100).length);
     });
 
+    it('rebinds habitual-accumulation per-slug so unrelated actions do not cross-pollute after restore', () => {
+      // countDistinctPlantings counts distinct createdAt timestamps per slug,
+      // so fake time keeps the three "walk the dog" acts at distinct instants
+      // deterministically, matching the pattern used for cognize() above.
+      vi.useFakeTimers();
+      let being: Being;
+      let data;
+      try {
+        being = new Being();
+        vi.setSystemTime(1000);
+        being.act('walk the dog', 5, 'non-greed');
+        vi.setSystemTime(2000);
+        being.act('walk the dog', 5, 'non-greed');
+        vi.setSystemTime(3000);
+        being.act('walk the dog', 5, 'non-greed');
+        vi.setSystemTime(4000);
+        being.act('write code', 5, 'non-greed');
+        data = being.toJSON();
+      } finally {
+        vi.useRealTimers();
+      }
+
+      const restored = Being.fromJSON(data);
+
+      const walkSeeds = restored.karmicStore.getSeedsByTag('walk-the-dog');
+      const writeSeeds = restored.karmicStore.getSeedsByTag('write-code');
+      expect(walkSeeds.length).toBeGreaterThan(0);
+      expect(writeSeeds.length).toBeGreaterThan(0);
+
+      const walkHabitual = walkSeeds[0].ripeningConditions.find(c =>
+        c.name?.startsWith('habitual-accumulation')
+      );
+      const writeHabitual = writeSeeds[0].ripeningConditions.find(c =>
+        c.name?.startsWith('habitual-accumulation')
+      );
+
+      expect(walkHabitual?.check()).toBe(true);
+      expect(writeHabitual?.check()).toBe(false);
+    });
+
     it('should allow continued practice after restore', () => {
       const being = new Being();
       being.meditate(10, 5);
@@ -136,6 +176,20 @@ describe('Being Persistence', () => {
 
       const result = restored.meditate(10, 7);
       expect(result.mindfulnessLevel).toBeGreaterThanOrEqual(being.mindfulnessLevel);
+    });
+  });
+
+  describe('getSeedStats', () => {
+    it('returns the balance/byState/byTiming/incarnation shape shared with the MCP status handler', () => {
+      const being = new Being();
+      being.act('donate', 7, 'non-greed');
+
+      const stats = being.getSeedStats();
+      expect(stats).toHaveProperty('balance');
+      expect(stats.balance).toHaveProperty('wholesome');
+      expect(stats).toHaveProperty('byState');
+      expect(stats).toHaveProperty('byTiming');
+      expect(stats).toHaveProperty('incarnation', 1);
     });
   });
 });

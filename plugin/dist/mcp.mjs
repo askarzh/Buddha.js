@@ -35148,7 +35148,10 @@ var KarmicStore = class _KarmicStore {
       quality,
       intensity,
       description: `Result of ${seed.quality} ${seed.type} karma: ${seed.description}`,
-      isPartial: seed.timesRipened < seed.maxRipenings
+      // Reflect post-ripening state: this ripening is the one about to be counted
+      // (timesRipened is incremented right after this vipaka is built), so add 1 here
+      // rather than reading the stale pre-increment value.
+      isPartial: seed.timesRipened + 1 < seed.maxRipenings
     };
   }
   /**
@@ -36091,7 +36094,17 @@ var Citta = class extends Phenomenon {
     if (quality === "vip\u0101ka" || quality === "kiriya") {
       return "none";
     }
-    return this.cetasikas.get("wisdom")?.isActive ? "strong" : "weak";
+    if (this.cetasikas.get("wisdom")?.isActive) {
+      return "strong";
+    }
+    const unwholesomeRoots = ["greed", "lobha", "aversion", "dosa", "delusion", "moha"];
+    for (const root of unwholesomeRoots) {
+      const cetasika = this.cetasikas.get(root);
+      if (cetasika?.isActive && cetasika.intensity >= 7) {
+        return "strong";
+      }
+    }
+    return "weak";
   }
   // ===========================================================================
   // CETASIKA (MENTAL FACTOR) MANAGEMENT
@@ -36186,7 +36199,14 @@ var Citta = class extends Phenomenon {
    * Get names of currently active cetasikas
    */
   getActiveCetasikaNames() {
-    return Array.from(this.cetasikas.entries()).filter(([_, c]) => c.isActive).map(([name]) => name);
+    const seen = /* @__PURE__ */ new Set();
+    const names = [];
+    for (const [name, c] of this.cetasikas.entries()) {
+      if (!c.isActive || seen.has(c)) continue;
+      seen.add(c);
+      names.push(name);
+    }
+    return names;
   }
   /**
    * Get all cetasikas
@@ -36624,11 +36644,28 @@ var Being = class _Being {
       const tagCounts = /* @__PURE__ */ new Map();
       for (const seed of this.karmicStore.getSeeds()) {
         for (const tag of seed.tags) {
+          if (tag === "act" || tag === "cognize" || tag === seed.root || tag.startsWith("incarnation:")) {
+            continue;
+          }
           tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
         }
       }
       return Array.from(tagCounts.values()).some((count) => count >= 3);
     });
+    const slugs = /* @__PURE__ */ new Set();
+    for (const seed of this.karmicStore.getSeeds()) {
+      for (const condition of seed.ripeningConditions) {
+        if (condition.name?.startsWith("habitual-accumulation:")) {
+          slugs.add(condition.name.slice("habitual-accumulation:".length));
+        }
+      }
+    }
+    for (const slug of slugs) {
+      this.karmicStore.registerCondition(
+        `habitual-accumulation:${slug}`,
+        () => this.countDistinctPlantings(slug) >= 3
+      );
+    }
   }
   /**
    * Experience something through the senses
@@ -36665,7 +36702,7 @@ var Being = class _Being {
   plantSeedFromAct(description, intensity, root) {
     const unwholesomeRoots = ["greed", "aversion", "delusion"];
     const quality = !root ? "neutral" : unwholesomeRoots.includes(root) ? "unwholesome" : "wholesome";
-    const slug = description.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const slug = _Being.slugify(description);
     this.karmicStore.plantSeed({
       quality,
       description,
@@ -36691,7 +36728,10 @@ var Being = class _Being {
     const conditions = [
       {
         type: "accumulation",
-        name: "habitual-accumulation",
+        // Per-slug name so restore-time rebinding (registerRipeningConditions)
+        // can register a closure scoped to THIS slug, instead of the v0.2
+        // store-wide fallback that made every seed's condition true together.
+        name: `habitual-accumulation:${slug}`,
         description: "three or more similar actions",
         weight: 0.5,
         check: () => this.countDistinctPlantings(slug) >= 3
@@ -36723,11 +36763,25 @@ var Being = class _Being {
    * The description slug for a seed, derived from its tags — excludes the
    * process-kind tags ('act', 'cognize'), the karmic root, and the
    * incarnation tag, leaving the actual description-derived slug.
+   *
+   * Falls back to the seed's own `id` when no description-derived tag
+   * remains (e.g. a description that slugifies to a structural tag name
+   * like "act", so `t !== 'act'` filters it out too) — the id is unique,
+   * so such a seed simply never groups with others as "habitual" instead
+   * of crashing downstream callers that assume a string.
    */
+  /**
+   * Turn free text into a tag-safe slug: lowercase, non-alphanumeric runs
+   * collapsed to a single dash, leading/trailing dashes trimmed (so e.g.
+   * "act!" doesn't produce a trailing-dash slug distinct from "act").
+   */
+  static slugify(text) {
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  }
   slugOf(seed) {
     return seed.tags.find(
       (t) => t !== "act" && t !== "cognize" && t !== seed.root && !t.startsWith("incarnation:")
-    );
+    ) ?? seed.id;
   }
   /**
    * Run a full cognitive process (citta-vīthi) over content, then plant
@@ -36776,8 +36830,8 @@ var Being = class _Being {
       return [];
     }
     const quality = javanaQuality === "kusala" ? "wholesome" : "unwholesome";
-    const root = javanaQuality === "kusala" ? "non-delusion" : this.determineActiveUnwholesomeRoot();
-    const slug = content.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const root = javanaQuality === "kusala" ? this.determineActiveWholesomeRoot() : this.determineActiveUnwholesomeRoot();
+    const slug = _Being.slugify(content);
     const groups = [
       { timing: "immediate", potency: 10 },
       // javana 1: weak
@@ -36801,6 +36855,36 @@ var Being = class _Being {
       });
       return { id: seed.id, timing: seed.ripeningTiming, strength: seed.strength, quality: seed.quality };
     });
+  }
+  /**
+   * The wholesome root behind a kusala javana, derived from which wholesome
+   * root cetasika is dominant on citta — not hardcoded to 'non-delusion'.
+   * alobha (non-greed) and adosa (non-aversion) aren't synced from Mind by
+   * syncCittaFromMind() (only mindfulness/wisdom/greed/aversion/delusion
+   * are), so they only become active when set directly on citta; when
+   * neither is active — or amoha (mindfulness/wisdom) is dominant — the
+   * default 'non-delusion' applies, covering mindfulness/wisdom-driven
+   * kusala moments.
+   */
+  determineActiveWholesomeRoot() {
+    const cetasikas = this.citta.getCetasikas();
+    const alobha = cetasikas.get("alobha");
+    const adosa = cetasikas.get("adosa");
+    const wisdom = cetasikas.get("wisdom");
+    const mindfulness = cetasikas.get("mindfulness");
+    const alobhaIntensity = alobha?.isActive ? alobha.intensity : -1;
+    const adosaIntensity = adosa?.isActive ? adosa.intensity : -1;
+    const amohaIntensity = Math.max(
+      wisdom?.isActive ? wisdom.intensity : -1,
+      mindfulness?.isActive ? mindfulness.intensity : -1
+    );
+    if (alobhaIntensity >= 0 && alobhaIntensity >= adosaIntensity && alobhaIntensity >= amohaIntensity) {
+      return "non-greed";
+    }
+    if (adosaIntensity >= 0 && adosaIntensity > alobhaIntensity && adosaIntensity >= amohaIntensity) {
+      return "non-aversion";
+    }
+    return "non-delusion";
   }
   /**
    * The highest-intensity active unwholesome root cetasika on citta
@@ -37116,6 +37200,21 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
    */
   getKarmicStream() {
     return [...this.karmicStream];
+  }
+  /**
+   * Karmic seed statistics — balance, seed counts by state and ripening
+   * timing, and the current incarnation. Single source of truth for both
+   * the MCP `buddha_status` handler and the CLI `status --json` output, so
+   * the two surfaces can't drift out of parity with each other.
+   */
+  getSeedStats() {
+    const balance = this.karmicStore.getKarmicBalance();
+    const { byState } = this.karmicStore.getStatistics();
+    const byTiming = {};
+    for (const seed of this.karmicStore.getSeeds()) {
+      byTiming[seed.ripeningTiming] = (byTiming[seed.ripeningTiming] ?? 0) + 1;
+    }
+    return { balance, byState, byTiming, incarnation: this._incarnation };
   }
   /**
    * @internal Used by BeingSerializer for deserialization.
@@ -37521,21 +37620,10 @@ function deleteBeing(sm2, name) {
 }
 function getStatus(sm2, name) {
   const being = sm2.loadExistingBeing(name);
-  const balance = being.karmicStore.getKarmicBalance();
-  const { byState } = being.karmicStore.getStatistics();
-  const byTiming = {};
-  for (const seed of being.karmicStore.getSeeds()) {
-    byTiming[seed.ripeningTiming] = (byTiming[seed.ripeningTiming] ?? 0) + 1;
-  }
   return {
     summary: being.getSummary(),
     state: being.getState(),
-    seeds: {
-      balance,
-      byState,
-      byTiming,
-      incarnation: being.incarnation
-    }
+    seeds: being.getSeedStats()
   };
 }
 function experienceSensory(sm2, name, input) {

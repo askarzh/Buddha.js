@@ -55,4 +55,27 @@ describe('Citta vīthi pins', () => {
     const result = citta.processMentalObject({ type: 'mental-object', content: 'craving' });
     expect(result.quality).toBe('akusala');
   });
+
+  it('does not list an active cetasika twice under alias and canonical keys', () => {
+    const citta = new Citta();
+    citta.activateCetasika('greed', 8);
+    const result = citta.processMentalObject({ type: 'mental-object', content: 'craving' });
+    const javana = result.moments.find(m => m.stage === 'javana')!;
+    const matches = javana.cetasikas.filter(name => name === 'greed' || name === 'lobha');
+    expect(matches).toHaveLength(1);
+  });
+
+  it('marks unwholesome karma as strong when a root cetasika is active at high intensity', () => {
+    const citta = new Citta();
+    citta.activateCetasika('greed', 8);
+    const result = citta.processMentalObject({ type: 'mental-object', content: 'strong craving' });
+    expect(result.karmicImpact).toBe('strong');
+  });
+
+  it('marks unwholesome karma as weak when the root cetasika intensity is below the threshold', () => {
+    const citta = new Citta();
+    citta.activateCetasika('greed', 5);
+    const result = citta.processMentalObject({ type: 'mental-object', content: 'mild craving' });
+    expect(result.karmicImpact).toBe('weak');
+  });
 });

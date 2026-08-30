@@ -364,8 +364,22 @@ export class Citta extends Phenomenon {
     if (quality === 'vipāka' || quality === 'kiriya') {
       return 'none'; // Resultant and functional don't create karma
     }
-    // Wholesome/unwholesome create karma
-    return this.cetasikas.get('wisdom')?.isActive ? 'strong' : 'weak';
+    // Wholesome/unwholesome create karma. Karma is 'strong' when wisdom is
+    // active (canonical for kusala), OR when any unwholesome root cetasika
+    // (greed/aversion/delusion, incl. their Pali aliases) is active at high
+    // intensity (>= 7) — canonically weighty unwholesome karma exists too,
+    // so akusala javanas must be able to reach 'strong' as well.
+    if (this.cetasikas.get('wisdom')?.isActive) {
+      return 'strong';
+    }
+    const unwholesomeRoots = ['greed', 'lobha', 'aversion', 'dosa', 'delusion', 'moha'];
+    for (const root of unwholesomeRoots) {
+      const cetasika = this.cetasikas.get(root);
+      if (cetasika?.isActive && cetasika.intensity >= 7) {
+        return 'strong';
+      }
+    }
+    return 'weak';
   }
 
   // ===========================================================================
@@ -476,9 +490,18 @@ export class Citta extends Phenomenon {
    * Get names of currently active cetasikas
    */
   private getActiveCetasikaNames(): string[] {
-    return Array.from(this.cetasikas.entries())
-      .filter(([_, c]) => c.isActive)
-      .map(([name]) => name);
+    // Several keys (e.g. 'greed'/'lobha') point at the same MentalFactor object
+    // (alias registration in initializeUniversalCetasikas). Dedupe by object
+    // identity so each active factor is reported once, under whichever key
+    // was inserted first.
+    const seen = new Set<MentalFactor>();
+    const names: string[] = [];
+    for (const [name, c] of this.cetasikas.entries()) {
+      if (!c.isActive || seen.has(c)) continue;
+      seen.add(c);
+      names.push(name);
+    }
+    return names;
   }
 
   /**

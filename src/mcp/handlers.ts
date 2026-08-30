@@ -27,21 +27,10 @@ export function deleteBeing(sm: StateManager, name: string): string {
 
 export function getStatus(sm: StateManager, name: string) {
   const being = sm.loadExistingBeing(name);
-  const balance = being.karmicStore.getKarmicBalance();
-  const { byState } = being.karmicStore.getStatistics();
-  const byTiming: Record<string, number> = {};
-  for (const seed of being.karmicStore.getSeeds()) {
-    byTiming[seed.ripeningTiming] = (byTiming[seed.ripeningTiming] ?? 0) + 1;
-  }
   return {
     summary: being.getSummary(),
     state: being.getState(),
-    seeds: {
-      balance,
-      byState,
-      byTiming,
-      incarnation: being.incarnation,
-    },
+    seeds: being.getSeedStats(),
   };
 }
 

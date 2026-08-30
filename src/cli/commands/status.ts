@@ -24,6 +24,7 @@ export function status(_localOpts: Record<string, never>, cmd: Command): void {
         },
       },
       state: { mindfulness: state.mindfulnessLevel, karmicActions: state.pendingKarma },
+      seeds: being.getSeedStats(),
     }, null, 2));
     return;
   }

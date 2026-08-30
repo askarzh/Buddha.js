@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StateManager } from '../../src/cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan, sitWithSuffering } from '../../src/mcp/handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan, sitWithSuffering, cognizeObject, rebirthBeing } from '../../src/mcp/handlers';
 
 describe('MCP handlers — being management', () => {
   let sm: StateManager;
@@ -99,6 +99,55 @@ describe('MCP handlers — stateful actions', () => {
     expect(Array.isArray(report.results)).toBe(true);
     expect(Array.isArray(report.seedVipakas)).toBe(true);
     expect(Array.isArray(report.whyNot)).toBe(true);
+  });
+
+  test('ripenKarma without force returns whyNot explanations', () => {
+    act(sm, 'actor', 'planted rice', 5, 'non-greed');
+    const report = ripenKarma(sm, 'actor');
+    expect(report.whyNot.length).toBeGreaterThan(0);
+  });
+
+  test('ripenKarma with force ripens everything eligible deterministically', () => {
+    act(sm, 'actor', 'gave alms', 5, 'non-greed');
+    const report = ripenKarma(sm, 'actor', true);
+    expect(Array.isArray(report.seedVipakas)).toBe(true);
+  });
+});
+
+describe('MCP handlers — depth features', () => {
+  let sm: StateManager;
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'buddha-mcp-'));
+    sm = new StateManager(tempDir);
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('cognizeObject runs a vithi and persists planted seeds', () => {
+    createBeing(sm, 'seer');
+    const result = cognizeObject(sm, 'seer', 'a red flower', 'eye');
+    expect(result.seedsPlanted).toHaveLength(3);
+    const reloaded = sm.loadExistingBeing('seer');
+    expect(reloaded.karmicStore.getSeeds().length).toBeGreaterThanOrEqual(3);
+  });
+
+  test('rebirthBeing advances the incarnation', () => {
+    createBeing(sm, 'phoenix');
+    expect(rebirthBeing(sm, 'phoenix').incarnation).toBe(2);
+  });
+
+  test('getStatus includes a seeds section', () => {
+    createBeing(sm, 'yogi');
+    act(sm, 'yogi', 'meditated', 4, 'non-delusion');
+    const result = getStatus(sm, 'yogi');
+    expect(result.seeds).toHaveProperty('balance');
+    expect(result.seeds).toHaveProperty('byState');
+    expect(result.seeds).toHaveProperty('byTiming');
+    expect(result.seeds).toHaveProperty('incarnation', 1);
   });
 });
 

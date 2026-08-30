@@ -818,7 +818,7 @@ buddha diagnose --json --dukkha-types "dukkha-dukkha,sankhara-dukkha" --craving-
 
 ## MCP Server
 
-`buddha-mcp` exposes the full Being API as 14 MCP tools over stdio transport. State is shared with the CLI (`~/.buddha/beings/`, override with `BUDDHA_STATE_DIR`).
+`buddha-mcp` exposes the full Being API as 16 MCP tools over stdio transport. State is shared with the CLI (`~/.buddha/beings/`, override with `BUDDHA_STATE_DIR`).
 
 ### Build & Run
 
@@ -862,11 +862,13 @@ This produces `dist/buddha-js.mcpb`. Open or drag it onto Claude Desktop (Settin
 | `buddha_status` | Get the current status of a being |
 | `buddha_experience` | Process a sensory experience through the five aggregates (accepts an optional `valence` parameter — pleasant/unpleasant/neutral — independent of intensity) |
 | `buddha_act` | Perform an intentional action that creates karma (karmic quality is derived from `root`; there is no separate quality parameter) |
-| `buddha_karma_ripen` | Check for and receive any ripened karmic results |
+| `buddha_karma_ripen` | Check for and receive any ripened karmic results (accepts an optional `force` flag to ripen everything eligible deterministically, bypassing conditional ripening conditions) |
 | `buddha_meditate` | Conduct a meditation session — develops path factors, mindfulness, and generates insights |
 | `buddha_diagnose` | Diagnose suffering using the Four Noble Truths framework |
 | `buddha_inquiry` | Investigate the nature of self across the five aggregates |
 | `buddha_chain` | Visualize the 12 links of dependent origination |
+| `buddha_cognize` | Run a full cognitive process (citta-vīthi) over content through a sense door, planting karmic seeds from its javana moments |
+| `buddha_rebirth` | Enact rebirth — advance the incarnation, expire timed-out (ahosi-kamma) seeds, and carry forward the seed that shapes the new incarnation |
 | `buddha_koan` | Present a Zen koan for contemplation |
 | `buddha_contemplate` | Submit a response to a koan and evaluate it for dualism traps |
 | `buddha_sit` | Guided cessation via the Poison Arrow method — four steps (recognize, investigate, release, practice), one per Noble Truth — for quick relief from a named suffering |
@@ -886,7 +888,7 @@ Buddha.js ships as a [Claude Code plugin](https://docs.anthropic.com/en/docs/cla
 /plugin install buddha-js@buddha-js
 ```
 
-Installing the plugin auto-configures the bundled `buddha-js` MCP server (14 tools, see above) — no separate build or server setup is needed.
+Installing the plugin auto-configures the bundled `buddha-js` MCP server (16 tools, see above) — no separate build or server setup is needed.
 
 ### Available Skills
 

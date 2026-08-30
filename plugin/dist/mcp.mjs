@@ -34856,6 +34856,703 @@ var Intention = class extends Phenomenon {
   }
 };
 
+// src/karma/KarmicEventSystem.ts
+function createKarmicSeed(options) {
+  const {
+    type = "mental",
+    quality,
+    description,
+    intentionStrength = 5,
+    root = "neutral",
+    ripeningTiming = "deferred",
+    minDelay = 1e3,
+    maxDelay = 6e4,
+    conditions = [],
+    potency,
+    maxRipenings = 1,
+    tags = [],
+    collectiveId
+  } = options;
+  const calculatedPotency = potency ?? intentionStrength * 10;
+  const strength = calculatedPotency >= 80 ? "weighty" : calculatedPotency >= 50 ? "strong" : calculatedPotency >= 25 ? "moderate" : "weak";
+  return {
+    id: generateId(),
+    createdAt: Date.now(),
+    type,
+    quality,
+    description,
+    intentionStrength,
+    root,
+    potency: calculatedPotency,
+    originalPotency: calculatedPotency,
+    strength,
+    ripeningTiming,
+    minDelay,
+    maxDelay,
+    ripeningConditions: conditions,
+    state: "dormant",
+    ripeningProgress: 0,
+    timesRipened: 0,
+    maxRipenings,
+    tags,
+    collectiveId
+  };
+}
+var KarmicStore = class _KarmicStore {
+  seeds = /* @__PURE__ */ new Map();
+  listeners = /* @__PURE__ */ new Map();
+  ripeningTimers = /* @__PURE__ */ new Map();
+  checkInterval = null;
+  config;
+  conditionRegistry = /* @__PURE__ */ new Map();
+  constructor(config2 = {}) {
+    this.config = {
+      maxSeeds: config2.maxSeeds ?? 1e3,
+      defaultMinDelay: config2.defaultMinDelay ?? 1e3,
+      defaultMaxDelay: config2.defaultMaxDelay ?? 3e5,
+      ripeningCheckInterval: config2.ripeningCheckInterval ?? 1e3,
+      enableAutoRipening: config2.enableAutoRipening ?? true,
+      timeScale: config2.timeScale ?? 1
+    };
+    if (this.config.enableAutoRipening) {
+      this.startRipeningCheck();
+    }
+  }
+  // ===========================================================================
+  // SEED MANAGEMENT
+  // ===========================================================================
+  /**
+   * Plant a karmic seed (perform an intentional action)
+   */
+  plantSeed(options) {
+    if (this.seeds.size >= this.config.maxSeeds) {
+      this.emit({
+        type: "store:overflow",
+        timestamp: Date.now(),
+        metadata: { currentSize: this.seeds.size, maxSize: this.config.maxSeeds }
+      });
+      this.pruneOldestSeed();
+    }
+    const seed = createKarmicSeed({
+      ...options,
+      minDelay: options.minDelay ?? this.config.defaultMinDelay,
+      maxDelay: options.maxDelay ?? this.config.defaultMaxDelay
+    });
+    seed.state = "active";
+    this.seeds.set(seed.id, seed);
+    this.emit({
+      type: "seed:planted",
+      timestamp: Date.now(),
+      seed
+    });
+    if (this.config.enableAutoRipening) {
+      this.scheduleRipening(seed);
+    }
+    return seed;
+  }
+  /**
+   * Strengthen an existing seed (repeat the action)
+   */
+  strengthenSeed(seedId, amount = 10) {
+    const seed = this.seeds.get(seedId);
+    if (!seed || seed.state === "exhausted" || seed.state === "purified") {
+      return false;
+    }
+    seed.potency = Math.min(100, seed.potency + amount);
+    this.emit({
+      type: "seed:strengthened",
+      timestamp: Date.now(),
+      seed,
+      metadata: { amountAdded: amount, newPotency: seed.potency }
+    });
+    return true;
+  }
+  /**
+   * Weaken a seed (counter-action, regret, confession)
+   */
+  weakenSeed(seedId, amount = 10) {
+    const seed = this.seeds.get(seedId);
+    if (!seed || seed.state === "exhausted" || seed.state === "purified") {
+      return false;
+    }
+    seed.potency = Math.max(0, seed.potency - amount);
+    this.emit({
+      type: "seed:weakened",
+      timestamp: Date.now(),
+      seed,
+      metadata: { amountReduced: amount, newPotency: seed.potency }
+    });
+    if (seed.potency === 0) {
+      seed.state = "purified";
+      this.emit({
+        type: "seed:purified",
+        timestamp: Date.now(),
+        seed
+      });
+    }
+    return true;
+  }
+  /**
+   * Purify a seed completely (through realization/wisdom)
+   */
+  purifySeed(seedId) {
+    const seed = this.seeds.get(seedId);
+    if (!seed || seed.state === "exhausted" || seed.state === "purified") {
+      return false;
+    }
+    seed.state = "purified";
+    seed.potency = 0;
+    const timer = this.ripeningTimers.get(seedId);
+    if (timer) {
+      clearTimeout(timer);
+      this.ripeningTimers.delete(seedId);
+    }
+    this.emit({
+      type: "seed:purified",
+      timestamp: Date.now(),
+      seed
+    });
+    return true;
+  }
+  /**
+   * Get a seed by ID
+   */
+  getSeed(seedId) {
+    return this.seeds.get(seedId);
+  }
+  /**
+   * Get all seeds matching criteria
+   */
+  getSeeds(filter) {
+    let results = Array.from(this.seeds.values());
+    if (filter) {
+      if (filter.quality) {
+        results = results.filter((s) => s.quality === filter.quality);
+      }
+      if (filter.state) {
+        results = results.filter((s) => s.state === filter.state);
+      }
+      if (filter.type) {
+        results = results.filter((s) => s.type === filter.type);
+      }
+    }
+    return results;
+  }
+  /**
+   * Get seeds by tag
+   */
+  getSeedsByTag(tag) {
+    return Array.from(this.seeds.values()).filter((s) => s.tags.includes(tag));
+  }
+  // ===========================================================================
+  // RIPENING MECHANICS
+  // ===========================================================================
+  /**
+   * Schedule a seed for potential ripening
+   */
+  scheduleRipening(seed) {
+    if (seed.ripeningTiming === "immediate") {
+      setTimeout(() => this.attemptRipening(seed.id), seed.minDelay * this.config.timeScale);
+      return;
+    }
+    const baseDelay = seed.minDelay + Math.random() * (seed.maxDelay - seed.minDelay);
+    const scaledDelay = baseDelay / this.config.timeScale;
+    const timer = setTimeout(() => {
+      this.attemptRipening(seed.id);
+    }, scaledDelay);
+    this.ripeningTimers.set(seed.id, timer);
+  }
+  /**
+   * Attempt to ripen a seed (check conditions)
+   */
+  attemptRipening(seedId) {
+    const seed = this.seeds.get(seedId);
+    if (!seed) return null;
+    if (seed.state !== "active") return null;
+    const elapsed = Date.now() - seed.createdAt;
+    if (elapsed < seed.minDelay) return null;
+    if (!this.checkRipeningConditions(seed)) {
+      if (this.config.enableAutoRipening) {
+        this.scheduleRipening(seed);
+      }
+      return null;
+    }
+    return this.ripenSeed(seed);
+  }
+  /**
+   * Check if ripening conditions are met
+   */
+  checkRipeningConditions(seed) {
+    if (seed.ripeningConditions.length === 0) {
+      return Math.random() < seed.potency / 100;
+    }
+    let totalWeight = 0;
+    let satisfiedWeight = 0;
+    for (const condition of seed.ripeningConditions) {
+      totalWeight += condition.weight;
+      if (condition.check()) {
+        satisfiedWeight += condition.weight;
+      }
+    }
+    const conditionScore = totalWeight > 0 ? satisfiedWeight / totalWeight : 1;
+    const potencyFactor = seed.potency / 100;
+    return Math.random() < conditionScore * potencyFactor;
+  }
+  /**
+   * Ripen a seed and produce a result
+   */
+  ripenSeed(seed) {
+    seed.state = "ripening";
+    seed.ripeningProgress = 50;
+    this.emit({
+      type: "seed:ripening",
+      timestamp: Date.now(),
+      seed
+    });
+    const vipaka = this.createVipaka(seed);
+    seed.timesRipened++;
+    seed.ripeningProgress = 100;
+    if (seed.timesRipened >= seed.maxRipenings) {
+      seed.state = "exhausted";
+      this.emit({
+        type: "seed:exhausted",
+        timestamp: Date.now(),
+        seed
+      });
+    } else {
+      seed.potency = Math.max(0, seed.potency - seed.originalPotency / seed.maxRipenings);
+      seed.state = "active";
+      if (this.config.enableAutoRipening) {
+        this.scheduleRipening(seed);
+      }
+    }
+    this.emit({
+      type: "seed:ripened",
+      timestamp: Date.now(),
+      seed,
+      vipaka
+    });
+    return vipaka;
+  }
+  /**
+   * Create a vipaka (result) from a seed
+   */
+  createVipaka(seed) {
+    const quality = seed.quality === "wholesome" ? "pleasant" : seed.quality === "unwholesome" ? "unpleasant" : "neutral";
+    const intensityRatio = seed.potency / 100;
+    const intensity = Math.max(1, Math.round(seed.intentionStrength * intensityRatio));
+    return {
+      id: generateId(),
+      seedId: seed.id,
+      timestamp: Date.now(),
+      quality,
+      intensity,
+      description: `Result of ${seed.quality} ${seed.type} karma: ${seed.description}`,
+      isPartial: seed.timesRipened < seed.maxRipenings
+    };
+  }
+  /**
+   * Force ripening of a specific seed (for testing/simulation)
+   */
+  forceRipen(seedId) {
+    const seed = this.seeds.get(seedId);
+    if (!seed || seed.state === "exhausted" || seed.state === "purified") {
+      return null;
+    }
+    seed.state = "active";
+    return this.ripenSeed(seed);
+  }
+  /**
+   * Process all seeds that are ready to ripen
+   */
+  processRipeningQueue() {
+    const results = [];
+    const now = Date.now();
+    for (const seed of this.seeds.values()) {
+      if (seed.state !== "active") continue;
+      const elapsed = now - seed.createdAt;
+      if (elapsed >= seed.minDelay && elapsed <= seed.maxDelay) {
+        const vipaka = this.attemptRipening(seed.id);
+        if (vipaka) {
+          results.push(vipaka);
+        }
+      } else if (elapsed > seed.maxDelay) {
+        seed.state = "exhausted";
+        this.emit({
+          type: "seed:exhausted",
+          timestamp: now,
+          seed,
+          metadata: { reason: "expired" }
+        });
+      }
+    }
+    return results;
+  }
+  // ===========================================================================
+  // EVENT SYSTEM
+  // ===========================================================================
+  /**
+   * Subscribe to karmic events
+   */
+  on(eventType, listener) {
+    if (!this.listeners.has(eventType)) {
+      this.listeners.set(eventType, /* @__PURE__ */ new Set());
+    }
+    this.listeners.get(eventType).add(listener);
+    return () => this.off(eventType, listener);
+  }
+  /**
+   * Subscribe to all events
+   */
+  onAny(listener) {
+    const eventTypes = [
+      "seed:planted",
+      "seed:strengthened",
+      "seed:weakened",
+      "seed:ripening",
+      "seed:ripened",
+      "seed:exhausted",
+      "seed:purified",
+      "store:overflow",
+      "collective:formed"
+    ];
+    const unsubscribers = eventTypes.map((type) => this.on(type, listener));
+    return () => unsubscribers.forEach((unsub) => unsub());
+  }
+  /**
+   * Unsubscribe from events
+   */
+  off(eventType, listener) {
+    this.listeners.get(eventType)?.delete(listener);
+  }
+  /**
+   * Emit an event
+   */
+  emit(event) {
+    const listeners = this.listeners.get(event.type);
+    if (listeners) {
+      listeners.forEach((listener) => {
+        try {
+          listener(event);
+        } catch (error48) {
+          console.error(`Error in karmic event listener for ${event.type}:`, error48);
+        }
+      });
+    }
+  }
+  /**
+   * Wait for a specific event (Promise-based)
+   */
+  once(eventType) {
+    return new Promise((resolve) => {
+      const unsub = this.on(eventType, (event) => {
+        unsub();
+        resolve(event);
+      });
+    });
+  }
+  /**
+   * Wait for a seed to ripen
+   */
+  waitForRipening(seedId, timeout) {
+    return new Promise((resolve) => {
+      const seed = this.seeds.get(seedId);
+      if (!seed || seed.state === "exhausted" || seed.state === "purified") {
+        resolve(null);
+        return;
+      }
+      let timeoutId;
+      const unsub = this.on("seed:ripened", (event) => {
+        if (event.seed?.id === seedId && event.vipaka) {
+          unsub();
+          if (timeoutId) clearTimeout(timeoutId);
+          resolve(event.vipaka);
+        }
+      });
+      if (timeout) {
+        timeoutId = setTimeout(() => {
+          unsub();
+          resolve(null);
+        }, timeout);
+      }
+    });
+  }
+  // ===========================================================================
+  // COLLECTIVE KARMA
+  // ===========================================================================
+  /**
+   * Create collective karma (shared by a group)
+   */
+  createCollectiveKarma(participants, options) {
+    const collectiveId = generateId();
+    const seeds = [];
+    for (const _participant of participants) {
+      const seed = this.plantSeed({
+        ...options,
+        collectiveId,
+        tags: [...options.tags ?? [], "collective"]
+      });
+      seeds.push(seed);
+    }
+    this.emit({
+      type: "collective:formed",
+      timestamp: Date.now(),
+      metadata: {
+        collectiveId,
+        participantCount: participants.length,
+        quality: options.quality
+      }
+    });
+    return seeds;
+  }
+  /**
+   * Get all seeds in a collective
+   */
+  getCollectiveSeeds(collectiveId) {
+    return Array.from(this.seeds.values()).filter((s) => s.collectiveId === collectiveId);
+  }
+  // ===========================================================================
+  // STATISTICS AND ANALYSIS
+  // ===========================================================================
+  /**
+   * Get karmic balance summary
+   */
+  getKarmicBalance() {
+    let wholesome = 0;
+    let unwholesome = 0;
+    let neutral = 0;
+    let totalPotency = 0;
+    for (const seed of this.seeds.values()) {
+      if (seed.state === "exhausted" || seed.state === "purified") continue;
+      totalPotency += seed.potency;
+      switch (seed.quality) {
+        case "wholesome":
+          wholesome += seed.potency;
+          break;
+        case "unwholesome":
+          unwholesome += seed.potency;
+          break;
+        default:
+          neutral += seed.potency;
+      }
+    }
+    return {
+      wholesome,
+      unwholesome,
+      neutral,
+      balance: wholesome - unwholesome,
+      totalPotency
+    };
+  }
+  /**
+   * Get detailed statistics
+   */
+  getStatistics() {
+    const seeds = Array.from(this.seeds.values());
+    const byState = {
+      dormant: 0,
+      active: 0,
+      ripening: 0,
+      ripened: 0,
+      exhausted: 0,
+      purified: 0
+    };
+    const byQuality = {
+      wholesome: 0,
+      unwholesome: 0,
+      neutral: 0
+    };
+    const byType = {
+      bodily: 0,
+      verbal: 0,
+      mental: 0
+    };
+    let totalPotency = 0;
+    for (const seed of seeds) {
+      byState[seed.state]++;
+      byQuality[seed.quality]++;
+      byType[seed.type]++;
+      totalPotency += seed.potency;
+    }
+    const timestamps = seeds.map((s) => s.createdAt);
+    return {
+      totalSeeds: seeds.length,
+      byState,
+      byQuality,
+      byType,
+      averagePotency: seeds.length > 0 ? totalPotency / seeds.length : 0,
+      oldestSeed: timestamps.length > 0 ? Math.min(...timestamps) : null,
+      newestSeed: timestamps.length > 0 ? Math.max(...timestamps) : null
+    };
+  }
+  // ===========================================================================
+  // LIFECYCLE MANAGEMENT
+  // ===========================================================================
+  /**
+   * Start automatic ripening checks
+   */
+  startRipeningCheck() {
+    if (this.checkInterval) return;
+    this.checkInterval = setInterval(() => {
+      this.processRipeningQueue();
+    }, this.config.ripeningCheckInterval);
+  }
+  /**
+   * Stop automatic ripening checks
+   */
+  stopRipeningCheck() {
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+      this.checkInterval = null;
+    }
+  }
+  /**
+   * Remove oldest/weakest seed to make room
+   */
+  pruneOldestSeed() {
+    for (const [id, seed] of this.seeds.entries()) {
+      if (seed.state === "exhausted" || seed.state === "purified") {
+        this.seeds.delete(id);
+        return;
+      }
+    }
+    let weakest = null;
+    for (const seed of this.seeds.values()) {
+      if (!weakest || seed.potency < weakest.potency) {
+        weakest = seed;
+      }
+    }
+    if (weakest) {
+      this.seeds.delete(weakest.id);
+    }
+  }
+  /**
+   * Clear all seeds and timers
+   */
+  clear() {
+    for (const timer of this.ripeningTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.ripeningTimers.clear();
+    this.seeds.clear();
+  }
+  /**
+   * Dispose of the store
+   */
+  dispose() {
+    this.stopRipeningCheck();
+    this.clear();
+    this.listeners.clear();
+  }
+  /**
+   * Set time scale (for simulation speed)
+   */
+  setTimeScale(scale) {
+    this.config.timeScale = Math.max(0.1, scale);
+  }
+  // ===========================================================================
+  // SERIALIZATION
+  // ===========================================================================
+  toJSON() {
+    const seeds = Array.from(this.seeds.values()).map((seed) => ({
+      id: seed.id,
+      createdAt: seed.createdAt,
+      type: seed.type,
+      quality: seed.quality,
+      description: seed.description,
+      intentionStrength: seed.intentionStrength,
+      root: seed.root,
+      potency: seed.potency,
+      originalPotency: seed.originalPotency,
+      strength: seed.strength,
+      ripeningTiming: seed.ripeningTiming,
+      minDelay: seed.minDelay,
+      maxDelay: seed.maxDelay,
+      ripeningConditions: seed.ripeningConditions.map((c) => ({
+        type: c.type,
+        ...c.name ? { name: c.name } : {},
+        description: c.description,
+        weight: c.weight
+      })),
+      state: seed.state,
+      ripeningProgress: seed.ripeningProgress,
+      timesRipened: seed.timesRipened,
+      maxRipenings: seed.maxRipenings,
+      tags: [...seed.tags],
+      ...seed.collectiveId ? { collectiveId: seed.collectiveId } : {}
+    }));
+    return {
+      seeds,
+      config: { ...this.config }
+    };
+  }
+  static fromJSON(data) {
+    const store = new _KarmicStore({
+      ...data.config,
+      enableAutoRipening: false
+    });
+    for (const seedData of data.seeds) {
+      const conditions = seedData.ripeningConditions.map((c) => ({
+        type: c.type,
+        ...c.name ? { name: c.name } : {},
+        description: c.description,
+        check: () => false,
+        weight: c.weight
+      }));
+      const seed = {
+        id: seedData.id,
+        createdAt: seedData.createdAt,
+        type: seedData.type,
+        quality: seedData.quality,
+        description: seedData.description,
+        intentionStrength: seedData.intentionStrength,
+        root: seedData.root,
+        potency: seedData.potency,
+        originalPotency: seedData.originalPotency,
+        strength: seedData.strength,
+        ripeningTiming: seedData.ripeningTiming,
+        minDelay: seedData.minDelay,
+        maxDelay: seedData.maxDelay,
+        ripeningConditions: conditions,
+        state: seedData.state,
+        ripeningProgress: seedData.ripeningProgress,
+        timesRipened: seedData.timesRipened,
+        maxRipenings: seedData.maxRipenings,
+        tags: [...seedData.tags],
+        ...seedData.collectiveId ? { collectiveId: seedData.collectiveId } : {}
+      };
+      store.seeds.set(seed.id, seed);
+    }
+    store.config = { ...data.config };
+    if (data.config.enableAutoRipening) {
+      store.startRipeningCheck();
+    }
+    return store;
+  }
+  rebindConditions() {
+    for (const seed of this.seeds.values()) {
+      for (let i = 0; i < seed.ripeningConditions.length; i++) {
+        const condition = seed.ripeningConditions[i];
+        if (condition.name) {
+          const check2 = this.conditionRegistry.get(condition.name);
+          if (check2) {
+            seed.ripeningConditions[i] = { ...condition, check: check2 };
+          }
+        }
+      }
+    }
+  }
+  // ===========================================================================
+  // CONDITION REGISTRY
+  // ===========================================================================
+  registerCondition(name, check2) {
+    this.conditionRegistry.set(name, check2);
+  }
+  getCondition(name) {
+    return this.conditionRegistry.get(name);
+  }
+};
+
 // src/emptiness/Sunyata.ts
 var Sunyata = class {
   /**
@@ -35182,6 +35879,484 @@ var Mind = class {
   }
 };
 
+// src/mind/Citta.ts
+var Citta = class extends Phenomenon {
+  name = "Citta";
+  sanskritName = "Citta";
+  /** Current classification */
+  classification;
+  /** Current stage in cognitive process */
+  currentStage = "bhava\u1E45ga";
+  /** Associated mental factors */
+  cetasikas = /* @__PURE__ */ new Map();
+  /** Current object of consciousness */
+  currentObject = null;
+  /** History of mind-moments */
+  momentStream = [];
+  /** Bhavaṅga (life-continuum) object - set at rebirth */
+  bhava\u1E45gaObject;
+  /** Is a vīthi (cognitive process) currently active? */
+  vithiActive = false;
+  /** Current position in javana sequence (1-7) */
+  javanaPosition = 0;
+  constructor(classification) {
+    super();
+    this.classification = {
+      realm: classification?.realm ?? "k\u0101m\u0101vacara",
+      quality: classification?.quality ?? "vip\u0101ka",
+      roots: classification?.roots ?? ["ahetuka"],
+      door: classification?.door ?? "dv\u0101ra-vimutta",
+      feeling: classification?.feeling ?? "neutral"
+    };
+    this.bhava\u1E45gaObject = {
+      type: "mental-object",
+      content: "rebirth-consciousness object"
+    };
+    this.initializeUniversalCetasikas();
+  }
+  // ===========================================================================
+  // COGNITIVE PROCESS (CITTA-VĪTHI)
+  // ===========================================================================
+  /**
+   * Process a sense object through the full cognitive sequence.
+   * This models the 17 mind-moments of a complete vīthi.
+   *
+   * Five-door process:
+   * 1. Atīta-bhavaṅga (past bhavaṅga)
+   * 2. Bhavaṅga-calana (vibrating)
+   * 3. Bhavaṅgupaccheda (arrested)
+   * 4. Pañcadvārāvajjana (five-door adverting)
+   * 5. Pañca-viññāṇa (sense consciousness)
+   * 6. Sampaṭicchana (receiving)
+   * 7. Santīraṇa (investigating)
+   * 8. Voṭṭhabbana (determining)
+   * 9-15. Javana × 7 (impulsion - karmically active)
+   * 16-17. Tadārammaṇa × 2 (registration)
+   */
+  processSenseObject(object3, door) {
+    if (door === "mano-dv\u0101ra" || door === "dv\u0101ra-vimutta") {
+      throw new Error("Use processMentalObject for mind-door process");
+    }
+    this.vithiActive = true;
+    const moments = [];
+    moments.push(this.createMoment("bhava\u1E45ga", this.bhava\u1E45gaObject, "vip\u0101ka"));
+    moments.push(this.createMoment("bhava\u1E45ga-calana", this.bhava\u1E45gaObject, "vip\u0101ka"));
+    moments.push(this.createMoment("bhava\u1E45gupaccheda", this.bhava\u1E45gaObject, "vip\u0101ka"));
+    this.currentObject = object3;
+    moments.push(this.createMoment("\u0101vajjana", object3, "kiriya"));
+    moments.push(this.createMoment("pa\xF1ca-vi\xF1\xF1\u0101\u1E47a", object3, "vip\u0101ka"));
+    moments.push(this.createMoment("sampa\u1E6Dicchana", object3, "vip\u0101ka"));
+    moments.push(this.createMoment("sant\u012Bra\u1E47a", object3, "vip\u0101ka"));
+    moments.push(this.createMoment("vo\u1E6D\u1E6Dhabbana", object3, "kiriya"));
+    const javanaQuality = this.determineJavanaQuality(object3);
+    for (let i = 1; i <= 7; i++) {
+      this.javanaPosition = i;
+      moments.push(this.createMoment("javana", object3, javanaQuality, i));
+    }
+    this.javanaPosition = 0;
+    if (this.isObjectClear(object3)) {
+      moments.push(this.createMoment("tad\u0101ramma\u1E47a", object3, "vip\u0101ka"));
+      moments.push(this.createMoment("tad\u0101ramma\u1E47a", object3, "vip\u0101ka"));
+    }
+    this.currentStage = "bhava\u1E45ga";
+    this.currentObject = null;
+    this.vithiActive = false;
+    this.momentStream.push(...moments);
+    return {
+      moments,
+      object: object3,
+      totalDuration: moments.length,
+      karmicImpact: this.assessKarmicImpact(javanaQuality),
+      quality: javanaQuality
+    };
+  }
+  /**
+   * Process a mental object (mind-door process).
+   * Shorter than sense-door: no sense consciousness.
+   */
+  processMentalObject(object3) {
+    this.vithiActive = true;
+    const moments = [];
+    moments.push(this.createMoment("bhava\u1E45ga", this.bhava\u1E45gaObject, "vip\u0101ka"));
+    moments.push(this.createMoment("bhava\u1E45ga-calana", this.bhava\u1E45gaObject, "vip\u0101ka"));
+    moments.push(this.createMoment("bhava\u1E45gupaccheda", this.bhava\u1E45gaObject, "vip\u0101ka"));
+    this.currentObject = object3;
+    moments.push(this.createMoment("\u0101vajjana", object3, "kiriya"));
+    const javanaQuality = this.determineJavanaQuality(object3);
+    for (let i = 1; i <= 7; i++) {
+      this.javanaPosition = i;
+      moments.push(this.createMoment("javana", object3, javanaQuality, i));
+    }
+    this.javanaPosition = 0;
+    if (this.isObjectClear(object3)) {
+      moments.push(this.createMoment("tad\u0101ramma\u1E47a", object3, "vip\u0101ka"));
+      moments.push(this.createMoment("tad\u0101ramma\u1E47a", object3, "vip\u0101ka"));
+    }
+    this.currentStage = "bhava\u1E45ga";
+    this.currentObject = null;
+    this.vithiActive = false;
+    this.momentStream.push(...moments);
+    return {
+      moments,
+      object: object3,
+      totalDuration: moments.length,
+      karmicImpact: this.assessKarmicImpact(javanaQuality),
+      quality: javanaQuality
+    };
+  }
+  // ===========================================================================
+  // MOMENT CREATION AND MANAGEMENT
+  // ===========================================================================
+  /**
+   * Create a single mind-moment.
+   * Each moment arises, exists for one kṣaṇa, and ceases.
+   */
+  createMoment(stage, object3, quality, javanaPos = 0) {
+    this.currentStage = stage;
+    const moment = {
+      id: generateId(),
+      timestamp: Date.now(),
+      stage,
+      object: object3,
+      quality,
+      feeling: this.determineFeelingForStage(stage, object3),
+      cetasikas: this.getActiveCetasikaNames(),
+      karmicPotency: stage === "javana" ? this.calculateKarmicPotency(javanaPos) : 0
+    };
+    this.onMomentArise(moment);
+    return moment;
+  }
+  /**
+   * Called when a moment arises - hook for observers
+   */
+  onMomentArise(_moment) {
+  }
+  /**
+   * Get the current mind-moment (latest in stream)
+   */
+  getCurrentMoment() {
+    return this.momentStream[this.momentStream.length - 1];
+  }
+  /**
+   * Get recent moments from the stream
+   */
+  getRecentMoments(count = 17) {
+    return this.momentStream.slice(-count);
+  }
+  // ===========================================================================
+  // JAVANA (IMPULSION) - WHERE KARMA IS MADE
+  // ===========================================================================
+  /**
+   * Determine the quality of javana based on mental factors.
+   * This is where karma is actually created.
+   */
+  determineJavanaQuality(object3) {
+    const hasGreed = this.cetasikas.get("greed")?.isActive;
+    const hasAversion = this.cetasikas.get("aversion")?.isActive;
+    const hasDelusion = this.cetasikas.get("delusion")?.isActive;
+    const hasMindfulness = this.cetasikas.get("mindfulness")?.isActive;
+    const hasWisdom = this.cetasikas.get("wisdom")?.isActive;
+    if (hasMindfulness || hasWisdom) {
+      return "kusala";
+    }
+    if (hasGreed || hasAversion || hasDelusion) {
+      return "akusala";
+    }
+    if (object3.type === "sense-object") {
+      return "kusala";
+    }
+    return "kusala";
+  }
+  /**
+   * Calculate karmic potency based on javana position.
+   *
+   * The 7 javanas have different strengths:
+   * - 1st javana: weak (accumulating)
+   * - 2nd-6th javana: medium (full strength)
+   * - 7th javana: weak (fading)
+   *
+   * The 1st and 7th are weaker because they are
+   * transitional moments.
+   */
+  calculateKarmicPotency(position) {
+    if (position === 1 || position === 7) {
+      return 1;
+    }
+    return 2;
+  }
+  /**
+   * Assess overall karmic impact of a vīthi
+   */
+  assessKarmicImpact(quality) {
+    if (quality === "vip\u0101ka" || quality === "kiriya") {
+      return "none";
+    }
+    return this.cetasikas.get("wisdom")?.isActive ? "strong" : "weak";
+  }
+  // ===========================================================================
+  // CETASIKA (MENTAL FACTOR) MANAGEMENT
+  // ===========================================================================
+  /**
+   * Initialize the 7 universal cetasikas (sabbacitta-sādhāraṇa).
+   * These accompany EVERY citta.
+   */
+  initializeUniversalCetasikas() {
+    this.cetasikas.set("phassa", new MentalFactor("Contact", "Phassa", "variable"));
+    this.cetasikas.set("vedan\u0101", new MentalFactor("Feeling", "Vedan\u0101", "variable"));
+    this.cetasikas.set("sa\xF1\xF1\u0101", new MentalFactor("Perception", "Sa\xF1\xF1\u0101", "variable"));
+    this.cetasikas.set("cetan\u0101", new MentalFactor("Volition", "Cetan\u0101", "variable"));
+    this.cetasikas.set("ekaggat\u0101", new MentalFactor("One-pointedness", "Ekaggat\u0101", "variable"));
+    this.cetasikas.set("j\u012Bvitindriya", new MentalFactor("Life-faculty", "J\u012Bvitindriya", "variable"));
+    this.cetasikas.set("manasik\u0101ra", new MentalFactor("Attention", "Manasik\u0101ra", "variable"));
+    this.cetasikas.forEach((c) => c.activate(5));
+    this.cetasikas.set("vitakka", new MentalFactor("Initial Application", "Vitakka", "variable"));
+    this.cetasikas.set("vic\u0101ra", new MentalFactor("Sustained Application", "Vic\u0101ra", "variable"));
+    this.cetasikas.set("adhimokkha", new MentalFactor("Decision", "Adhimokkha", "variable"));
+    this.cetasikas.set("v\u012Briya", new MentalFactor("Energy", "V\u012Briya", "variable"));
+    this.cetasikas.set("p\u012Bti", new MentalFactor("Joy", "P\u012Bti", "wholesome"));
+    this.cetasikas.set("chanda", new MentalFactor("Desire-to-act", "Chanda", "variable"));
+    this.cetasikas.set("moha", new MentalFactor("Delusion", "Moha", "unwholesome"));
+    this.cetasikas.set("ahirika", new MentalFactor("Shamelessness", "Ahirika", "unwholesome"));
+    this.cetasikas.set("anottappa", new MentalFactor("Fearlessness of wrong", "Anottappa", "unwholesome"));
+    this.cetasikas.set("uddhacca", new MentalFactor("Restlessness", "Uddhacca", "unwholesome"));
+    this.cetasikas.set("lobha", new MentalFactor("Greed", "Lobha", "unwholesome"));
+    this.cetasikas.set("di\u1E6D\u1E6Dhi", new MentalFactor("Wrong View", "Di\u1E6D\u1E6Dhi", "unwholesome"));
+    this.cetasikas.set("m\u0101na", new MentalFactor("Conceit", "M\u0101na", "unwholesome"));
+    this.cetasikas.set("dosa", new MentalFactor("Hatred", "Dosa", "unwholesome"));
+    this.cetasikas.set("iss\u0101", new MentalFactor("Envy", "Iss\u0101", "unwholesome"));
+    this.cetasikas.set("macchariya", new MentalFactor("Miserliness", "Macchariya", "unwholesome"));
+    this.cetasikas.set("kukkucca", new MentalFactor("Worry", "Kukkucca", "unwholesome"));
+    this.cetasikas.set("th\u012Bna", new MentalFactor("Sloth", "Th\u012Bna", "unwholesome"));
+    this.cetasikas.set("middha", new MentalFactor("Torpor", "Middha", "unwholesome"));
+    this.cetasikas.set("vicikicch\u0101", new MentalFactor("Doubt", "Vicikicch\u0101", "unwholesome"));
+    this.cetasikas.set("saddh\u0101", new MentalFactor("Faith", "Saddh\u0101", "wholesome"));
+    this.cetasikas.set("sati", new MentalFactor("Mindfulness", "Sati", "wholesome"));
+    this.cetasikas.set("hir\u012B", new MentalFactor("Moral Shame", "Hir\u012B", "wholesome"));
+    this.cetasikas.set("ottappa", new MentalFactor("Moral Dread", "Ottappa", "wholesome"));
+    this.cetasikas.set("alobha", new MentalFactor("Non-greed", "Alobha", "wholesome"));
+    this.cetasikas.set("adosa", new MentalFactor("Non-hatred", "Adosa", "wholesome"));
+    this.cetasikas.set("tatramajjhattat\u0101", new MentalFactor("Equanimity", "Tatramajjhattat\u0101", "wholesome"));
+    this.cetasikas.set("k\u0101yapassaddhi", new MentalFactor("Tranquility of factors", "K\u0101yapassaddhi", "wholesome"));
+    this.cetasikas.set("cittapassaddhi", new MentalFactor("Tranquility of mind", "Cittapassaddhi", "wholesome"));
+    this.cetasikas.set("k\u0101yalahut\u0101", new MentalFactor("Lightness of factors", "K\u0101yalahut\u0101", "wholesome"));
+    this.cetasikas.set("cittalahut\u0101", new MentalFactor("Lightness of mind", "Cittalahut\u0101", "wholesome"));
+    this.cetasikas.set("k\u0101yamudut\u0101", new MentalFactor("Malleability of factors", "K\u0101yamudut\u0101", "wholesome"));
+    this.cetasikas.set("cittamudut\u0101", new MentalFactor("Malleability of mind", "Cittamudut\u0101", "wholesome"));
+    this.cetasikas.set("k\u0101yakamma\xF1\xF1at\u0101", new MentalFactor("Wieldiness of factors", "K\u0101yakamma\xF1\xF1at\u0101", "wholesome"));
+    this.cetasikas.set("cittakamma\xF1\xF1at\u0101", new MentalFactor("Wieldiness of mind", "Cittakamma\xF1\xF1at\u0101", "wholesome"));
+    this.cetasikas.set("k\u0101yap\u0101gu\xF1\xF1at\u0101", new MentalFactor("Proficiency of factors", "K\u0101yap\u0101gu\xF1\xF1at\u0101", "wholesome"));
+    this.cetasikas.set("cittap\u0101gu\xF1\xF1at\u0101", new MentalFactor("Proficiency of mind", "Cittap\u0101gu\xF1\xF1at\u0101", "wholesome"));
+    this.cetasikas.set("k\u0101yujukat\u0101", new MentalFactor("Rectitude of factors", "K\u0101yujukat\u0101", "wholesome"));
+    this.cetasikas.set("cittujukat\u0101", new MentalFactor("Rectitude of mind", "Cittujukat\u0101", "wholesome"));
+    this.cetasikas.set("samm\u0101v\u0101c\u0101", new MentalFactor("Right Speech", "Samm\u0101v\u0101c\u0101", "wholesome"));
+    this.cetasikas.set("samm\u0101kammanta", new MentalFactor("Right Action", "Samm\u0101kammanta", "wholesome"));
+    this.cetasikas.set("samm\u0101\u0101j\u012Bva", new MentalFactor("Right Livelihood", "Samm\u0101\u0101j\u012Bva", "wholesome"));
+    this.cetasikas.set("karu\u1E47\u0101", new MentalFactor("Compassion", "Karu\u1E47\u0101", "wholesome"));
+    this.cetasikas.set("mudit\u0101", new MentalFactor("Sympathetic Joy", "Mudit\u0101", "wholesome"));
+    this.cetasikas.set("pa\xF1\xF1\u0101", new MentalFactor("Wisdom", "Pa\xF1\xF1\u0101", "wholesome"));
+    this.cetasikas.set("greed", this.cetasikas.get("lobha"));
+    this.cetasikas.set("aversion", this.cetasikas.get("dosa"));
+    this.cetasikas.set("delusion", this.cetasikas.get("moha"));
+    this.cetasikas.set("mindfulness", this.cetasikas.get("sati"));
+    this.cetasikas.set("wisdom", this.cetasikas.get("pa\xF1\xF1\u0101"));
+  }
+  /**
+   * Activate a cetasika by name
+   */
+  activateCetasika(name, intensity = 5) {
+    const cetasika = this.cetasikas.get(name);
+    if (cetasika) {
+      cetasika.activate(intensity);
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Deactivate a cetasika
+   */
+  deactivateCetasika(name) {
+    const cetasika = this.cetasikas.get(name);
+    if (cetasika) {
+      cetasika.deactivate();
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Get names of currently active cetasikas
+   */
+  getActiveCetasikaNames() {
+    return Array.from(this.cetasikas.entries()).filter(([_, c]) => c.isActive).map(([name]) => name);
+  }
+  /**
+   * Get all cetasikas
+   */
+  getCetasikas() {
+    return new Map(this.cetasikas);
+  }
+  // ===========================================================================
+  // FEELING DETERMINATION
+  // ===========================================================================
+  /**
+   * Determine feeling tone for a given stage.
+   * Different stages have characteristic feelings.
+   */
+  determineFeelingForStage(stage, object3) {
+    if (stage.includes("bhava\u1E45ga")) {
+      return "neutral";
+    }
+    if (stage === "\u0101vajjana" || stage === "vo\u1E6D\u1E6Dhabbana") {
+      return "neutral";
+    }
+    if (object3) {
+      return this.classification.feeling;
+    }
+    return "neutral";
+  }
+  /**
+   * Check if object is clear enough for registration
+   */
+  isObjectClear(object3) {
+    return object3.content.length > 0;
+  }
+  // ===========================================================================
+  // STATE AND CLASSIFICATION
+  // ===========================================================================
+  /**
+   * Get current stage
+   */
+  getCurrentStage() {
+    return this.currentStage;
+  }
+  /**
+   * Get current javana position (1-7, or 0 if not in javana)
+   */
+  getJavanaPosition() {
+    return this.javanaPosition;
+  }
+  /**
+   * Get current object
+   */
+  getCurrentObject() {
+    return this.currentObject;
+  }
+  /**
+   * Get classification
+   */
+  getClassification() {
+    return { ...this.classification };
+  }
+  /**
+   * Is the citta currently in bhavaṅga (resting state)?
+   */
+  isInBhavanga() {
+    return this.currentStage === "bhava\u1E45ga" && !this.vithiActive;
+  }
+  /**
+   * Is a cognitive process currently active?
+   */
+  isProcessing() {
+    return this.vithiActive;
+  }
+  /**
+   * Get total moments processed
+   */
+  getTotalMoments() {
+    return this.momentStream.length;
+  }
+  // ===========================================================================
+  // TWO TRUTHS
+  // ===========================================================================
+  getConventionalTruth() {
+    return {
+      level: "conventional",
+      description: "Citta is the knowing element, the subject of experience that cognizes objects",
+      usefulFor: [
+        "Understanding mental processes",
+        "Analyzing the cognitive sequence",
+        "Identifying where karma is made (javana)",
+        "Meditation on the nature of mind"
+      ]
+    };
+  }
+  getUltimateTruth() {
+    return {
+      level: "ultimate",
+      description: 'Citta is a momentary arising, lasting only one mind-moment. It has no permanent essence. What we call "mind" is a stream of such moments.',
+      transcends: [
+        "Belief in a permanent consciousness",
+        "Identification with mental states",
+        "The illusion of a continuous observer"
+      ]
+    };
+  }
+  // ===========================================================================
+  // EXPLANATIONS
+  // ===========================================================================
+  /**
+   * Explain the cognitive process
+   */
+  static explainVithi() {
+    return `
+CITTA-V\u012ATHI: THE COGNITIVE PROCESS
+
+A complete cognitive process consists of 17 mind-moments:
+
+FIVE-DOOR PROCESS (e.g., seeing):
+
+1. At\u012Bta-bhava\u1E45ga    - Past life-continuum
+2. Bhava\u1E45ga-calana   - Vibrating life-continuum
+3. Bhava\u1E45gupaccheda  - Arrested life-continuum
+4. Pa\xF1cadv\u0101r\u0101vajjana - Five-door adverting
+5. Cakkhu-vi\xF1\xF1\u0101\u1E47a    - Eye-consciousness (or other sense)
+6. Sampa\u1E6Dicchana     - Receiving
+7. Sant\u012Bra\u1E47a         - Investigating
+8. Vo\u1E6D\u1E6Dhabbana       - Determining
+9-15. Javana \xD7 7     - Impulsion (KARMA IS MADE HERE)
+16-17. Tad\u0101ramma\u1E47a \xD7 2 - Registration
+
+KEY INSIGHT:
+Karma is made only during the 7 javana moments.
+All other moments are either resultant (vip\u0101ka) or functional (kiriya).
+
+The first and last javana are weaker than the middle five.
+This is why repeated actions strengthen habits.
+    `.trim();
+  }
+  /**
+   * Explain the classification system
+   */
+  static explainClassification() {
+    return `
+CITTA CLASSIFICATION (89 or 121 types)
+
+BY REALM (Bh\u016Bmi):
+- K\u0101m\u0101vacara: Sense-sphere (54 cittas)
+- R\u016Bp\u0101vacara: Form-sphere/jh\u0101na (15 cittas)
+- Ar\u016Bp\u0101vacara: Formless-sphere (12 cittas)
+- Lokuttara: Supramundane/path-fruit (8 or 40 cittas)
+
+BY QUALITY:
+- Kusala: Wholesome - creates good karma
+- Akusala: Unwholesome - creates bad karma
+- Vip\u0101ka: Resultant - result of past karma
+- Kiriya: Functional - neither cause nor result
+
+BY ROOT (Hetu):
+Unwholesome roots: Lobha (greed), Dosa (hatred), Moha (delusion)
+Wholesome roots: Alobha (non-greed), Adosa (non-hatred), Amoha (wisdom)
+Rootless: Ahetuka cittas (18 types)
+
+SENSE-SPHERE BREAKDOWN:
+- 12 Akusala (unwholesome)
+- 8 Mah\u0101kusala (great wholesome)
+- 8 Mah\u0101vip\u0101ka (great resultant)
+- 8 Mah\u0101kiriya (great functional - Arahants only)
+- 18 Ahetuka (rootless)
+    `.trim();
+  }
+};
+
 // src/simulation/BeingSerializer.ts
 function serializeBeing(being) {
   const pathFactors = being.path.getAllFactors();
@@ -35286,7 +36461,12 @@ function serializeBeing(being) {
     },
     path: path3,
     mind,
-    dependentOrigination
+    dependentOrigination,
+    karmicStore: being.karmicStore.toJSON(),
+    incarnation: being.incarnation,
+    // Refreshed on every serialization; deserializeBeing compares this
+    // against the wall clock at load time to detect a rebirth-worthy gap.
+    lastActiveAt: Date.now()
   };
 }
 function deserializeBeing(data) {
@@ -35349,16 +36529,31 @@ function deserializeBeing(data) {
     reactions: [...e.reactions],
     timestamp: e.timestamp
   }));
+  let karmicStore;
+  if (data.karmicStore) {
+    karmicStore = KarmicStore.fromJSON(data.karmicStore);
+    karmicStore.stopRipeningCheck();
+  }
+  const gapMs = Number(process.env.BUDDHA_INCARNATION_GAP_MS ?? 216e5);
+  let incarnation = data.incarnation ?? 1;
+  if (data.lastActiveAt !== void 0) {
+    const elapsed = Date.now() - data.lastActiveAt;
+    if (elapsed >= gapMs) {
+      incarnation += 1;
+    }
+  }
   being._restoreState({
     mindfulnessLevel: data.mindfulnessLevel,
     karmicStream,
-    experienceHistory
+    experienceHistory,
+    karmicStore,
+    incarnation
   });
   return being;
 }
 
 // src/simulation/Being.ts
-var Being = class {
+var Being = class _Being {
   /** The five aggregates that constitute the "person" */
   aggregates;
   /** The Noble Eightfold Path being developed */
@@ -35371,12 +36566,38 @@ var Being = class {
   emptiness;
   /** Mind with mental factors */
   mind;
+  /**
+   * Consciousness (Abhidhamma model) driving the citta-vīthi cognitive
+   * process. Fresh per instance, synced from `mind` before each cognize()
+   * call, and never serialized — a new Citta is always created in the
+   * constructor, including on deserialization.
+   */
+  citta;
+  /**
+   * Karmic seed ledger. Auto-ripening is always disabled here — Being drives
+   * karmic ripening explicitly via receiveKarmicResults(), never a timer.
+   */
+  karmicStore;
   /** Stream of karma */
   karmicStream = [];
   /** History of experiences */
   experienceHistory = [];
   /** Current mindfulness level */
   _mindfulnessLevel = 0;
+  /**
+   * Incarnation counter. Starts at 1; advances via rebirth() (explicit) or
+   * BeingSerializer's gap detection on load (implicit, when the elapsed
+   * wall-clock time since the last save exceeds BUDDHA_INCARNATION_GAP_MS).
+   */
+  _incarnation = 1;
+  /** Sense-door mapping for cognize(): SenseBase -> Citta's Pali door enum. */
+  static senseDoors = {
+    eye: "cakkhu-dv\u0101ra",
+    ear: "sota-dv\u0101ra",
+    nose: "gh\u0101na-dv\u0101ra",
+    tongue: "jivh\u0101-dv\u0101ra",
+    body: "k\u0101ya-dv\u0101ra"
+  };
   constructor() {
     this.aggregates = new FiveAggregates();
     this.path = new EightfoldPath();
@@ -35384,6 +36605,30 @@ var Being = class {
     this.fourNobleTruths = new FourNobleTruths(this.path);
     this.emptiness = new Sunyata();
     this.mind = new Mind();
+    this.citta = new Citta();
+    this.karmicStore = new KarmicStore({ enableAutoRipening: false });
+    this.registerRipeningConditions();
+  }
+  /**
+   * Register the named ripening conditions used by seeds planted via act().
+   * Must be re-run (followed by karmicStore.rebindConditions()) whenever
+   * karmicStore is replaced — e.g. after deserialization — since the check
+   * functions on a restored store's seeds are dead stubs until rebound.
+   */
+  registerRipeningConditions() {
+    this.karmicStore.registerCondition(
+      "mindfulness-support",
+      () => this.mindfulnessLevel >= 5
+    );
+    this.karmicStore.registerCondition("habitual-accumulation", () => {
+      const tagCounts = /* @__PURE__ */ new Map();
+      for (const seed of this.karmicStore.getSeeds()) {
+        for (const tag of seed.tags) {
+          tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+        }
+      }
+      return Array.from(tagCounts.values()).some((count) => count >= 3);
+    });
   }
   /**
    * Experience something through the senses
@@ -35407,12 +36652,171 @@ var Being = class {
     const karma = new Karma(intention, intensity);
     karma.complete();
     this.karmicStream.push(karma);
+    this.plantSeedFromAct(description, intensity, root);
     return karma;
   }
   /**
-   * Receive karmic results (ripen pending karma)
+   * Dual-write path: alongside the legacy karmicStream entry, plant a
+   * karmic seed in the KarmicStore. Quality is derived from the root
+   * (never caller-supplied) using the same rule as Intention.determineQuality:
+   * greed/aversion/delusion -> unwholesome, other roots -> wholesome,
+   * no root -> neutral.
    */
-  receiveKarmicResults() {
+  plantSeedFromAct(description, intensity, root) {
+    const unwholesomeRoots = ["greed", "aversion", "delusion"];
+    const quality = !root ? "neutral" : unwholesomeRoots.includes(root) ? "unwholesome" : "wholesome";
+    const slug = description.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    this.karmicStore.plantSeed({
+      quality,
+      description,
+      intentionStrength: intensity,
+      ...root ? { root } : {},
+      potency: intensity * 7,
+      ripeningTiming: "deferred",
+      minDelay: 0,
+      maxDelay: Number.MAX_SAFE_INTEGER,
+      tags: [root ?? "neutral", "act", slug, `incarnation:${this._incarnation}`],
+      conditions: this.buildSeedConditions(quality, slug)
+    });
+  }
+  /**
+   * Ripening conditions shared by every seed Being plants: habitual-
+   * accumulation is attached to every seed; mindfulness-support only to
+   * wholesome seeds. Both closures are seed-specific at plant time; the
+   * identically-named conditions registered in registerRipeningConditions()
+   * are the generic fallbacks used after rebindConditions() restores a seed
+   * from serialized data.
+   */
+  buildSeedConditions(quality, slug) {
+    const conditions = [
+      {
+        type: "accumulation",
+        name: "habitual-accumulation",
+        description: "three or more similar actions",
+        weight: 0.5,
+        check: () => this.karmicStore.getSeedsByTag(slug).length >= 3
+      }
+    ];
+    if (quality === "wholesome") {
+      conditions.push({
+        type: "state",
+        name: "mindfulness-support",
+        description: "mindfulness level at least 5",
+        weight: 0.5,
+        check: () => this.mindfulnessLevel >= 5
+      });
+    }
+    return conditions;
+  }
+  /**
+   * Run a full cognitive process (citta-vīthi) over content, then plant
+   * karmic seeds from its javana moments — the mind, working.
+   *
+   * `senseBase` undefined or `'mind'` runs the 13-moment mind-door process
+   * (processMentalObject); any other sense base runs the 17-moment five-door
+   * process (processSenseObject) through the matching door.
+   */
+  cognize(content, senseBase) {
+    this.syncCittaFromMind();
+    const object3 = senseBase && senseBase !== "mind" ? { type: "sense-object", content, senseBase } : { type: "mental-object", content };
+    const vithi = senseBase && senseBase !== "mind" ? this.citta.processSenseObject(object3, _Being.senseDoors[senseBase]) : this.citta.processMentalObject(object3);
+    const seedsPlanted = this.plantSeedsFromJavanas(vithi.quality, content);
+    return {
+      moments: vithi.moments,
+      quality: vithi.quality,
+      karmicImpact: vithi.karmicImpact,
+      seedsPlanted
+    };
+  }
+  /**
+   * Sync the five aliased mental factors from Mind into Citta's cetasikas
+   * ahead of a cognitive process, so javana quality reflects the being's
+   * current mental state.
+   */
+  syncCittaFromMind() {
+    const keys = ["mindfulness", "wisdom", "greed", "aversion", "delusion"];
+    for (const key of keys) {
+      const factor = this.mind.getFactor(key);
+      if (factor && factor.isActive && factor.intensity > 0) {
+        this.citta.activateCetasika(key, factor.intensity);
+      } else {
+        this.citta.deactivateCetasika(key);
+      }
+    }
+  }
+  /**
+   * Plant karmic seeds from the javana moments of a vīthi (canonical
+   * mapping: javana position -> ripening-timing category). Javana 1 is
+   * accumulating (weak, immediate); javanas 2-6 are full strength (moderate,
+   * distant-future); javana 7 is fading (weak, next-life).
+   */
+  plantSeedsFromJavanas(javanaQuality, content) {
+    if (javanaQuality !== "kusala" && javanaQuality !== "akusala") {
+      return [];
+    }
+    const quality = javanaQuality === "kusala" ? "wholesome" : "unwholesome";
+    const root = javanaQuality === "kusala" ? "non-delusion" : this.determineActiveUnwholesomeRoot();
+    const slug = content.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const groups = [
+      { timing: "immediate", potency: 10 },
+      // javana 1: weak
+      { timing: "distant-future", potency: 30 },
+      // javanas 2-6: moderate
+      { timing: "next-life", potency: 10 }
+      // javana 7: weak
+    ];
+    return groups.map((group) => {
+      const seed = this.karmicStore.plantSeed({
+        quality,
+        description: content,
+        intentionStrength: 5,
+        root,
+        potency: group.potency,
+        ripeningTiming: group.timing,
+        minDelay: 0,
+        maxDelay: Number.MAX_SAFE_INTEGER,
+        tags: [root, "cognize", slug, `incarnation:${this._incarnation}`],
+        conditions: this.buildSeedConditions(quality, slug)
+      });
+      return { id: seed.id, timing: seed.ripeningTiming, strength: seed.strength, quality: seed.quality };
+    });
+  }
+  /**
+   * The highest-intensity active unwholesome root cetasika on citta
+   * (greed, aversion, delusion) — the root motivation behind an akusala
+   * javana. determineJavanaQuality guarantees at least one is active
+   * whenever it returns 'akusala', so this always resolves to a real root.
+   */
+  determineActiveUnwholesomeRoot() {
+    const roots = ["greed", "aversion", "delusion"];
+    const cetasikas = this.citta.getCetasikas();
+    let best = "delusion";
+    let bestIntensity = -1;
+    for (const root of roots) {
+      const factor = cetasikas.get(root);
+      if (factor?.isActive && factor.intensity > bestIntensity) {
+        bestIntensity = factor.intensity;
+        best = root;
+      }
+    }
+    return best;
+  }
+  /**
+   * Release resources held by the karmic seed ledger (e.g. any ripening
+   * timers). Safe to call even though auto-ripening is always disabled here.
+   */
+  dispose() {
+    this.karmicStore.dispose();
+  }
+  /**
+   * Receive karmic results (ripen pending karma).
+   *
+   * Ripens both the legacy karmic stream (unconditional, as before) and the
+   * karmicStore's active seeds (conditional — subject to their attached
+   * ripening conditions, unless `force` is set). Seeds that remain active
+   * afterward are explained in `whyNot`.
+   */
+  receiveKarmicResults(force = false) {
     const results = [];
     for (const karma of this.karmicStream) {
       if (karma.isPotential()) {
@@ -35428,7 +36832,155 @@ var Being = class {
         }
       }
     }
-    return results;
+    const seedVipakas = [];
+    const candidateSeeds = this.karmicStore.getSeeds({ state: "active" });
+    const windowNotes = /* @__PURE__ */ new Map();
+    const eligibleSeeds = [];
+    for (const seed of candidateSeeds) {
+      const window = this.evaluateSeedWindow(seed);
+      if (window.eligible) {
+        eligibleSeeds.push(seed);
+      } else if (window.expired) {
+        seed.state = "exhausted";
+      } else if (window.reason) {
+        windowNotes.set(seed.id, window.reason);
+      }
+    }
+    for (const seed of eligibleSeeds) {
+      const vipaka = force ? this.karmicStore.forceRipen(seed.id) : this.karmicStore.attemptRipening(seed.id);
+      if (vipaka) {
+        seedVipakas.push(vipaka);
+        this.experience({
+          senseBase: "mind",
+          object: vipaka.description,
+          intensity: vipaka.intensity,
+          valence: vipaka.quality
+        });
+      }
+    }
+    const whyNot = [];
+    for (const seed of candidateSeeds) {
+      const current = this.karmicStore.getSeed(seed.id);
+      if (current && current.state === "active") {
+        const windowNote = windowNotes.get(current.id);
+        const unmetConditions = current.ripeningConditions.filter((condition) => !condition.check()).map((condition) => condition.description);
+        whyNot.push({
+          seedId: current.id,
+          description: current.description,
+          unmet: windowNote ? [windowNote, ...unmetConditions] : unmetConditions
+        });
+      }
+    }
+    return { results, seedVipakas, whyNot };
+  }
+  /**
+   * Evaluate a seed's incarnation-window eligibility for ripening.
+   * `immediate` (diṭṭhadhamma) ripens only in its planting incarnation;
+   * `next-life` (upapajja) only in planting+1; `distant-future`
+   * (aparāpariya) from planting+1 onward, never expiring; `deferred`
+   * (and any seed without an incarnation tag) is always eligible.
+   */
+  evaluateSeedWindow(seed) {
+    const tag = seed.tags.find((t) => t.startsWith("incarnation:"));
+    if (!tag) return { eligible: true, expired: false };
+    const plantedAt = Number(tag.slice("incarnation:".length));
+    if (Number.isNaN(plantedAt)) return { eligible: true, expired: false };
+    const timing = seed.ripeningTiming;
+    switch (timing) {
+      case "immediate":
+        if (this._incarnation === plantedAt) return { eligible: true, expired: false };
+        return {
+          eligible: false,
+          expired: true,
+          reason: `immediate seed: only ripens in incarnation ${plantedAt}`
+        };
+      case "next-life":
+        if (this._incarnation === plantedAt + 1) return { eligible: true, expired: false };
+        if (this._incarnation > plantedAt + 1) {
+          return {
+            eligible: false,
+            expired: true,
+            reason: `next-life seed: only ripened in incarnation ${plantedAt + 1}`
+          };
+        }
+        return {
+          eligible: false,
+          expired: false,
+          reason: `next-life seed: ripens in incarnation ${plantedAt + 1}`
+        };
+      case "distant-future":
+        if (this._incarnation >= plantedAt + 1) return { eligible: true, expired: false };
+        return {
+          eligible: false,
+          expired: false,
+          reason: `distant-future seed: ripens from incarnation ${plantedAt + 1} onward`
+        };
+      case "deferred":
+      default:
+        return { eligible: true, expired: false };
+    }
+  }
+  /**
+   * Pick the seed that shapes the next incarnation: a weighty seed takes
+   * priority (garuka-kamma), then the most habitually-repeated slug
+   * (āciṇṇa-kamma), then the oldest active seed as a reserve
+   * (kaṭattā-kamma). Null when the store holds no active seeds.
+   */
+  pickShapingSeed() {
+    const seeds = this.karmicStore.getSeeds({ state: "active" });
+    if (seeds.length === 0) return null;
+    const weighty = seeds.find((s) => s.strength === "weighty");
+    if (weighty) {
+      return { id: weighty.id, description: weighty.description, reason: "weighty" };
+    }
+    const slugOf = (seed) => seed.tags.find((t) => t !== "act" && t !== seed.root && !t.startsWith("incarnation:"));
+    const counts = /* @__PURE__ */ new Map();
+    for (const seed of seeds) {
+      const slug = slugOf(seed);
+      if (!slug) continue;
+      counts.set(slug, (counts.get(slug) ?? 0) + 1);
+    }
+    let bestSlug;
+    let bestCount = 1;
+    for (const [slug, count] of counts) {
+      if (count > bestCount) {
+        bestCount = count;
+        bestSlug = slug;
+      }
+    }
+    if (bestSlug) {
+      const habitual = seeds.find((s) => slugOf(s) === bestSlug);
+      if (habitual) {
+        return { id: habitual.id, description: habitual.description, reason: "habitual" };
+      }
+    }
+    const oldest = seeds.reduce((a, b) => a.createdAt <= b.createdAt ? a : b);
+    return { id: oldest.id, description: oldest.description, reason: "reserve" };
+  }
+  /**
+   * Enact rebirth: advance the incarnation counter, expire any active seed
+   * whose timing window has now lapsed (ahosi-kamma — its potential to
+   * ripen is spent, unfulfilled), and name the seed that shapes the new
+   * incarnation.
+   */
+  rebirth() {
+    const shapingSeed = this.pickShapingSeed();
+    this._incarnation += 1;
+    let expiredSeeds = 0;
+    for (const seed of this.karmicStore.getSeeds({ state: "active" })) {
+      const window = this.evaluateSeedWindow(seed);
+      if (window.expired) {
+        seed.state = "exhausted";
+        expiredSeeds++;
+      }
+    }
+    return { incarnation: this._incarnation, expiredSeeds, shapingSeed };
+  }
+  /**
+   * Get the current incarnation number (starts at 1).
+   */
+  get incarnation() {
+    return this._incarnation;
   }
   /**
    * Practice meditation
@@ -35552,6 +37104,12 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     this._mindfulnessLevel = state.mindfulnessLevel;
     this.karmicStream = state.karmicStream;
     this.experienceHistory = state.experienceHistory;
+    this._incarnation = state.incarnation ?? 1;
+    if (state.karmicStore) {
+      this.karmicStore = state.karmicStore;
+      this.registerRipeningConditions();
+      this.karmicStore.rebindConditions();
+    }
   }
   /**
    * Serialize this being to a plain JSON-compatible object
@@ -35942,7 +37500,22 @@ function deleteBeing(sm2, name) {
 }
 function getStatus(sm2, name) {
   const being = sm2.loadExistingBeing(name);
-  return { summary: being.getSummary(), state: being.getState() };
+  const balance = being.karmicStore.getKarmicBalance();
+  const { byState } = being.karmicStore.getStatistics();
+  const byTiming = {};
+  for (const seed of being.karmicStore.getSeeds()) {
+    byTiming[seed.ripeningTiming] = (byTiming[seed.ripeningTiming] ?? 0) + 1;
+  }
+  return {
+    summary: being.getSummary(),
+    state: being.getState(),
+    seeds: {
+      balance,
+      byState,
+      byTiming,
+      incarnation: being.incarnation
+    }
+  };
 }
 function experienceSensory(sm2, name, input) {
   const being = sm2.loadExistingBeing(name);
@@ -35956,11 +37529,23 @@ function act(sm2, name, description, intensity, root) {
   sm2.saveBeing(name, being);
   return karma;
 }
-function ripenKarma(sm2, name) {
+function ripenKarma(sm2, name, force = false) {
   const being = sm2.loadExistingBeing(name);
-  const results = being.receiveKarmicResults();
+  const report = being.receiveKarmicResults(force);
   sm2.saveBeing(name, being);
-  return results;
+  return report;
+}
+function cognizeObject(sm2, name, content, senseBase) {
+  const being = sm2.loadExistingBeing(name);
+  const result = being.cognize(content, senseBase);
+  sm2.saveBeing(name, being);
+  return result;
+}
+function rebirthBeing(sm2, name) {
+  const being = sm2.loadExistingBeing(name);
+  const result = being.rebirth();
+  sm2.saveBeing(name, being);
+  return result;
 }
 function meditate(sm2, name, duration3, effort) {
   const being = sm2.loadExistingBeing(name);
@@ -36142,11 +37727,61 @@ server.tool(
 server.tool(
   "buddha_karma_ripen",
   "Check for and receive any ripened karmic results",
+  {
+    ...nameSchema,
+    force: external_exports3.boolean().optional().describe("Ripen everything eligible deterministically (default: conditional)")
+  },
+  async ({ name, force }) => {
+    try {
+      const results = ripenKarma(sm, name, force ?? false);
+      return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true };
+    }
+  }
+);
+server.tool(
+  "buddha_cognize",
+  "Run a full cognitive process (citta-v\u012Bthi) over content through a sense door, planting karmic seeds from its javana moments",
+  {
+    ...nameSchema,
+    content: external_exports3.string().min(1).describe("What is being cognized"),
+    senseBase: senseBaseSchema.optional().describe("Sense door (default: mind)")
+  },
+  async ({ name, content, senseBase }) => {
+    try {
+      const result = cognizeObject(sm, name, content, senseBase);
+      const momentsText = result.moments.map((m) => `  ${m.stage}: ${m.quality} (potency ${m.karmicPotency})`).join("\n");
+      const seedsText = result.seedsPlanted.length > 0 ? result.seedsPlanted.map((s) => `  ${s.id}: ${s.quality}, ${s.strength}, ripens ${s.timing}`).join("\n") : "  (none planted)";
+      const text = [
+        `Cognitive process (${result.quality}, karmic impact: ${result.karmicImpact}):`,
+        momentsText,
+        "",
+        "Seeds planted:",
+        seedsText
+      ].join("\n");
+      return { content: [{ type: "text", text }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true };
+    }
+  }
+);
+server.tool(
+  "buddha_rebirth",
+  "Enact rebirth: advance the incarnation, expire timed-out (ahosi-kamma) seeds, and carry forward the seed that shapes the new incarnation",
   nameSchema,
   async ({ name }) => {
     try {
-      const results = ripenKarma(sm, name);
-      return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+      const result = rebirthBeing(sm, name);
+      const shapingText = result.shapingSeed ? `The new incarnation is shaped by a ${result.shapingSeed.reason} seed: "${result.shapingSeed.description}".` : "No seed was weighty, habitual, or reserved enough to shape the new incarnation.";
+      const text = [
+        `Reborn into incarnation ${result.incarnation}.`,
+        `${result.expiredSeeds} seed(s) expired (ahosi-kamma) in the transition.`,
+        shapingText,
+        "",
+        JSON.stringify(result, null, 2)
+      ].join("\n");
+      return { content: [{ type: "text", text }] };
     } catch (e) {
       return { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true };
     }

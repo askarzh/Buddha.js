@@ -5,7 +5,7 @@ description: Explore Buddhist philosophy tools
 
 # Buddha.js — Buddhist Philosophy Tools
 
-Buddha.js ships as a bundled MCP server (`buddha-js`) — no build step is required. Once the plugin is installed, its 14 tools are available directly in this session (as `buddha_*`, or `mcp__buddha-js__buddha_*` in tool listings):
+Buddha.js ships as a bundled MCP server (`buddha-js`) — no build step is required. Once the plugin is installed, its 16 tools are available directly in this session (as `buddha_*`, or `mcp__buddha-js__buddha_*` in tool listings):
 
 | Tool | Description |
 |------|--------------|
@@ -20,6 +20,8 @@ Buddha.js ships as a bundled MCP server (`buddha-js`) — no build step is requi
 | `buddha_diagnose` | Diagnose suffering using the Four Noble Truths framework |
 | `buddha_inquiry` | Investigate the nature of self (anatta) across the five aggregates |
 | `buddha_chain` | Visualize the 12 links of dependent origination |
+| `buddha_cognize` | Run a full cognitive process (citta-vīthi) over content through a sense door, planting karmic seeds |
+| `buddha_rebirth` | Enact rebirth — advance the incarnation, expire timed-out seeds, carry forward a shaping seed |
 | `buddha_koan` | Present a Zen koan for contemplation |
 | `buddha_contemplate` | Submit a response to a koan for dualism-trap evaluation |
 | `buddha_sit` | Guided cessation via the Poison Arrow method |

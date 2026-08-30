@@ -57,7 +57,7 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `koan/` | `KoanGenerator` | Zen koan presentation and dualistic thinking detection |
 | `meditation/` | `MeditationTimer` | Real-time meditation session tracking with injectable clock |
 | `cli/` | `buddha` CLI | Terminal interface with persistence and `--json` output (10 commands) |
-| `mcp/` | `buddha-mcp` server | MCP server exposing Being API as 14 tools (stdio transport) |
+| `mcp/` | `buddha-mcp` server | MCP server exposing Being API as 16 tools (stdio transport) |
 | `plugin/` | Claude Code plugin | Skills and `/buddha` command for Claude Code integration |
 | `simulation/` | `Being` | Integration class combining all concepts |
 | `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |
@@ -88,7 +88,7 @@ Built with Commander.js, @inquirer/prompts, and chalk v5. Separate build config 
 
 ### MCP Server
 
-Exposes the full Being API as 14 MCP tools via stdio transport. Built with `@modelcontextprotocol/sdk` and `zod`. Shares persistence with CLI (`~/.buddha/beings/`). Separate build config in `tsup.mcp.ts`.
+Exposes the full Being API as 16 MCP tools via stdio transport. Built with `@modelcontextprotocol/sdk` and `zod`. Shares persistence with CLI (`~/.buddha/beings/`). Separate build config in `tsup.mcp.ts`.
 
 **Configuration (Claude Code / Claude Desktop):**
 ```json
@@ -102,7 +102,7 @@ Exposes the full Being API as 14 MCP tools via stdio transport. Built with `@mod
 }
 ```
 
-**14 Tools:** `buddha_create_being`, `buddha_list_beings`, `buddha_delete_being`, `buddha_status`, `buddha_experience`, `buddha_act`, `buddha_karma_ripen`, `buddha_meditate`, `buddha_diagnose`, `buddha_inquiry`, `buddha_chain`, `buddha_koan`, `buddha_contemplate`, `buddha_sit`
+**16 Tools:** `buddha_create_being`, `buddha_list_beings`, `buddha_delete_being`, `buddha_status`, `buddha_experience`, `buddha_act`, `buddha_karma_ripen`, `buddha_meditate`, `buddha_diagnose`, `buddha_inquiry`, `buddha_chain`, `buddha_cognize`, `buddha_rebirth`, `buddha_koan`, `buddha_contemplate`, `buddha_sit`
 
 ### TypeScript Configuration
 

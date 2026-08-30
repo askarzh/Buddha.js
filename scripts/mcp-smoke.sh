@@ -12,4 +12,4 @@ OUT=$(printf '%s\n' \
  | BUDDHA_STATE_DIR="$D/state" timeout 15 node "$D/server.mjs" 2>&1)
 COUNT=$(echo "$OUT" | grep -o '"name":"buddha_' | wc -l)
 echo "tool-count=$COUNT"
-if [ "$COUNT" -eq 14 ]; then echo "ISOLATED-SMOKE: PASS"; else echo "ISOLATED-SMOKE: FAIL"; echo "$OUT" | head -c 400; exit 1; fi
+if [ "$COUNT" -eq 16 ]; then echo "ISOLATED-SMOKE: PASS"; else echo "ISOLATED-SMOKE: FAIL"; echo "$OUT" | head -c 400; exit 1; fi

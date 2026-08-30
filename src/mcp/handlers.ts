@@ -27,7 +27,22 @@ export function deleteBeing(sm: StateManager, name: string): string {
 
 export function getStatus(sm: StateManager, name: string) {
   const being = sm.loadExistingBeing(name);
-  return { summary: being.getSummary(), state: being.getState() };
+  const balance = being.karmicStore.getKarmicBalance();
+  const { byState } = being.karmicStore.getStatistics();
+  const byTiming: Record<string, number> = {};
+  for (const seed of being.karmicStore.getSeeds()) {
+    byTiming[seed.ripeningTiming] = (byTiming[seed.ripeningTiming] ?? 0) + 1;
+  }
+  return {
+    summary: being.getSummary(),
+    state: being.getState(),
+    seeds: {
+      balance,
+      byState,
+      byTiming,
+      incarnation: being.incarnation,
+    },
+  };
 }
 
 export function experienceSensory(
@@ -54,12 +69,30 @@ export function act(
   return karma;
 }
 
-export function ripenKarma(sm: StateManager, name: string) {
+export function ripenKarma(sm: StateManager, name: string, force = false) {
   const being = sm.loadExistingBeing(name);
-  // TODO(Task 7): surface seedVipakas/whyNot properly in the tool response.
-  const report = being.receiveKarmicResults();
+  const report = being.receiveKarmicResults(force);
   sm.saveBeing(name, being);
   return report;
+}
+
+export function cognizeObject(
+  sm: StateManager,
+  name: string,
+  content: string,
+  senseBase?: SenseBase,
+) {
+  const being = sm.loadExistingBeing(name);
+  const result = being.cognize(content, senseBase);
+  sm.saveBeing(name, being);
+  return result;
+}
+
+export function rebirthBeing(sm: StateManager, name: string) {
+  const being = sm.loadExistingBeing(name);
+  const result = being.rebirth();
+  sm.saveBeing(name, being);
+  return result;
 }
 
 export function meditate(

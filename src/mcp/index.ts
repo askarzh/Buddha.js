@@ -4,7 +4,7 @@ import { z } from 'zod';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { StateManager } from '../cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan, sitWithSuffering } from './handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan, sitWithSuffering, cognizeObject, rebirthBeing } from './handlers';
 import type { SenseBase, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType, FeelingTone } from '../utils/types';
 
 const stateDir = process.env.BUDDHA_STATE_DIR || path.join(os.homedir(), '.buddha');
@@ -155,11 +155,71 @@ server.tool(
 server.tool(
   'buddha_karma_ripen',
   'Check for and receive any ripened karmic results',
+  {
+    ...nameSchema,
+    force: z.boolean().optional().describe('Ripen everything eligible deterministically (default: conditional)'),
+  },
+  async ({ name, force }) => {
+    try {
+      const results = ripenKarma(sm, name, force ?? false);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_cognize',
+  'Run a full cognitive process (citta-vīthi) over content through a sense door, planting karmic seeds from its javana moments',
+  {
+    ...nameSchema,
+    content: z.string().min(1).describe('What is being cognized'),
+    senseBase: senseBaseSchema.optional().describe('Sense door (default: mind)'),
+  },
+  async ({ name, content, senseBase }) => {
+    try {
+      const result = cognizeObject(sm, name, content, senseBase as SenseBase | undefined);
+      const momentsText = result.moments
+        .map(m => `  ${m.stage}: ${m.quality} (potency ${m.karmicPotency})`)
+        .join('\n');
+      const seedsText = result.seedsPlanted.length > 0
+        ? result.seedsPlanted
+          .map(s => `  ${s.id}: ${s.quality}, ${s.strength}, ripens ${s.timing}`)
+          .join('\n')
+        : '  (none planted)';
+      const text = [
+        `Cognitive process (${result.quality}, karmic impact: ${result.karmicImpact}):`,
+        momentsText,
+        '',
+        'Seeds planted:',
+        seedsText,
+      ].join('\n');
+      return { content: [{ type: 'text' as const, text }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_rebirth',
+  'Enact rebirth: advance the incarnation, expire timed-out (ahosi-kamma) seeds, and carry forward the seed that shapes the new incarnation',
   nameSchema,
   async ({ name }) => {
     try {
-      const results = ripenKarma(sm, name);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
+      const result = rebirthBeing(sm, name);
+      const shapingText = result.shapingSeed
+        ? `The new incarnation is shaped by a ${result.shapingSeed.reason} seed: "${result.shapingSeed.description}".`
+        : 'No seed was weighty, habitual, or reserved enough to shape the new incarnation.';
+      const text = [
+        `Reborn into incarnation ${result.incarnation}.`,
+        `${result.expiredSeeds} seed(s) expired (ahosi-kamma) in the transition.`,
+        shapingText,
+        '',
+        JSON.stringify(result, null, 2),
+      ].join('\n');
+      return { content: [{ type: 'text' as const, text }] };
     } catch (e) {
       return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
     }

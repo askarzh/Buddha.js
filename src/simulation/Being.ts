@@ -162,6 +162,17 @@ export class Being implements Serializable<BeingData> {
    */
   private _incarnation = 1;
 
+  /**
+   * TRANSIENT flag set by BeingSerializer when a load crosses the
+   * incarnation gap (see BUDDHA_INCARNATION_GAP_MS): "observation does not
+   * rebirth" — loading a save merely OBSERVES that the being's next act
+   * would be a rebirth; it does not itself run rebirth(). Never serialized
+   * (toJSON never reads it), so re-loading the same data is idempotent:
+   * the flag is recomputed from the elapsed gap each time, not accumulated.
+   * Cleared by settlePendingRebirth() once a caller actually enacts it.
+   */
+  private _pendingRebirth = false;
+
   /** Sense-door mapping for cognize(): SenseBase -> Citta's Pali door enum. */
   private static readonly senseDoors: Record<Exclude<SenseBase, 'mind'>, CittaDoor> = {
     eye: 'cakkhu-dvāra',
@@ -262,6 +273,24 @@ export class Being implements Serializable<BeingData> {
    */
   protected wisdomCap(): Intensity {
     return 10;
+  }
+
+  /**
+   * Clamp restored faculties to this (realm) instance's caps. Called at the
+   * end of _restoreState() so a save whose faculties exceed the realm it's
+   * being loaded into (e.g. a hand-edited or realm-changed save) is loaded
+   * consistent with that realm's constraints instead of trusting the raw
+   * serialized numbers. Currently only rightView is capped (wisdomCap());
+   * kept as its own method — rather than inlined into _restoreState — so
+   * future per-realm faculty caps slot in here without touching restore
+   * plumbing.
+   */
+  protected clampFacultiesToRealm(): void {
+    const cap = this.wisdomCap();
+    const rightView = this.path.rightView;
+    if (rightView.developmentLevel > cap) {
+      (rightView as any)._developmentLevel = cap;
+    }
   }
 
   /**
@@ -926,6 +955,32 @@ export class Being implements Serializable<BeingData> {
   }
 
   /**
+   * Whether this being was loaded across the incarnation gap and is awaiting
+   * settlePendingRebirth() to actually enact rebirth(). Observation alone
+   * (a plain load) never rebirths — this flag records that a rebirth is
+   * DUE, without performing it. Always false for a freshly-constructed being
+   * and for any being restored within the gap window.
+   */
+  get pendingRebirth(): boolean {
+    return this._pendingRebirth;
+  }
+
+  /**
+   * Enact a rebirth that observation-on-load merely detected. If
+   * pendingRebirth is set, clears it and runs rebirth(), returning its
+   * result; otherwise returns null without side effects. Centralizes the
+   * "observation does not rebirth" policy so callers (e.g. CLI/MCP command
+   * handlers) never call rebirth() directly off of a load.
+   */
+  settlePendingRebirth(): RebirthResult | null {
+    if (!this._pendingRebirth) {
+      return null;
+    }
+    this._pendingRebirth = false;
+    return this.rebirth();
+  }
+
+  /**
    * Practice meditation
    */
   meditate(duration: number, effort: Intensity): MeditationResult {
@@ -1101,11 +1156,14 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     experienceHistory: ProcessedExperience[];
     karmicStore?: KarmicStore;
     incarnation?: number;
+    /** TRANSIENT — see `pendingRebirth` getter. Never read from BeingData. */
+    pendingRebirth?: boolean;
   }): void {
     this._mindfulnessLevel = state.mindfulnessLevel;
     this.karmicStream = state.karmicStream;
     this.experienceHistory = state.experienceHistory;
     this._incarnation = state.incarnation ?? 1;
+    this._pendingRebirth = state.pendingRebirth ?? false;
     if (state.karmicStore) {
       (this as any).karmicStore = state.karmicStore;
       // The restored store's seeds carry dead-stub checks for named
@@ -1114,6 +1172,10 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
       this.registerRipeningConditions();
       this.karmicStore.rebindConditions();
     }
+    // Clamp last: faculties above the target realm's caps (e.g. a
+    // hand-edited save, or one whose realm was changed) are brought within
+    // bounds only after everything else has been restored.
+    this.clampFacultiesToRealm();
   }
 
   /**

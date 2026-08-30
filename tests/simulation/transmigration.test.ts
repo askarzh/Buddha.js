@@ -298,3 +298,90 @@ describe('Being.rebirth() — transmigration', () => {
     expect(rebornCondition?.check()).toBe(true);
   });
 });
+
+describe('realm serialization + observation-does-not-rebirth guard', () => {
+  it('realm round-trips: DevaBeing -> toJSON has realm "deva" -> fromJSON is instanceof DevaBeing', () => {
+    const deva = new DevaBeing();
+    const data = deva.toJSON();
+    expect(data.realm).toBe('deva');
+
+    const restored = Being.fromJSON(data);
+    expect(restored).toBeInstanceOf(DevaBeing);
+    expect(restored.realm).toBe('deva');
+  });
+
+  it('legacy save (no realm field) restores a human-equivalent being with pendingRebirth false', () => {
+    const being = new Being();
+    const data = being.toJSON();
+    delete (data as { realm?: string }).realm;
+
+    const restored = Being.fromJSON(data);
+    expect(restored).toBeInstanceOf(HumanBeing);
+    expect(restored.realm).toBe('human');
+    expect(restored.pendingRebirth).toBe(false);
+  });
+
+  it('a gap-load sets pendingRebirth without changing realm, and is idempotent on repeat observation', () => {
+    process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+    try {
+      const being = new HumanBeing();
+      const data = being.toJSON();
+
+      const first = Being.fromJSON(data);
+      expect(first.pendingRebirth).toBe(true);
+      expect(first.realm).toBe('human');
+      expect(first).toBeInstanceOf(HumanBeing);
+
+      // Observing (loading) the SAME data again must produce the same
+      // result — observation does not itself rebirth, and does not mutate
+      // the source data or accumulate state across loads.
+      const second = Being.fromJSON(data);
+      expect(second.pendingRebirth).toBe(true);
+      expect(second.realm).toBe('human');
+      expect(second.incarnation).toBe(first.incarnation);
+    } finally {
+      delete process.env.BUDDHA_INCARNATION_GAP_MS;
+    }
+  });
+
+  it('a quick reload (within the gap) never sets pendingRebirth', () => {
+    const being = new Being();
+    const restored = Being.fromJSON(being.toJSON());
+    expect(restored.pendingRebirth).toBe(false);
+  });
+
+  it('restoring an animal save with a hand-edited rightView of 9 clamps it to the animal wisdomCap (<=4)', () => {
+    const being = new Being();
+    const data = being.toJSON();
+    data.realm = 'animal';
+    const rightViewEntry = data.path.factors.find(f => f.name === 'Right View');
+    expect(rightViewEntry).toBeDefined();
+    rightViewEntry!.developmentLevel = 9;
+    rightViewEntry!.hasArisen = true;
+    rightViewEntry!.isActive = true;
+
+    const restored = Being.fromJSON(data);
+    expect(restored).toBeInstanceOf(AnimalBeing);
+    expect(restored.path.rightView.developmentLevel).toBeLessThanOrEqual(4);
+  });
+
+  it('settlePendingRebirth() fires once then returns null, and the result is a real rebirth (different being)', () => {
+    process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+    try {
+      const being = new HumanBeing();
+      const data = being.toJSON();
+      const restored = Being.fromJSON(data);
+      expect(restored.pendingRebirth).toBe(true);
+
+      const result = restored.settlePendingRebirth();
+      expect(result).not.toBeNull();
+      expect(result!.being).not.toBe(restored);
+      expect(restored.pendingRebirth).toBe(false);
+
+      const again = restored.settlePendingRebirth();
+      expect(again).toBeNull();
+    } finally {
+      delete process.env.BUDDHA_INCARNATION_GAP_MS;
+    }
+  });
+});

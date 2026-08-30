@@ -6,6 +6,7 @@
  */
 
 import { Being } from './Being';
+import { REALM_CLASSES } from './realms';
 import { Karma } from '../karma/Karma';
 import { Intention } from '../karma/Intention';
 import { KarmicStore } from '../karma/KarmicEventSystem';
@@ -131,6 +132,7 @@ export function serializeBeing(being: Being): BeingData {
     // Refreshed on every serialization; deserializeBeing compares this
     // against the wall clock at load time to detect a rebirth-worthy gap.
     lastActiveAt: Date.now(),
+    realm: being.realm,
   };
 }
 
@@ -138,7 +140,11 @@ export function serializeBeing(being: Being): BeingData {
  * Restore a Being from serialized data.
  */
 export function deserializeBeing(data: BeingData): Being {
-  const being = new Being();
+  // Factory: legacy saves (no `realm` field) predate typed rebirth and
+  // default to 'human', matching the pre-realm class (Being/HumanBeing are
+  // behaviorally identical — HumanBeing overrides nothing).
+  const RealmClass = REALM_CLASSES[data.realm ?? 'human'];
+  const being = new RealmClass();
 
   // Restore path factor development levels
   const factorMap = new Map(being.path.getAllFactors().map(f => [f.name, f]));
@@ -227,6 +233,12 @@ export function deserializeBeing(data: BeingData): Being {
   // default to 1.
   const gapMs = Number(process.env.BUDDHA_INCARNATION_GAP_MS ?? 21600000);
   let incarnation = data.incarnation ?? 1;
+  // Observation does not rebirth: crossing the gap only marks a rebirth as
+  // DUE (pendingRebirth) — it never runs rebirth() itself. The incarnation
+  // counter still advances here (it drives seed-window eligibility), but no
+  // karmic transmigration, realm reselection, or faculty vipāka happens
+  // until a caller explicitly invokes Being.settlePendingRebirth().
+  let pendingRebirth = false;
   // A legacy save has no lastActiveAt at all — there is no prior timestamp
   // to measure a gap against, so it NEVER triggers an incarnation advance,
   // regardless of gapMs (including gapMs=0). Only compare against the gap
@@ -239,6 +251,7 @@ export function deserializeBeing(data: BeingData): Being {
     const elapsed = Date.now() - data.lastActiveAt;
     if (elapsed >= gapMs) {
       incarnation += 1;
+      pendingRebirth = true;
     }
   }
 
@@ -249,6 +262,7 @@ export function deserializeBeing(data: BeingData): Being {
     experienceHistory,
     karmicStore,
     incarnation,
+    pendingRebirth,
   });
 
   return being;

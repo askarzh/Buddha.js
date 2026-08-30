@@ -328,6 +328,8 @@ export interface BeingData {
   incarnation?: number;
   /** Wall-clock time this save was written, refreshed on every toJSON() call. Optional for legacy-save tolerance: missing defaults to now (no spurious incarnation advance). */
   lastActiveAt?: number;
+  /** The realm (gati) this being inhabits. Optional for legacy-save tolerance: missing defaults to 'human'. */
+  realm?: Realm;
 }
 
 // =============================================================================

@@ -33,6 +33,9 @@ export type Intensity = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 /** Types of craving (tanha) */
 export type CravingType = 'sensory' | 'becoming' | 'non-becoming';
 
+/** The six realms of rebirth (gati) in the wheel of samsara */
+export type Realm = 'human' | 'deva' | 'asura' | 'animal' | 'preta' | 'naraka';
+
 /** Types of suffering (dukkha) */
 export type DukkhaType =
   | 'dukkha-dukkha'      // Pain of pain (obvious suffering)

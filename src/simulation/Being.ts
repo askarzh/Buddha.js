@@ -8,6 +8,7 @@
 
 import { FiveAggregates, SensoryInput, ProcessedExperience, SelfInquiryResult } from '../five-aggregates/FiveAggregates';
 import { EightfoldPath } from '../eightfold-path/EightfoldPath';
+import { PathFactor } from '../eightfold-path/PathFactor';
 import { DependentOrigination } from '../dependent-origination/DependentOrigination';
 import { FourNobleTruths, Diagnosis } from '../four-noble-truths/FourNobleTruths';
 import { Karma } from '../karma/Karma';
@@ -17,7 +18,7 @@ import { KarmicStore, KarmicVipaka, RipeningCondition, KarmicSeed, RipeningTimin
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
 import { Citta, Ārammaṇa, CittaMoment } from '../mind/Citta';
-import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, KarmaQuality, BeingData, Serializable, SenseBase, CittaDoor, CittaQuality } from '../utils/types';
+import { Intensity, DukkhaType, CravingType, UnwholesomeRoot, WholesomeRoot, KarmaQuality, BeingData, Serializable, SenseBase, CittaDoor, CittaQuality, Realm, FeelingTone } from '../utils/types';
 import { serializeBeing, deserializeBeing } from './BeingSerializer';
 
 /**
@@ -224,11 +225,73 @@ export class Being implements Serializable<BeingData> {
   }
 
   /**
+   * The realm of rebirth (gati) this being currently inhabits. Base `Being`
+   * (and `HumanBeing`) is 'human'; realm subclasses override this getter.
+   */
+  get realm(): Realm {
+    return 'human';
+  }
+
+  /**
+   * Soft modifier: multiplies effort-driven gains during meditate() — both
+   * path factor practice increments and the mindfulness-level gain. Neutral
+   * default (1) leaves meditate() bit-identical to pre-realm behavior.
+   */
+  protected meditationGainFactor(): number {
+    return 1;
+  }
+
+  /**
+   * Soft modifier: the ceiling rightView's developmentLevel may reach via
+   * practicePathFactor(). Neutral default (10) matches PathFactor's own
+   * internal maximum, so it never actually constrains anything for base
+   * Being/HumanBeing.
+   */
+  protected wisdomCap(): Intensity {
+    return 10;
+  }
+
+  /**
+   * Soft modifier: added to the intensity of the unwholesome mental factor
+   * (mirrored onto `mind`) activated by an experience() reaction. Neutral
+   * default (0) means experience() never touches `mind` for base Being.
+   */
+  protected unwholesomeReactionBoost(): number {
+    return 0;
+  }
+
+  /**
+   * Soft modifier: added to the intensity of unpleasant-valence experience
+   * inputs before they reach the aggregates. Neutral default (0) leaves
+   * experience() bit-identical to pre-realm behavior.
+   */
+  protected unpleasantIntensityShift(): number {
+    return 0;
+  }
+
+  /**
    * Experience something through the senses
    */
   experience(input: SensoryInput): ProcessedExperience {
-    const processed = this.aggregates.processExperience(input);
+    const shift = this.unpleasantIntensityShift();
+    const adjustedInput = input.valence === 'unpleasant' && shift !== 0
+      ? { ...input, intensity: input.intensity + shift }
+      : input;
+
+    const processed = this.aggregates.processExperience(adjustedInput);
     this.experienceHistory.push(processed);
+
+    // Soft modifier: realms with a reaction boost run the same reaction
+    // hotter by mirroring a boosted-intensity activation of the reacting
+    // unwholesome factor onto `mind`. SamskaraAggregate.react() has a fixed
+    // internal intensity (5, or 3 for restlessness) and can't accept a
+    // boost without changing its signature, so this is applied out-of-band
+    // on Being.mind instead of on aggregates.mentalFormations — see
+    // task-1-report.md for the documented reasoning.
+    const boost = this.unwholesomeReactionBoost();
+    if (boost !== 0) {
+      this.applyReactionBoost(processed.feelingTone, boost);
+    }
 
     // If mindfulness is high, add mindful observation
     if (this._mindfulnessLevel > 5) {
@@ -236,6 +299,45 @@ export class Being implements Serializable<BeingData> {
     }
 
     return processed;
+  }
+
+  /**
+   * Mirror SamskaraAggregate.react()'s reaction mapping onto `mind`, with
+   * the realm's reaction boost added to the base intensity react() would
+   * have used internally (5 for greed/aversion, 3 for restlessness).
+   */
+  private applyReactionBoost(feelingTone: FeelingTone, boost: number): void {
+    const factorName = feelingTone === 'pleasant'
+      ? 'greed'
+      : feelingTone === 'unpleasant'
+        ? 'aversion'
+        : 'restlessness';
+    const baseIntensity = feelingTone === 'neutral' ? 3 : 5;
+    const boosted = Math.min(10, Math.max(0, baseIntensity + boost)) as Intensity;
+    this.mind.activateFactor(factorName, boosted);
+  }
+
+  /**
+   * Practice a path factor through Being, applying wisdomCap() as a ceiling
+   * on rightView specifically. PathFactor has no setter for developmentLevel
+   * (only reset() to zero), so the cap is enforced by pre-limiting the
+   * effort passed to practice() rather than clamping the result — this
+   * duplicates PathFactor.practice()'s internal `effort * 0.15` increment
+   * formula, a documented coupling accepted so PathFactor itself is never
+   * edited (see task-1-report.md).
+   */
+  private practicePathFactor(factor: PathFactor, effort: Intensity): Intensity {
+    if (factor === this.path.rightView) {
+      const cap = this.wisdomCap();
+      const current = factor.developmentLevel;
+      if (current >= cap) {
+        return current;
+      }
+      const room = cap - current;
+      const maxEffort = room / 0.15;
+      effort = Math.min(effort, maxEffort) as Intensity;
+    }
+    return factor.practice(effort);
   }
 
   /**
@@ -733,16 +835,24 @@ export class Being implements Serializable<BeingData> {
    * Practice meditation
    */
   meditate(duration: number, effort: Intensity): MeditationResult {
-    // Develop relevant path factors
-    this.path.rightEffort.practice(effort);
-    this.path.rightMindfulness.practice(effort);
-    this.path.rightConcentration.practice(effort);
+    const gain = this.meditationGainFactor();
+    const scaledEffort = Math.min(10, Math.max(0, effort * gain)) as Intensity;
+
+    // Develop relevant path factors. rightView is included here because
+    // meditate() is the only Being-driven path that touches it (see
+    // task-1-report.md: "wisdom-cap driving path") — generateMeditationInsight()
+    // already reads path.rightView.developmentLevel for its wisdom-gated
+    // tiers, but nothing previously grew it.
+    this.practicePathFactor(this.path.rightEffort, scaledEffort);
+    this.practicePathFactor(this.path.rightMindfulness, scaledEffort);
+    this.practicePathFactor(this.path.rightConcentration, scaledEffort);
+    this.practicePathFactor(this.path.rightView, scaledEffort);
 
     // Activate mindfulness in the mind
     this.mind.activateFactor('mindfulness', effort);
 
     // Update mindfulness level
-    const mindfulnessGain = effort * duration * 0.01;
+    const mindfulnessGain = effort * duration * 0.01 * gain;
     this._mindfulnessLevel = Math.min(10,
       Math.round(this._mindfulnessLevel + mindfulnessGain)
     ) as Intensity;

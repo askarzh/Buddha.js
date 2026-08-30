@@ -4,7 +4,7 @@ import { z } from 'zod';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { StateManager } from '../cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan } from './handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan, sitWithSuffering } from './handlers';
 import type { SenseBase, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType, FeelingTone } from '../utils/types';
 
 const stateDir = process.env.BUDDHA_STATE_DIR || path.join(os.homedir(), '.buddha');
@@ -253,6 +253,22 @@ server.tool(
   async ({ koanId, response }) => {
     try {
       const result = contemplateKoan(koanId, response);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'buddha_sit',
+  'Guided cessation via the Poison Arrow method (Cula-Malunkyovada Sutta): four steps — recognize, investigate, release, practice — one per Noble Truth. Stateless; no being required. Use when someone (or an agent stuck in a loop) needs quick relief from a named suffering without deep analysis.',
+  {
+    suffering: z.string().min(1).describe('The suffering or problem being sat with'),
+  },
+  async ({ suffering }) => {
+    try {
+      const result = sitWithSuffering(suffering);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
       return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };

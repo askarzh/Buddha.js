@@ -1,6 +1,7 @@
 import { StateManager } from '../cli/utils/state';
 import { Being } from '../simulation/Being';
 import { KoanGenerator } from '../koan/KoanGenerator';
+import { PoisonArrow } from '../simulation/PoisonArrow';
 import type {
   SenseBase, Intensity,
   UnwholesomeRoot, WholesomeRoot,
@@ -102,4 +103,14 @@ export function presentKoan(id?: string) {
 
 export function contemplateKoan(koanId: string, response: string) {
   return koanGenerator.contemplate(koanId, response);
+}
+
+export function sitWithSuffering(suffering: string) {
+  const sim = new PoisonArrow(suffering);
+  const steps = [];
+  while (!sim.isComplete()) {
+    const step = sim.step();
+    steps.push({ stage: step.stage, truth: step.truth, insight: step.insight, guidance: step.guidance });
+  }
+  return { suffering, steps, summary: sim.getSummary() };
 }

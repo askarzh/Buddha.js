@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StateManager } from '../../src/cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan } from '../../src/mcp/handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan, sitWithSuffering } from '../../src/mcp/handlers';
 
 describe('MCP handlers — being management', () => {
   let sm: StateManager;
@@ -186,5 +186,19 @@ describe('MCP handlers — koan tools', () => {
     expect(result).toHaveProperty('trapsDetected');
     expect(result).toHaveProperty('isNonDual');
     expect(result).toHaveProperty('reflection');
+  });
+});
+
+describe('sitWithSuffering', () => {
+  it('walks all four cessation stages for a named suffering', () => {
+    const result = sitWithSuffering('deadline pressure');
+    expect(result.suffering).toBe('deadline pressure');
+    expect(result.steps.map(s => s.stage)).toEqual(['recognize', 'investigate', 'release', 'practice']);
+    expect(result.steps.map(s => s.truth)).toEqual(['dukkha', 'samudaya', 'nirodha', 'magga']);
+    expect(result.summary.length).toBeGreaterThan(0);
+  });
+
+  it('rejects empty suffering', () => {
+    expect(() => sitWithSuffering('   ')).toThrow();
   });
 });

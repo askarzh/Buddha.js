@@ -818,7 +818,7 @@ buddha diagnose --json --dukkha-types "dukkha-dukkha,sankhara-dukkha" --craving-
 
 ## MCP Server
 
-`buddha-mcp` exposes the full Being API as 13 MCP tools over stdio transport. State is shared with the CLI (`~/.buddha/beings/`, override with `BUDDHA_STATE_DIR`).
+`buddha-mcp` exposes the full Being API as 14 MCP tools over stdio transport. State is shared with the CLI (`~/.buddha/beings/`, override with `BUDDHA_STATE_DIR`).
 
 ### Build & Run
 
@@ -859,8 +859,9 @@ This works in Claude Desktop (`claude_desktop_config.json`) and Claude Code (`.m
 | `buddha_chain` | Visualize the 12 links of dependent origination |
 | `buddha_koan` | Present a Zen koan for contemplation |
 | `buddha_contemplate` | Submit a response to a koan and evaluate it for dualism traps |
+| `buddha_sit` | Guided cessation via the Poison Arrow method — four steps (recognize, investigate, release, practice), one per Noble Truth — for quick relief from a named suffering |
 
-All tools except `buddha_create_being` and `buddha_list_beings` require an existing being. This is deliberate: unlike the CLI, which auto-creates a being on first use, the MCP server rejects unknown names with `Being not found: "<name>". Create it with buddha_create_being or list existing beings with buddha_list_beings.`
+All tools except `buddha_create_being`, `buddha_list_beings`, and `buddha_sit` require an existing being. This is deliberate: unlike the CLI, which auto-creates a being on first use, the MCP server rejects unknown names with `Being not found: "<name>". Create it with buddha_create_being or list existing beings with buddha_list_beings.`
 
 ---
 

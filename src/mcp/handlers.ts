@@ -80,7 +80,10 @@ export function cognizeObject(
 export function rebirthBeing(sm: StateManager, name: string) {
   const being = sm.loadExistingBeing(name);
   const result = being.rebirth();
-  sm.saveBeing(name, being);
+  // rebirth() transmigrates into a NEW being (of a possibly different realm
+  // class) and detaches/disposes the loaded one — save the new being, not
+  // the now-dead object we loaded.
+  sm.saveBeing(name, result.being);
   return result;
 }
 

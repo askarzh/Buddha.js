@@ -61,6 +61,19 @@ export interface RebirthResult {
   incarnation: number;
   expiredSeeds: number;
   shapingSeed: { id: string; description: string; reason: 'weighty' | 'habitual' | 'reserve' } | null;
+  /** The realm the dying being inhabited. */
+  fromRealm: Realm;
+  /** The realm selected for the new incarnation (see `selectRealm`). */
+  toRealm: Realm;
+  /**
+   * The NEW being — of the `toRealm` class — that this transmigration
+   * produced. Only the karmic continuum (`karmicStore` + incarnation
+   * counter) passes from the dying being; everything else (path, mind,
+   * experience history) is a fresh arising. The dying being (`this`) is
+   * detached from the continuum and disposed; callers must switch to
+   * `being` for anything after rebirth().
+   */
+  being: Being;
 }
 
 /**
@@ -762,13 +775,13 @@ export class Being implements Serializable<BeingData> {
    * (āciṇṇa-kamma), then the oldest active seed as a reserve
    * (kaṭattā-kamma). Null when the store holds no active seeds.
    */
-  private pickShapingSeed(): RebirthResult['shapingSeed'] {
+  private pickShapingSeed(): { seed: KarmicSeed; reason: 'weighty' | 'habitual' | 'reserve' } | null {
     const seeds = this.karmicStore.getSeeds({ state: 'active' });
     if (seeds.length === 0) return null;
 
     const weighty = seeds.find(s => s.strength === 'weighty');
     if (weighty) {
-      return { id: weighty.id, description: weighty.description, reason: 'weighty' };
+      return { seed: weighty, reason: 'weighty' };
     }
 
     const plantings = new Map<string, Set<number>>();
@@ -790,19 +803,59 @@ export class Being implements Serializable<BeingData> {
     if (bestSlug) {
       const habitual = seeds.find(s => this.slugOf(s) === bestSlug);
       if (habitual) {
-        return { id: habitual.id, description: habitual.description, reason: 'habitual' };
+        return { seed: habitual, reason: 'habitual' };
       }
     }
 
     const oldest = seeds.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b));
-    return { id: oldest.id, description: oldest.description, reason: 'reserve' };
+    return { seed: oldest, reason: 'reserve' };
   }
 
   /**
-   * Enact rebirth: advance the incarnation counter, expire any active seed
-   * whose timing window has now lapsed (ahosi-kamma — its potential to
-   * ripen is spent, unfulfilled), and name the seed that shapes the new
-   * incarnation.
+   * Apply starting faculties (vipāka, spec §4) to a freshly-transmigrated
+   * `next` being, derived from the karmic balance it just inherited — never
+   * copied from the being that transmigrated into it. `share` is the
+   * potency-weighted wholesome fraction of the inherited store's total
+   * potency (0 on a zero-potency store): starting mindfulness is
+   * `clamp(round(share*4), 0..4)`; each of the 8 path factors starts at
+   * `clamp(round(share*3), 0..3)`, additionally capped by `next.wisdomCap()`
+   * for rightView. Caps keep rebirth a real reset — a saint's continuum
+   * starts ahead, but nobody is born liberated.
+   */
+  private applyStartingFaculties(next: Being): void {
+    const balance = next.karmicStore.getKarmicBalance();
+    const totalPotency = balance.wholesome + balance.unwholesome + balance.neutral;
+    const share = totalPotency === 0 ? 0 : balance.wholesome / totalPotency;
+
+    const mindfulness = Math.min(4, Math.max(0, Math.round(share * 4))) as Intensity;
+    (next as any)._mindfulnessLevel = mindfulness;
+
+    for (const factor of next.path.getAllFactors()) {
+      let level = Math.min(3, Math.max(0, Math.round(share * 3)));
+      if (factor === next.path.rightView) {
+        level = Math.min(level, next.wisdomCap());
+      }
+      factor.reset();
+      if (level > 0) {
+        factor.activate();
+      }
+      (factor as any)._developmentLevel = level as Intensity;
+    }
+  }
+
+  /**
+   * Enact rebirth: transmigration without a transmigrator. Advances the
+   * incarnation counter, expires any active seed whose timing window has
+   * now lapsed (ahosi-kamma), selects the realm of the next arising from
+   * the shaping seed, and constructs a NEW being of that realm's class.
+   * Only the karmic continuum (this being's `karmicStore` object, plus the
+   * incremented incarnation counter) passes to it — no path levels, mind
+   * factors, or experience history transfer; those are a fresh arising,
+   * with starting faculties conditioned by the inherited karmic balance
+   * (vipāka, see `applyStartingFaculties`). The dying being (`this`) is
+   * detached from the continuum (given a fresh, empty store) and disposed;
+   * the new being is returned as `RebirthResult.being` — callers must use
+   * it for anything after rebirth().
    */
   rebirth(): RebirthResult {
     this._incarnation += 1;
@@ -819,9 +872,50 @@ export class Being implements Serializable<BeingData> {
       }
     }
 
-    const shapingSeed = this.pickShapingSeed();
+    const picked = this.pickShapingSeed();
+    const shapingSeed = picked
+      ? { id: picked.seed.id, description: picked.seed.description, reason: picked.reason }
+      : null;
 
-    return { incarnation: this._incarnation, expiredSeeds, shapingSeed };
+    const fromRealm = this.realm;
+    const toRealm = selectRealm(picked?.seed ?? null, this.karmicStore.getKarmicBalance());
+
+    const inheritedStore = this.karmicStore;
+    const inheritedIncarnation = this._incarnation;
+
+    // Construct the new arising and transfer ONLY the continuum onto it:
+    // the same store object (by identity — the santāna itself) plus the
+    // incremented incarnation counter. _restoreState also re-registers this
+    // being's named ripening conditions and rebinds them against the
+    // shared store, so per-slug closures (e.g. mindfulness-support) read
+    // `next`'s faculties, not the dying being's.
+    const next = new REALM_CLASSES[toRealm]();
+    next._restoreState({
+      mindfulnessLevel: 0,
+      karmicStream: [],
+      experienceHistory: [],
+      karmicStore: inheritedStore,
+      incarnation: inheritedIncarnation,
+    });
+
+    // Starting faculties are vipāka, derived from the balance next just
+    // inherited — never copied from this dying being.
+    this.applyStartingFaculties(next);
+
+    // Detach the dying being from the continuum BEFORE disposing it: a
+    // fresh, empty, non-auto-ripening store so `this` can no longer read or
+    // mutate the santāna that now lives only on `next`.
+    (this as any).karmicStore = new KarmicStore({ enableAutoRipening: false });
+    this.dispose();
+
+    return {
+      incarnation: inheritedIncarnation,
+      expiredSeeds,
+      shapingSeed,
+      fromRealm,
+      toRealm,
+      being: next,
+    };
   }
 
   /**
@@ -1068,4 +1162,167 @@ INSIGHT:
   ${this.aggregates.searchForSelf().conclusion}
     `.trim();
   }
+}
+
+// =============================================================================
+// THE SIX REALMS (gati) OF REBIRTH
+// =============================================================================
+//
+// Defined here, after `Being`, rather than in `./realms.ts` (which re-exports
+// them for the public import path `simulation/realms`): each realm class
+// extends `Being`, and `Being.rebirth()` needs their constructors
+// (REALM_CLASSES) to transmigrate into the next arising. Splitting that
+// across two files makes it a circular ES module import — `realms.ts` would
+// import `Being` for `extends`, and `Being.ts` would import `REALM_CLASSES`
+// back — which fails at the `class X extends Being` statement: whichever
+// file loads first, the other's `class Being` hasn't finished executing yet,
+// so `Being` is still in its temporal dead zone (`Class extends value
+// undefined is not a constructor`, confirmed both under Vitest and plain
+// Node ESM). Keeping them in one module makes REALM_CLASSES/selectRealm a
+// same-module forward reference from inside `rebirth()`'s method body
+// (evaluated only when called, long after the whole file has loaded) rather
+// than a cross-file cycle evaluated at class-declaration time.
+
+/**
+ * The human realm (manuṣya-gati) — the baseline realm. Neutral on every
+ * hook; behaves identically to base `Being`.
+ */
+export class HumanBeing extends Being {}
+
+/**
+ * The deva (god) realm — long-lived, comfortable, and complacent. Divine
+ * comfort dulls the sense of urgency (saṃvega) that drives practice, so
+ * meditation gains are halved. Starts at full vitality (10), reflecting
+ * the deva's vital, unafflicted form.
+ */
+export class DevaBeing extends Being {
+  get realm(): Realm {
+    return 'deva';
+  }
+
+  protected meditationGainFactor(): number {
+    return 0.5; // pamāda: divine comfort dulls urgency (saṃvega)
+  }
+
+  constructor() {
+    super();
+    this.aggregates.form.update({ vitality: 10 });
+  }
+}
+
+/**
+ * The asura (titan) realm — driven by rivalry and envy of the devas.
+ * Practice is somewhat undermined by that restlessness, and aversion-toned
+ * reactions run hotter (a rivalry bias toward aversion).
+ */
+export class AsuraBeing extends Being {
+  get realm(): Realm {
+    return 'asura';
+  }
+
+  protected meditationGainFactor(): number {
+    return 0.75;
+  }
+
+  protected unwholesomeReactionBoost(): number {
+    return 1; // rivalry bias toward aversion
+  }
+}
+
+/**
+ * The animal realm (tiryagyoni-gati) — dominated by instinct, with little
+ * capacity for reflective wisdom. rightView's developmentLevel is capped
+ * low (4).
+ */
+export class AnimalBeing extends Being {
+  get realm(): Realm {
+    return 'animal';
+  }
+
+  protected wisdomCap(): Intensity {
+    return 4;
+  }
+}
+
+/**
+ * The preta (hungry ghost) realm — defined by insatiable craving, which
+ * amplifies reactions to experience regardless of valence.
+ */
+export class PretaBeing extends Being {
+  get realm(): Realm {
+    return 'preta';
+  }
+
+  protected unwholesomeReactionBoost(): number {
+    return 2; // insatiable craving amplifies reactions
+  }
+}
+
+/**
+ * The naraka (hell) realm — a realm of intense, unrelenting suffering.
+ * Practice is undermined by that suffering, and unpleasant experiences are
+ * felt more intensely still.
+ */
+export class NarakaBeing extends Being {
+  get realm(): Realm {
+    return 'naraka';
+  }
+
+  protected meditationGainFactor(): number {
+    return 0.75;
+  }
+
+  protected unpleasantIntensityShift(): number {
+    return 2;
+  }
+}
+
+/** Lookup from a `Realm` value to its concrete `Being` subclass. */
+export const REALM_CLASSES: Record<Realm, new () => Being> = {
+  human: HumanBeing,
+  deva: DevaBeing,
+  asura: AsuraBeing,
+  animal: AnimalBeing,
+  preta: PretaBeing,
+  naraka: NarakaBeing,
+};
+
+/**
+ * Select the realm of the next rebirth from the seed that shapes it
+ * (garuka/āciṇṇa/kaṭattā-kamma — see `Being.pickShapingSeed`) and the
+ * inherited karmic continuum's overall balance.
+ *
+ * Canonical mapping (spec §3, transcribed exactly):
+ * - No shaping seed, or a neutral one -> human (the default, precious birth).
+ * - Unwholesome, by dominant root -> preta (greed), naraka (aversion), or
+ *   animal (delusion or any unmapped root).
+ * - Wholesome and weighty or strong -> deva (heavenly comfort as the fruit
+ *   of significant merit).
+ * - Wholesome but not weighty/strong -> asura if the inherited continuum's
+ *   unwholesome share of total potency is >= 40% (power tainted by rivalry
+ *   and envy), otherwise human.
+ */
+export function selectRealm(
+  shaping: KarmicSeed | null,
+  balance: ReturnType<KarmicStore['getKarmicBalance']>
+): Realm {
+  if (!shaping || shaping.quality === 'neutral') return 'human';
+
+  if (shaping.quality === 'unwholesome') {
+    switch (shaping.root) {
+      case 'greed':
+        return 'preta';
+      case 'aversion':
+        return 'naraka';
+      default:
+        return 'animal'; // delusion and any unmapped root
+    }
+  }
+
+  // wholesome:
+  if (shaping.strength === 'weighty' || shaping.strength === 'strong') return 'deva';
+
+  const totalPotency = balance.wholesome + balance.unwholesome + balance.neutral;
+  const unwholesomeShare = totalPotency === 0 ? 0 : balance.unwholesome / totalPotency;
+  return unwholesomeShare >= 0.4 ? 'asura' : 'human'; // power tainted by rivalry/envy
 }

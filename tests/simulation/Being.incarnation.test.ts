@@ -56,9 +56,11 @@ describe('Being incarnation tracking', () => {
     const seed = being.karmicStore.getSeeds()[0];
     expect(seed.tags).toContain('incarnation:1');
 
-    being.rebirth();
-    being.act('daily practice', 5, 'non-delusion');
-    const seeds = being.karmicStore.getSeeds();
+    // rebirth() transmigrates into a NEW being — `being` is now detached and
+    // dead; subsequent interaction must go through the returned being.
+    const { being: reborn } = being.rebirth();
+    reborn.act('daily practice', 5, 'non-delusion');
+    const seeds = reborn.karmicStore.getSeeds();
     const newest = seeds[seeds.length - 1];
     expect(newest.tags).toContain('incarnation:2');
   });
@@ -117,11 +119,13 @@ describe('Being incarnation tracking', () => {
       tags: ['non-delusion', 'incarnation:1'],
     });
 
-    being.rebirth();
-    const report = being.receiveKarmicResults(true);
+    // rebirth() transmigrates into a NEW being — the continuum (and hence
+    // the planted seed) lives on `reborn`, not the dying `being`.
+    const { being: reborn } = being.rebirth();
+    const report = reborn.receiveKarmicResults(true);
 
     expect(report.seedVipakas.some(v => v.description === 'instant fruit')).toBe(false);
-    const seed = being.karmicStore
+    const seed = reborn.karmicStore
       .getSeeds()
       .find(s => s.description === 'instant fruit');
     expect(seed?.state).toBe('exhausted');
@@ -149,7 +153,9 @@ describe('Being incarnation tracking', () => {
     expect(result.shapingSeed?.description).not.toBe('instant fruit');
     expect(result.shapingSeed?.description).toBe('distant fruit');
 
-    const instantSeed = being.karmicStore
+    // The continuum (and hence the seeds) now lives on result.being, not
+    // the dying `being`.
+    const instantSeed = result.being.karmicStore
       .getSeeds()
       .find(s => s.description === 'instant fruit');
     expect(instantSeed?.state).toBe('exhausted');
@@ -168,8 +174,9 @@ describe('Being incarnation tracking', () => {
     expect(before.seedVipakas.some(v => v.description === 'next-life fruit')).toBe(false);
     expect(before.whyNot.some(w => w.description === 'next-life fruit' && w.unmet.some(u => u.includes('incarnation 2')))).toBe(true);
 
-    being.rebirth();
-    const after = being.receiveKarmicResults(true);
+    // The continuum transmigrates onto a new being; keep interacting with it.
+    const { being: reborn } = being.rebirth();
+    const after = reborn.receiveKarmicResults(true);
     expect(after.seedVipakas.some(v => v.description.includes('next-life fruit'))).toBe(true);
   });
 
@@ -185,10 +192,13 @@ describe('Being incarnation tracking', () => {
     const before = being.receiveKarmicResults(true);
     expect(before.seedVipakas.some(v => v.description === 'distant fruit')).toBe(false);
 
-    being.rebirth();
-    being.rebirth();
-    being.rebirth();
-    const after = being.receiveKarmicResults(true);
+    // Each rebirth() transmigrates into a new being; chain through the
+    // returned being to keep following the same continuum.
+    let current = being;
+    for (let i = 0; i < 3; i++) {
+      current = current.rebirth().being;
+    }
+    const after = current.receiveKarmicResults(true);
     expect(after.seedVipakas.some(v => v.description.includes('distant fruit'))).toBe(true);
   });
 });

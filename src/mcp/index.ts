@@ -215,12 +215,18 @@ server.tool(
       const shapingText = result.shapingSeed
         ? `The new incarnation is shaped by a ${result.shapingSeed.reason} seed: "${result.shapingSeed.description}".`
         : 'No seed was weighty, habitual, or reserved enough to shape the new incarnation.';
+      // result.being is a full live Being instance now (rebirth() returns
+      // the newly-transmigrated being, not the loaded one) — never
+      // JSON.stringify a live Being; render a summary instead. Full
+      // response-shape work (realm descriptions etc.) is Task 4's.
+      const { being: _being, ...summary } = result;
       const text = [
         `Reborn into incarnation ${result.incarnation}.`,
         `${result.expiredSeeds} seed(s) expired (ahosi-kamma) in the transition.`,
         shapingText,
+        `Realm: ${result.fromRealm} -> ${result.toRealm}.`,
         '',
-        JSON.stringify(result, null, 2),
+        JSON.stringify(summary, null, 2),
       ].join('\n');
       return { content: [{ type: 'text' as const, text }] };
     } catch (e) {

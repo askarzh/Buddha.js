@@ -79,9 +79,14 @@ describe('Being.cognize()', () => {
       vi.setSystemTime(3000);
       being.act('act', 5, 'non-greed');
 
-      expect(() => being.rebirth()).not.toThrow();
-      const result = being.rebirth();
-      expect(result.shapingSeed).not.toBeNull();
+      // rebirth() transmigrates into a NEW being and detaches `being` from
+      // the continuum, so a single call is asserted here rather than the
+      // original double-call (a second call on the now-dead `being` would
+      // see an empty store and report a null shapingSeed, not exercising
+      // the slug-fallback path this test targets).
+      let result: ReturnType<typeof being.rebirth> | undefined;
+      expect(() => { result = being.rebirth(); }).not.toThrow();
+      expect(result?.shapingSeed).not.toBeNull();
     } finally {
       vi.useRealTimers();
     }

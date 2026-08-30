@@ -6,111 +6,24 @@
  * `unwholesomeReactionBoost`, `unpleasantIntensityShift`) — never a public
  * method. This is a soft-modifier design: every realm being still has the
  * full Being API available; realms bias outcomes, they never disable them.
+ *
+ * Implemented in `./Being.ts`, not here — `Being.rebirth()` needs
+ * REALM_CLASSES to construct the next arising, and each realm class needs
+ * `Being` to extend. Splitting that across two files makes it a circular ES
+ * module import that fails at the `class X extends Being` statement
+ * (confirmed under both Vitest and plain Node ESM: whichever file loads
+ * first, the other's base class is still in its temporal dead zone). Keeping
+ * them in one module turns it into a same-module forward reference instead.
+ * This file re-exports them so `import ... from './realms'` (and
+ * `'buddha.js'`'s public surface) is unaffected.
  */
-
-import { Being } from './Being';
-import { Realm, Intensity } from '../utils/types';
-
-/**
- * The human realm (manuṣya-gati) — the baseline realm. Neutral on every
- * hook; behaves identically to base `Being`.
- */
-export class HumanBeing extends Being {}
-
-/**
- * The deva (god) realm — long-lived, comfortable, and complacent. Divine
- * comfort dulls the sense of urgency (saṃvega) that drives practice, so
- * meditation gains are halved. Starts at full vitality (10), reflecting
- * the deva's vital, unafflicted form.
- */
-export class DevaBeing extends Being {
-  get realm(): Realm {
-    return 'deva';
-  }
-
-  protected meditationGainFactor(): number {
-    return 0.5; // pamāda: divine comfort dulls urgency (saṃvega)
-  }
-
-  constructor() {
-    super();
-    this.aggregates.form.update({ vitality: 10 });
-  }
-}
-
-/**
- * The asura (titan) realm — driven by rivalry and envy of the devas.
- * Practice is somewhat undermined by that restlessness, and aversion-toned
- * reactions run hotter (a rivalry bias toward aversion).
- */
-export class AsuraBeing extends Being {
-  get realm(): Realm {
-    return 'asura';
-  }
-
-  protected meditationGainFactor(): number {
-    return 0.75;
-  }
-
-  protected unwholesomeReactionBoost(): number {
-    return 1; // rivalry bias toward aversion
-  }
-}
-
-/**
- * The animal realm (tiryagyoni-gati) — dominated by instinct, with little
- * capacity for reflective wisdom. rightView's developmentLevel is capped
- * low (4).
- */
-export class AnimalBeing extends Being {
-  get realm(): Realm {
-    return 'animal';
-  }
-
-  protected wisdomCap(): Intensity {
-    return 4;
-  }
-}
-
-/**
- * The preta (hungry ghost) realm — defined by insatiable craving, which
- * amplifies reactions to experience regardless of valence.
- */
-export class PretaBeing extends Being {
-  get realm(): Realm {
-    return 'preta';
-  }
-
-  protected unwholesomeReactionBoost(): number {
-    return 2; // insatiable craving amplifies reactions
-  }
-}
-
-/**
- * The naraka (hell) realm — a realm of intense, unrelenting suffering.
- * Practice is undermined by that suffering, and unpleasant experiences are
- * felt more intensely still.
- */
-export class NarakaBeing extends Being {
-  get realm(): Realm {
-    return 'naraka';
-  }
-
-  protected meditationGainFactor(): number {
-    return 0.75;
-  }
-
-  protected unpleasantIntensityShift(): number {
-    return 2;
-  }
-}
-
-/** Lookup from a `Realm` value to its concrete `Being` subclass. */
-export const REALM_CLASSES: Record<Realm, new () => Being> = {
-  human: HumanBeing,
-  deva: DevaBeing,
-  asura: AsuraBeing,
-  animal: AnimalBeing,
-  preta: PretaBeing,
-  naraka: NarakaBeing,
-};
+export {
+  HumanBeing,
+  DevaBeing,
+  AsuraBeing,
+  AnimalBeing,
+  PretaBeing,
+  NarakaBeing,
+  REALM_CLASSES,
+  selectRealm,
+} from './Being';

@@ -263,8 +263,12 @@ export class KarmicStore implements Serializable<KarmicStoreData> {
       seed
     });
 
-    // Schedule potential ripening
-    this.scheduleRipening(seed);
+    // Schedule potential ripening (only when auto-ripening is enabled —
+    // otherwise ripening happens exclusively via explicit attemptRipening/
+    // forceRipen/processRipeningQueue calls)
+    if (this.config.enableAutoRipening) {
+      this.scheduleRipening(seed);
+    }
 
     return seed;
   }
@@ -425,8 +429,10 @@ export class KarmicStore implements Serializable<KarmicStoreData> {
 
     // Check ripening conditions
     if (!this.checkRipeningConditions(seed)) {
-      // Reschedule for later
-      this.scheduleRipening(seed);
+      // Reschedule for later (only under auto-ripening)
+      if (this.config.enableAutoRipening) {
+        this.scheduleRipening(seed);
+      }
       return null;
     }
 
@@ -493,8 +499,10 @@ export class KarmicStore implements Serializable<KarmicStoreData> {
       // Reduce potency for partial ripening
       seed.potency = Math.max(0, seed.potency - (seed.originalPotency / seed.maxRipenings));
       seed.state = 'active';
-      // Reschedule for potential future ripening
-      this.scheduleRipening(seed);
+      // Reschedule for potential future ripening (only under auto-ripening)
+      if (this.config.enableAutoRipening) {
+        this.scheduleRipening(seed);
+      }
     }
 
     this.emit({

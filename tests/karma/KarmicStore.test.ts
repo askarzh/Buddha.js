@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { KarmicStore } from '../../src/karma/KarmicEventSystem';
 
 describe('KarmicStore', () => {
@@ -18,6 +18,27 @@ describe('KarmicStore', () => {
       store.forceRipen(seed.id);
       expect(store.getSeed(seed.id)!.state).toBe('exhausted');
       expect(store.getKarmicBalance().wholesome).toBe(0);
+    });
+  });
+
+  describe('Auto-Ripening Disabled', () => {
+    it('does not schedule any ripening timer when planting a seed', () => {
+      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+      try {
+        const store = new KarmicStore({ enableAutoRipening: false });
+        store.plantSeed({
+          quality: 'wholesome',
+          description: 'no timer please',
+          intentionStrength: 5,
+          root: 'non-greed',
+          type: 'mental',
+          minDelay: 0,
+          maxDelay: Number.MAX_SAFE_INTEGER,
+        });
+        expect(setTimeoutSpy).not.toHaveBeenCalled();
+      } finally {
+        setTimeoutSpy.mockRestore();
+      }
     });
   });
 });

@@ -14,7 +14,18 @@ These are stateful tools — they operate on an existing being. If you don't kno
 ### View Karmic Stream
 
 To see the current karmic state, including any newly ripened results, call `buddha_karma_ripen` with:
-   - `name` (string, required) — the being's name
+
+| Parameter | Type | Description |
+|-----------|------|--------------|
+| `name` | string, required | The being's name |
+| `force` | optional boolean | Ripen everything eligible deterministically, bypassing each seed's attached ripening conditions. Default: `false` (conditional — a seed ripens only if its conditions are currently met). |
+
+The result is `{ results, seedVipakas, whyNot }`:
+- `results` — legacy karmic-stream results (unconditional, ripen as before)
+- `seedVipakas` — karmic-store seeds that ripened this call (respecting conditions unless `force` was set)
+- `whyNot` — for each seed that is still active and did *not* ripen, `{ seedId, description, unmet }` listing which of its conditions are unmet
+
+Without `force`, nothing may ripen at all — that is not an error. Present the `whyNot` entries as practice guidance (what conditions still need to be met for a seed to bear fruit — e.g. sufficient mindfulness, the passage of time, a supporting state), never as a failure or bug. This mirrors the teaching that karma ripens when conditions align, not on demand.
 
 For the full being state (including the complete karmic stream), call `buddha_status` with the same `name`.
 
@@ -32,5 +43,6 @@ To plant a new karmic seed, call `buddha_act` with:
 ### Presentation
 
 - When viewing the stream, show a summary of wholesome vs unwholesome seeds, any recently ripened results, and the overall trajectory
+- If `whyNot` is non-empty, gently explain what is still pending for each seed rather than treating it as a stall — karma ripens on its own conditions, not on request
 - When performing an action, confirm what seed was planted and its potential consequences
 - Help the user understand the Buddhist teaching: karma is about intention, not mechanical reward/punishment

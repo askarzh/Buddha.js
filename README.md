@@ -904,6 +904,7 @@ Skills auto-activate based on context — no slash commands needed:
 | `buddha-koan` | User wants to contemplate a Zen koan |
 | `buddha-chain` | User asks about dependent origination |
 | `buddha-meditate` | User wants to start a meditation session |
+| `buddha-cognize` | User wants to observe how a moment of cognition unfolds (the citta-vīthi) or how karma is born from javana moments |
 
 ### Discovery Command
 

@@ -1,12 +1,24 @@
 # dsh-plugin-buddha
 
 A [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/dsh) Cordis plugin
-that brings [buddha-js](..)'s Poison Arrow circuit breaker and karma
-tracking to DSH agents.
+that brings [buddha-js](..)'s Poison Arrow circuit breaker, karma tracking,
+citta-vīthi step observation, and six-realm subagent personas to DSH agents.
 
-This package is a scaffold: `apply()` is currently a no-op. Later tasks in
-the v0.5 phase mount the actual sub-plugins (circuit breaker, karma
-tracking, `citta-vithi` loop).
+`apply()` (`src/index.ts`) hoists one shared `BeingRegistry` — one buddha-js
+`Being` per DSH session, persisted to `<stateDir>/beings/<sessionId>.json` —
+and mounts five sub-plugins on top of it:
+
+| Sub-plugin | File | Mounts on |
+|---|---|---|
+| Poison Arrow circuit breaker | `src/breaker.ts` | `tools/post-execute` |
+| Karma tracking | `src/karma.ts` | `tools/result`, `agent/turn-stopping` |
+| Layer A citta-vīthi step observer | `src/vithi.ts`, `src/step-records.ts` | `agent/pre-step`, `tools/result` |
+| Six-realm subagent personas | `src/realms.ts` | `ctx.subagents` (`buddha-realms` provider) |
+| Slash commands (`/sit` `/koan` `/status` `/rebirth`) | `src/commands.ts` | `ctx.commands` |
+
+See the root [README's DeepSeek Harness Plugin
+section](../README.md#deepseek-harness-plugin) for the failure-mode-to-
+mechanism table, install instructions, and config keys.
 
 ## Setup
 
@@ -22,8 +34,9 @@ pnpm install
 ## Scripts
 
 ```bash
-pnpm build   # tsup -> lib/ (CJS-free ESM, with .d.ts)
-pnpm test    # vitest run
+pnpm build      # tsup -> lib/ (CJS-free ESM, with .d.ts)
+pnpm typecheck  # tsc --noEmit -p . — a full type-check tsup's dts build does not do
+pnpm test       # vitest run (runs `pnpm typecheck` first, via pretest)
 ```
 
 From the repo root, these are also available as:

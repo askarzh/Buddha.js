@@ -1,12 +1,21 @@
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { ContentBlock, ToolExecution, ToolExecutionResult, PostToolDecision } from '@deepseek-ai/dsh-tools'
+import type { ToolExecution, ToolExecutionResult, PostToolDecision } from '@deepseek-ai/dsh-tools'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { PoisonArrow, type Being, type Intensity } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
 import type { Config } from './config.js'
 import { pluginUserMessage } from './messages.js'
 import { stepRecords } from './step-records.js'
+
+/**
+ * Element type of `PostToolDecision`'s `additionalContexts` array, derived
+ * from `PostToolDecision` itself rather than importing dsh-llm's
+ * `UserMessage` type directly (dsh-tools does not re-export it, and
+ * dsh-session — where it actually lives — is not a declared dependency here).
+ */
+type AdditionalContext = NonNullable<Extract<PostToolDecision, { kind: 'block' }>['additionalContexts']>[number]
 
 /** One tool, scoped to one agent — the unit the breaker tracks a streak for. */
 export interface StreakKey {
@@ -189,16 +198,27 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; conf
     registry.save(sessionIdOf(agent), being)
 
     const protocol = renderPoisonArrow(exec, result, streak, being)
-    const notice = pluginUserMessage(protocol)
+    // `pluginUserMessage()` brands its `id` locally (see messages.ts) rather
+    // than importing dsh-llm's real `MessageId` brand, to avoid taking a
+    // runtime dependency on dsh-llm just for a value we already construct by
+    // hand. The two brands are nominally distinct but structurally identical
+    // strings, so this is the narrowest cast that bridges them for the type
+    // dsh's `additionalContexts` actually expects.
+    const notice = pluginUserMessage(protocol) as unknown as AdditionalContext
 
     if (streak >= 2 * config.threshold && decision.kind === 'accept') {
       const feedback: ContentBlock[] = [{ type: 'text', text: protocol }]
-      return {
+      const blocked: PostToolDecision = {
         kind: 'block',
         feedback,
         additionalContexts: [...(decision.additionalContexts ?? []), notice],
       }
+      return blocked
     }
-    return { ...decision, additionalContexts: [...(decision.additionalContexts ?? []), notice] }
+    const augmented: PostToolDecision = {
+      ...decision,
+      additionalContexts: [...(decision.additionalContexts ?? []), notice],
+    }
+    return augmented
   })
 }

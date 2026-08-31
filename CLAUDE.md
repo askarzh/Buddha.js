@@ -27,6 +27,10 @@ npx vitest run tests/core/Phenomenon.test.ts
 
 # Run tests matching a pattern
 npx vitest run -t "should track arising"
+
+# dsh/ package (DeepSeek Harness plugin) — always pnpm, never npm, inside dsh/
+npm run build:dsh    # cd dsh && pnpm install --frozen-lockfile && pnpm build
+npm run test:dsh     # cd dsh && pnpm test (runs dsh's own typecheck first, via pretest)
 ```
 
 ## Architecture
@@ -61,6 +65,7 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `plugin/` | Claude Code plugin | Skills and `/buddha` command for Claude Code integration |
 | `simulation/` | `Being`, six realm classes (`HumanBeing`, `DevaBeing`, `AsuraBeing`, `AnimalBeing`, `PretaBeing`, `NarakaBeing`) | Integration class combining all concepts; typed rebirth into realm (gati) subclasses |
 | `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |
+| `dsh/` | `apply()` (Cordis plugin), `BeingRegistry`, `applyBreaker`, `applyKarma`, `applyVithi`, `applyRealms`, `applyCommands` | Standalone package (`dsh-plugin-buddha`, own `package.json`/tests, pnpm-only) — DeepSeek Harness (Cordis) plugin bringing the Poison Arrow circuit breaker, karma-as-telemetry, Layer A citta-vīthi step observation, six-realm subagent personas, and `/sit` `/koan` `/status` `/rebirth` slash commands to DSH agents; see [README's DeepSeek Harness Plugin section](README.md#deepseek-harness-plugin) |
 
 ### Key Patterns
 

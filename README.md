@@ -918,6 +918,54 @@ Each skill calls the corresponding `buddha_*` MCP tool from the bundled `buddha-
 
 ---
 
+## DeepSeek Harness Plugin
+
+`dsh/` (package `dsh-plugin-buddha`) is a [Cordis](https://github.com/deepseek-ai/dsh) plugin that brings buddha-js's Poison Arrow circuit breaker, karma tracking, and six-realm subagent personas to [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/dsh) agent sessions — one `apply()` hoisting a single shared `BeingRegistry` (one buddha-js `Being` per DSH session, persisted to `<stateDir>/beings/<sessionId>.json`) and mounting five sub-plugins on top of it.
+
+### Failure modes → mechanisms
+
+| Failure mode | Mechanism | Where |
+|---|---|---|
+| Blind retry loops — repeatedly calling a failing tool the same or nearly the same way | Poison Arrow circuit breaker: a `tools/post-execute` waterfall listener counts a per-agent, per-tool failure streak (a call sharing the same step counts once; a call replaying the same arguments counts double), and once the streak reaches `breaker.threshold` injects the four-step cessation protocol (recognize → investigate → release → practice) as additional context; at `2 × threshold` it blocks the call outright | `src/breaker.ts` |
+| Silent erosion of conduct across a session — failures and successes leave no trace the agent (or operator) can inspect | Karma tracking: every tool result becomes a `Being.experience()` (unpleasant, scaled by that tool's consecutive-failure streak, on failure; pleasant on success), and a turn that closes with no tool failure plants a wholesome `act()` | `src/karma.ts` |
+| Ungrounded step-by-step execution with no per-step self-observation | Layer A citta-vīthi: a pure-passthrough `agent/pre-step` listener records step/turn identity (shared with the breaker and karma tracking) and one `Being.cognize()` runs per step — observation only, never a loop replacement | `src/vithi.ts`, `src/step-records.ts` |
+| Undifferentiated subagent roles — a "planning" delegate quietly writing files, or an "audit" delegate fixing instead of verifying | Six-realm subagent personas on a `buddha-realms` provider: `deva` (architect) gets a read-only tool allowlist, `asura` (adversarial auditor) gets read tools plus `bash` but never `write`/`edit`, `human` (implementer) keeps full access; each child spawns as a fresh realm-typed `Being` seeded from the parent's karmic balance, and the run's outcome is planted back into the parent as vipāka on completion | `src/realms.ts` |
+| No manual escape hatch or read-only status check when an operator (not the breaker) recognizes a stuck agent | Four slash commands: `/sit` runs the Poison Arrow protocol on demand, `/koan` presents a Zen koan to break dualistic fixation, `/status` reports the session being's state read-only (never settles a pending rebirth, never writes), `/rebirth` forces a fresh being for the session | `src/commands.ts` |
+
+### Install
+
+DSH composes plugins via a `cordis.yml` insert applied with `--patch`:
+
+```yaml
+- insert:
+    - id: buddha
+      name: '<ABSOLUTE PATH>/dsh/src/index.ts'
+      config: {}
+```
+
+```bash
+cd dsh
+pnpm dsh web --patch ./cordis.dev.yml
+```
+
+See `dsh/cordis.dev.yml` for the full template (the plugin path is machine-specific, so copy it before use).
+
+### Config keys
+
+| Key | Default | Meaning |
+|---|---|---|
+| `stateDir` | `''` (resolves to `<os.homedir()>/.buddha/dsh`) | Where `Being` state is persisted |
+| `breaker.enabled` | `true` | Whether the Poison Arrow circuit breaker mounts at all |
+| `breaker.threshold` | `3` | Consecutive-failure count that trips the breaker (blocks at `2 × threshold`) |
+| `breaker.mutatingTools` | `['write', 'edit', 'str_replace_editor']` | Tool names whose successful call counts as intervening progress, resetting every streak |
+| `loop` | `'off'` (or `'citta-vithi'`) | Reserved for an opt-in Layer B reactive loop overlay; Layer A citta-vīthi observation (see the table above) mounts unconditionally regardless of this setting |
+
+### pnpm note
+
+Use pnpm, not npm, inside `dsh/` — its dependency tree is large enough that npm exhausts memory resolving it. From the repo root, `npm run build:dsh` and `npm run test:dsh` shell out to `pnpm` for you.
+
+---
+
 ## Being (Simulation)
 
 The `Being` class integrates all concepts to simulate a sentient being:

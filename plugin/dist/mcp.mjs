@@ -38025,7 +38025,7 @@ var stateDir = process.env.BUDDHA_STATE_DIR || path2.join(os.homedir(), ".buddha
 var sm = new StateManager(stateDir);
 var server = new McpServer({
   name: "buddha-js",
-  version: "0.4.0"
+  version: "0.5.0"
 });
 var nameSchema = {
   name: external_exports3.string().regex(/^[a-zA-Z0-9_-]+$/).describe("Being name (letters, numbers, hyphens, underscores)")

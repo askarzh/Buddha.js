@@ -9,6 +9,38 @@ Claude Code plugin manifest, and the MCPB manifest had drifted out of sync
 independently across releases. From 0.4.0 on, all four are unified and bumped
 together on every release.
 
+## [0.5.0]
+
+DeepSeek Harness (Cordis) plugin: `dsh/`.
+
+### Added
+
+- **`dsh/` package** (`dsh-plugin-buddha`), a standalone
+  [Cordis](https://github.com/deepseek-ai/dsh) plugin — own `package.json`,
+  tests, and pnpm-only toolchain — bringing buddha-js to
+  [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/dsh) agent
+  sessions. `apply()` hoists one shared `BeingRegistry` (a buddha-js
+  `Being` per DSH session, persisted to `<stateDir>/beings/<sessionId>.json`)
+  and mounts five sub-plugins on top of it: a Poison Arrow circuit breaker
+  for blind tool-retry loops, karma tracking that turns tool outcomes into
+  `Being.experience()`/`act()` telemetry, a Layer A citta-vīthi observer
+  that records step identity and runs one `Being.cognize()` per step,
+  six-realm subagent personas (`deva`/`asura`/`human`) with per-realm tool
+  allowlists on a `buddha-realms` provider, and four slash commands
+  (`/sit`, `/koan`, `/status`, `/rebirth`). See the README's
+  [DeepSeek Harness Plugin](README.md#deepseek-harness-plugin) section for
+  the full failure-mode-to-mechanism mapping, install instructions, and
+  config keys.
+- `dsh/`'s own `typecheck` script (`tsc --noEmit -p .`), wired into `pnpm
+  test` via `pretest` so a real type-checking gate can't silently rot again.
+
+### Changed
+
+- **Unified versioning** now spans five surfaces instead of four:
+  `package.json`, the MCP server's `serverInfo.version`, the Claude Code
+  plugin manifest, the MCPB manifest, and `dsh/package.json` are all bumped
+  together on every release from 0.5.0 on.
+
 ## [0.4.0]
 
 Typed rebirth: transmigration into six realm classes.

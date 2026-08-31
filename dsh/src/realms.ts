@@ -70,6 +70,44 @@ export function toRealm(persona: string | undefined): SubagentRealm {
 }
 
 /**
+ * Warn when a delegation lands in 'human' by fallback rather than by request.
+ *
+ * `dsh-tool-subagent` takes its persona from the TOOL ENTRY'S CONFIG
+ * (`persona: config.persona`), never from the model's arguments — so an
+ * operator who mounts this provider without also pinning a persona gets a
+ * silent degradation into 'human', which is FULL tool access: exactly the
+ * opposite of what a realm allowlist is for. A live trial hit this and read
+ * as working, because the child role-played the persona named in its prompt
+ * while actually holding every tool. Say it out loud instead.
+ *
+ * Written straight to stderr rather than through `ctx.logger`: at dsh
+ * 0.1.1-rc.2 nothing registers a logger exporter, so `ctx.logger(...).warn()`
+ * is discarded before it reaches any stream (cordis drops a record when no
+ * exporter accepts its level). A misconfiguration that hands a child full tool
+ * access has to be visible, so it goes where it will actually be seen. Warned
+ * once per process — the persona comes from static config, so every later
+ * delegation would repeat the same line.
+ */
+let warnedFallbackPersona = false
+
+function warnFallbackPersona(persona: string | undefined): void {
+  if (warnedFallbackPersona) return
+  warnedFallbackPersona = true
+  const named = persona === undefined ? 'no persona' : `unknown persona "${persona}"`
+  process.stderr.write(
+    `buddha-realms: ${named} on this delegation — the child is born 'human', which grants FULL tool access. ` +
+      "Personas come from the subagent tool entry's own config " +
+      '(`config: { provider: buddha-realms, persona: deva }`), not from the model — ' +
+      'mount one tool entry per realm to get the deva/asura tool filters.\n',
+  )
+}
+
+/** Test seam: reset the once-per-process latch above. */
+export function resetPersonaWarning(): void {
+  warnedFallbackPersona = false
+}
+
+/**
  * Combine the caller's existing `ToolRestriction` (if any) with the realm's
  * allowlist. Human adds no restriction of its own (existing restriction, if
  * any, passes through unchanged). Deva/asura narrow to their allowlist,
@@ -147,6 +185,7 @@ function plantVipaka(registry: BeingRegistry, parentSessionId: string, realm: Su
  */
 async function startRealmChild(ctx: Context, registry: BeingRegistry, request: ResolvedSubagentStartRequest): Promise<SubagentRun> {
   const realm = toRealm(request.persona)
+  if (request.persona !== realm) warnFallbackPersona(request.persona)
   const persona = REALM_PERSONAS[realm]
   const parentSessionId = request.parent.id
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -6,7 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ResolvedSubagentStartRequest, SubagentProvider, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
 import { BeingRegistry } from '../src/being-registry.js'
-import { applyRealms, REALM_PERSONAS } from '../src/realms.js'
+import { applyRealms, REALM_PERSONAS, resetPersonaWarning } from '../src/realms.js'
 
 /**
  * Six-realm subagent personas (`realms.ts`).
@@ -60,11 +60,24 @@ describe('six-realm subagent personas', () => {
     }
     ctx.provide('subagents', fakeSubagents as never)
     await applyRealms(ctx, { registry })
+    resetPersonaWarning()
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     fs.rmSync(stateDir, { recursive: true, force: true })
   })
+
+  // The warning goes to stderr, not through ctx.logger: dsh 0.1.1-rc.2
+  // registers no logger exporter, so a logged warn reaches no stream at all.
+  function captureStderr(): string[] {
+    const written: string[] = []
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
+      written.push(String(chunk))
+      return true
+    })
+    return written
+  }
 
   function fakeAgent(id = 'parent-session'): Agent {
     return { id, ctx: new Context() } as unknown as Agent
@@ -131,6 +144,37 @@ describe('six-realm subagent personas', () => {
     await captured!.start(request)
 
     expect(spawnCalls[0].request.persona).toBe(REALM_PERSONAS.human.text)
+  })
+
+  it('warns when a delegation falls back to human, naming where personas actually come from', async () => {
+    // The fallback is FULL tool access, so it must never be silent: a live
+    // trial mounted this provider without pinning a persona in the subagent
+    // tool's config and read as working, because the child role-played the
+    // persona in its prompt while holding every tool.
+    const warnings = captureStderr()
+
+    await captured!.start(fakeRequest(undefined, fakeAgent()))
+
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('no persona')
+    expect(warnings[0]).toContain('FULL tool access')
+    expect(warnings[0]).toContain('persona: deva') // points at the tool-entry config fix
+  })
+
+  it('does not warn when human is asked for by name', async () => {
+    const warnings = captureStderr()
+
+    await captured!.start(fakeRequest('human', fakeAgent()))
+
+    expect(warnings).toEqual([])
+  })
+
+  it('warns for an unrecognized persona, quoting the name it did not recognize', async () => {
+    const warnings = captureStderr()
+
+    await captured!.start(fakeRequest('preta', fakeAgent()))
+
+    expect(warnings[0]).toContain('unknown persona "preta"')
   })
 
   it('plants a wholesome vipāka act on the parent being once the child result resolves with stopReason "completed"', async () => {

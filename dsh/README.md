@@ -21,6 +21,20 @@ See the root [README's DeepSeek Harness Plugin
 section](../README.md#deepseek-harness-plugin) for the failure-mode-to-
 mechanism table, install instructions, and config keys.
 
+## Six realms: one tool entry per realm
+
+`dsh-tool-subagent` takes its persona from the TOOL ENTRY'S CONFIG
+(`persona: config.persona`), not from the model's arguments. A delegation that
+reaches `buddha-realms` with no persona is born `human` — full tool access —
+so the provider writes a one-time warning to stderr when that happens.
+
+See the root README's [Wiring the six
+realms](../README.md#wiring-the-six-realms) for the overlay: one
+`@deepseek-ai/dsh-tool-subagent` entry per realm (`subagent`, `subagent_deva`,
+`subagent_asura`), each pinning its own `persona`, all pointing at
+`provider: buddha-realms` with `backgroundMode: one-shot`. The model picks a
+realm by picking a tool; DSH enforces the filter.
+
 ## Experimental: the citta-vīthi agent loop (`loop: 'citta-vithi'`)
 
 By default (`config.loop: 'off'`, the schema's default) this plugin never

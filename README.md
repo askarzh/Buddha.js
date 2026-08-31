@@ -967,9 +967,53 @@ See `dsh/cordis.dev.yml` for the full template (the plugin path is machine-speci
 |---|---|---|
 | `stateDir` | `''` (resolves to `<os.homedir()>/.buddha/dsh`) | Where `Being` state is persisted |
 | `breaker.enabled` | `true` | Whether the Poison Arrow circuit breaker mounts at all |
-| `breaker.threshold` | `3` | Consecutive-failure count that trips the breaker (blocks at `2 × threshold`) |
+| `breaker.threshold` | `3` | Failure **pressure** that trips the breaker, blocking at `2 × threshold`. Pressure is a weight, not a call count: a retry with identical arguments adds 2, a varied one adds 1, and every failure within a single step adds 1 between them |
 | `breaker.mutatingTools` | `['write', 'edit', 'str_replace_editor']` | Tool names whose successful call counts as intervening progress, resetting every streak |
 | `loop` | `'off'` (or `'citta-vithi'`) | `'citta-vithi'` opts into the **experimental** Layer B agent loop (`src/loop.ts`), which replaces DSH's stock loop with an `AgentFactory` that structures each step as explicit citta-vīthi phases; it is not feature-complete with the stock loop and requires an overlay that also disables the stock `agent-loop` plugin (`ctx.agents.setFactory()` throws if a factory is already registered). See [`dsh/README.md`'s Experimental section](dsh/README.md#experimental-the-citta-vīthi-agent-loop-loop-citta-vithi) for the known gaps. Layer A citta-vīthi observation (see the table above) mounts unconditionally regardless of this setting |
+
+### Wiring the six realms
+
+Mounting the plugin is **not** enough to get realm-typed subagents. DSH's
+`dsh-tool-subagent` reads its persona from the tool entry's own config
+(`persona: config.persona`) — never from the model's arguments — so a delegation
+that arrives with no persona is born `human`, which is *full tool access*. That
+is the opposite of what a realm allowlist is for, so the plugin prints a warning
+to stderr the first time it happens.
+
+Give each realm its own tool entry, the way DSH itself ships `subagent` and
+`subagent_fork`:
+
+```yaml
+- id: tool-subagent            # human: full access, the default birth
+  config:
+    provider: buddha-realms
+    toolName: subagent
+    backgroundMode: one-shot
+
+- insert:
+    - id: tool-subagent-deva   # read-only architect
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: buddha-realms
+        toolName: subagent_deva
+        backgroundMode: one-shot
+        persona: deva
+
+    - id: tool-subagent-asura  # adversarial auditor: read + bash, never write
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: buddha-realms
+        toolName: subagent_asura
+        backgroundMode: one-shot
+        persona: asura
+```
+
+`backgroundMode` must be `one-shot`: `continuable` requires the provider to
+implement `prepareContinuable`, which `buddha-realms` does not.
+
+The model then chooses a realm by choosing a *tool* — `subagent_deva` for survey
+work, `subagent_asura` for an audit, `subagent` for implementation — and the tool
+filter is enforced by DSH, not by the child's good intentions.
 
 ### pnpm note
 

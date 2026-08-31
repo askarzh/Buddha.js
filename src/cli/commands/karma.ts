@@ -16,11 +16,30 @@ interface KarmaLocalOpts {
 export async function karma(localOpts: KarmaLocalOpts, cmd: Command): Promise<void> {
   const globalOpts = cmd.optsWithGlobals() as GlobalOpts;
   const mgr = getStateManager(globalOpts);
-  const being = mgr.loadBeing(globalOpts.being);
+  const loaded = mgr.loadBeing(globalOpts.being);
+
+  // Settle any pending rebirth (incarnation gap crossed since the last save)
+  // before this command does its own work — observation-on-load only
+  // detects that a rebirth is due; it never enacts it on its own. If one
+  // fires, persist the newly-transmigrated being immediately and continue
+  // on it for everything after.
+  const settled = loaded.settlePendingRebirth();
+  const being = settled ? settled.being : loaded;
+  if (settled) {
+    mgr.saveBeing(globalOpts.being, being);
+  }
+  const rebirth = settled
+    ? { fromRealm: settled.fromRealm, toRealm: settled.toRealm, incarnation: settled.incarnation }
+    : undefined;
 
   if (globalOpts.json) {
-    await jsonMode(being, localOpts, globalOpts, mgr);
+    await jsonMode(being, localOpts, globalOpts, mgr, rebirth);
     return;
+  }
+
+  if (rebirth) {
+    console.log(insight(`Since you were last here, your being was reborn: ${rebirth.fromRealm} -> ${rebirth.toRealm} (incarnation ${rebirth.incarnation}).`));
+    console.log();
   }
 
   await interactiveMode(being);
@@ -38,6 +57,7 @@ async function jsonMode(
   localOpts: KarmaLocalOpts,
   globalOpts: GlobalOpts,
   mgr: ReturnType<typeof getStateManager>,
+  rebirth?: { fromRealm: string; toRealm: string; incarnation: number },
 ): Promise<void> {
   if (localOpts.description && localOpts.intensity && localOpts.root) {
     const intensity = Number(localOpts.intensity) as Intensity;
@@ -74,6 +94,7 @@ async function jsonMode(
       totalActions: stream.length,
     },
     state: { mindfulness: state.mindfulnessLevel, karmicActions: state.pendingKarma },
+    ...(rebirth ? { rebirth } : {}),
   }, null, 2));
 }
 

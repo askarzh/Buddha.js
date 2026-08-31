@@ -36486,11 +36486,13 @@ function serializeBeing(being) {
     incarnation: being.incarnation,
     // Refreshed on every serialization; deserializeBeing compares this
     // against the wall clock at load time to detect a rebirth-worthy gap.
-    lastActiveAt: Date.now()
+    lastActiveAt: Date.now(),
+    realm: being.realm
   };
 }
 function deserializeBeing(data) {
-  const being = new Being();
+  const RealmClass = REALM_CLASSES[data.realm ?? "human"];
+  const being = new RealmClass();
   const factorMap = new Map(being.path.getAllFactors().map((f) => [f.name, f]));
   for (const fd of data.path.factors) {
     const factor = factorMap.get(fd.name);
@@ -36556,10 +36558,12 @@ function deserializeBeing(data) {
   }
   const gapMs = Number(process.env.BUDDHA_INCARNATION_GAP_MS ?? 216e5);
   let incarnation = data.incarnation ?? 1;
+  let pendingRebirth = false;
   if (data.lastActiveAt !== void 0) {
     const elapsed = Date.now() - data.lastActiveAt;
     if (elapsed >= gapMs) {
       incarnation += 1;
+      pendingRebirth = true;
     }
   }
   being._restoreState({
@@ -36567,7 +36571,8 @@ function deserializeBeing(data) {
     karmicStream,
     experienceHistory,
     karmicStore,
-    incarnation
+    incarnation,
+    pendingRebirth
   });
   return being;
 }
@@ -36610,6 +36615,16 @@ var Being = class _Being {
    * wall-clock time since the last save exceeds BUDDHA_INCARNATION_GAP_MS).
    */
   _incarnation = 1;
+  /**
+   * TRANSIENT flag set by BeingSerializer when a load crosses the
+   * incarnation gap (see BUDDHA_INCARNATION_GAP_MS): "observation does not
+   * rebirth" — loading a save merely OBSERVES that the being's next act
+   * would be a rebirth; it does not itself run rebirth(). Never serialized
+   * (toJSON never reads it), so re-loading the same data is idempotent:
+   * the flag is recomputed from the elapsed gap each time, not accumulated.
+   * Cleared by settlePendingRebirth() once a caller actually enacts it.
+   */
+  _pendingRebirth = false;
   /** Sense-door mapping for cognize(): SenseBase -> Citta's Pali door enum. */
   static senseDoors = {
     eye: "cakkhu-dv\u0101ra",
@@ -36668,15 +36683,111 @@ var Being = class _Being {
     }
   }
   /**
+   * The realm of rebirth (gati) this being currently inhabits. Base `Being`
+   * (and `HumanBeing`) is 'human'; realm subclasses override this getter.
+   */
+  get realm() {
+    return "human";
+  }
+  /**
+   * Soft modifier: multiplies effort-driven gains during meditate() — both
+   * path factor practice increments and the mindfulness-level gain. Neutral
+   * default (1) leaves meditate() bit-identical to pre-realm behavior.
+   */
+  meditationGainFactor() {
+    return 1;
+  }
+  /**
+   * Soft modifier: the ceiling rightView's developmentLevel may reach via
+   * practicePathFactor(). Neutral default (10) matches PathFactor's own
+   * internal maximum, so it never actually constrains anything for base
+   * Being/HumanBeing.
+   */
+  wisdomCap() {
+    return 10;
+  }
+  /**
+   * Clamp restored faculties to this (realm) instance's caps. Called at the
+   * end of _restoreState() so a save whose faculties exceed the realm it's
+   * being loaded into (e.g. a hand-edited or realm-changed save) is loaded
+   * consistent with that realm's constraints instead of trusting the raw
+   * serialized numbers. Currently only rightView is capped (wisdomCap());
+   * kept as its own method — rather than inlined into _restoreState — so
+   * future per-realm faculty caps slot in here without touching restore
+   * plumbing.
+   */
+  clampFacultiesToRealm() {
+    const cap = this.wisdomCap();
+    const rightView = this.path.rightView;
+    if (rightView.developmentLevel > cap) {
+      rightView._developmentLevel = cap;
+    }
+  }
+  /**
+   * Soft modifier: added to the intensity of the unwholesome mental factor
+   * (mirrored onto `mind`) activated by an experience() reaction. Neutral
+   * default (0) means experience() never touches `mind` for base Being.
+   */
+  unwholesomeReactionBoost() {
+    return 0;
+  }
+  /**
+   * Soft modifier: added to the intensity of unpleasant-valence experience
+   * inputs before they reach the aggregates. Neutral default (0) leaves
+   * experience() bit-identical to pre-realm behavior.
+   */
+  unpleasantIntensityShift() {
+    return 0;
+  }
+  /**
    * Experience something through the senses
    */
   experience(input) {
-    const processed = this.aggregates.processExperience(input);
+    const shift = this.unpleasantIntensityShift();
+    const adjustedInput = input.valence === "unpleasant" && shift !== 0 ? { ...input, intensity: input.intensity + shift } : input;
+    const processed = this.aggregates.processExperience(adjustedInput);
     this.experienceHistory.push(processed);
+    const boost = this.unwholesomeReactionBoost();
+    if (boost !== 0) {
+      this.applyReactionBoost(processed.feelingTone, boost);
+    }
     if (this._mindfulnessLevel > 5) {
       processed.reactions.push("mindful observation without automatic reaction");
     }
     return processed;
+  }
+  /**
+   * Mirror SamskaraAggregate.react()'s reaction mapping onto `mind`, with
+   * the realm's reaction boost added to the base intensity react() would
+   * have used internally (5 for greed/aversion, 3 for restlessness).
+   */
+  applyReactionBoost(feelingTone, boost) {
+    const factorName = feelingTone === "pleasant" ? "greed" : feelingTone === "unpleasant" ? "aversion" : "restlessness";
+    const baseIntensity = feelingTone === "neutral" ? 3 : 5;
+    const boosted = Math.min(10, Math.max(0, baseIntensity + boost));
+    this.mind.activateFactor(factorName, boosted);
+  }
+  /**
+   * Practice a path factor through Being, applying wisdomCap() as a ceiling
+   * on rightView specifically. PathFactor has no setter for developmentLevel
+   * (only reset() to zero), so the cap is enforced by pre-limiting the
+   * effort passed to practice() rather than clamping the result — this
+   * duplicates PathFactor.practice()'s internal `effort * 0.15` increment
+   * formula, a documented coupling accepted so PathFactor itself is never
+   * edited (see task-1-report.md).
+   */
+  practicePathFactor(factor, effort) {
+    if (factor === this.path.rightView) {
+      const cap = this.wisdomCap();
+      const current = factor.developmentLevel;
+      if (current >= cap) {
+        return current;
+      }
+      const room = cap - current;
+      const maxEffort = room / 0.15;
+      effort = Math.min(effort, maxEffort);
+    }
+    return factor.practice(effort);
   }
   /**
    * Perform an intentional action (creates karma).
@@ -37036,7 +37147,7 @@ var Being = class _Being {
     if (seeds.length === 0) return null;
     const weighty = seeds.find((s) => s.strength === "weighty");
     if (weighty) {
-      return { id: weighty.id, description: weighty.description, reason: "weighty" };
+      return { seed: weighty, reason: "weighty" };
     }
     const plantings = /* @__PURE__ */ new Map();
     for (const seed of seeds) {
@@ -37056,17 +37167,54 @@ var Being = class _Being {
     if (bestSlug) {
       const habitual = seeds.find((s) => this.slugOf(s) === bestSlug);
       if (habitual) {
-        return { id: habitual.id, description: habitual.description, reason: "habitual" };
+        return { seed: habitual, reason: "habitual" };
       }
     }
     const oldest = seeds.reduce((a, b) => a.createdAt <= b.createdAt ? a : b);
-    return { id: oldest.id, description: oldest.description, reason: "reserve" };
+    return { seed: oldest, reason: "reserve" };
   }
   /**
-   * Enact rebirth: advance the incarnation counter, expire any active seed
-   * whose timing window has now lapsed (ahosi-kamma — its potential to
-   * ripen is spent, unfulfilled), and name the seed that shapes the new
-   * incarnation.
+   * Apply starting faculties (vipāka, spec §4) to a freshly-transmigrated
+   * `next` being, derived from the karmic balance it just inherited — never
+   * copied from the being that transmigrated into it. `share` is the
+   * potency-weighted wholesome fraction of the inherited store's total
+   * potency (0 on a zero-potency store): starting mindfulness is
+   * `clamp(round(share*4), 0..4)`; each of the 8 path factors starts at
+   * `clamp(round(share*3), 0..3)`, additionally capped by `next.wisdomCap()`
+   * for rightView. Caps keep rebirth a real reset — a saint's continuum
+   * starts ahead, but nobody is born liberated.
+   */
+  applyStartingFaculties(next) {
+    const balance = next.karmicStore.getKarmicBalance();
+    const totalPotency = balance.wholesome + balance.unwholesome + balance.neutral;
+    const share = totalPotency === 0 ? 0 : balance.wholesome / totalPotency;
+    const mindfulness = Math.min(4, Math.max(0, Math.round(share * 4)));
+    next._mindfulnessLevel = mindfulness;
+    for (const factor of next.path.getAllFactors()) {
+      let level = Math.min(3, Math.max(0, Math.round(share * 3)));
+      if (factor === next.path.rightView) {
+        level = Math.min(level, next.wisdomCap());
+      }
+      factor.reset();
+      if (level > 0) {
+        factor.activate();
+      }
+      factor._developmentLevel = level;
+    }
+  }
+  /**
+   * Enact rebirth: transmigration without a transmigrator. Advances the
+   * incarnation counter, expires any active seed whose timing window has
+   * now lapsed (ahosi-kamma), selects the realm of the next arising from
+   * the shaping seed, and constructs a NEW being of that realm's class.
+   * Only the karmic continuum (this being's `karmicStore` object, plus the
+   * incremented incarnation counter) passes to it — no path levels, mind
+   * factors, or experience history transfer; those are a fresh arising,
+   * with starting faculties conditioned by the inherited karmic balance
+   * (vipāka, see `applyStartingFaculties`). The dying being (`this`) is
+   * detached from the continuum (given a fresh, empty store) and disposed;
+   * the new being is returned as `RebirthResult.being` — callers must use
+   * it for anything after rebirth().
    */
   rebirth() {
     this._incarnation += 1;
@@ -37078,8 +37226,31 @@ var Being = class _Being {
         expiredSeeds++;
       }
     }
-    const shapingSeed = this.pickShapingSeed();
-    return { incarnation: this._incarnation, expiredSeeds, shapingSeed };
+    const picked = this.pickShapingSeed();
+    const shapingSeed = picked ? { id: picked.seed.id, description: picked.seed.description, reason: picked.reason } : null;
+    const fromRealm = this.realm;
+    const toRealm = selectRealm(picked?.seed ?? null, this.karmicStore.getKarmicBalance());
+    const inheritedStore = this.karmicStore;
+    const inheritedIncarnation = this._incarnation;
+    const next = new REALM_CLASSES[toRealm]();
+    next._restoreState({
+      mindfulnessLevel: 0,
+      karmicStream: [],
+      experienceHistory: [],
+      karmicStore: inheritedStore,
+      incarnation: inheritedIncarnation
+    });
+    this.applyStartingFaculties(next);
+    this.karmicStore = new KarmicStore({ enableAutoRipening: false });
+    this.dispose();
+    return {
+      incarnation: inheritedIncarnation,
+      expiredSeeds,
+      shapingSeed,
+      fromRealm,
+      toRealm,
+      being: next
+    };
   }
   /**
    * Get the current incarnation number (starts at 1).
@@ -37088,14 +37259,41 @@ var Being = class _Being {
     return this._incarnation;
   }
   /**
+   * Whether this being was loaded across the incarnation gap and is awaiting
+   * settlePendingRebirth() to actually enact rebirth(). Observation alone
+   * (a plain load) never rebirths — this flag records that a rebirth is
+   * DUE, without performing it. Always false for a freshly-constructed being
+   * and for any being restored within the gap window.
+   */
+  get pendingRebirth() {
+    return this._pendingRebirth;
+  }
+  /**
+   * Enact a rebirth that observation-on-load merely detected. If
+   * pendingRebirth is set, clears it and runs rebirth(), returning its
+   * result; otherwise returns null without side effects. Centralizes the
+   * "observation does not rebirth" policy so callers (e.g. CLI/MCP command
+   * handlers) never call rebirth() directly off of a load.
+   */
+  settlePendingRebirth() {
+    if (!this._pendingRebirth) {
+      return null;
+    }
+    this._pendingRebirth = false;
+    return this.rebirth();
+  }
+  /**
    * Practice meditation
    */
   meditate(duration3, effort) {
-    this.path.rightEffort.practice(effort);
-    this.path.rightMindfulness.practice(effort);
-    this.path.rightConcentration.practice(effort);
+    const gain = this.meditationGainFactor();
+    const scaledEffort = Math.min(10, Math.max(0, effort * gain));
+    this.practicePathFactor(this.path.rightEffort, scaledEffort);
+    this.practicePathFactor(this.path.rightMindfulness, scaledEffort);
+    this.practicePathFactor(this.path.rightConcentration, scaledEffort);
+    this.practicePathFactor(this.path.rightView, scaledEffort);
     this.mind.activateFactor("mindfulness", effort);
-    const mindfulnessGain = effort * duration3 * 0.01;
+    const mindfulnessGain = effort * duration3 * 0.01 * gain;
     this._mindfulnessLevel = Math.min(
       10,
       Math.round(this._mindfulnessLevel + mindfulnessGain)
@@ -37214,7 +37412,7 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     for (const seed of this.karmicStore.getSeeds()) {
       byTiming[seed.ripeningTiming] = (byTiming[seed.ripeningTiming] ?? 0) + 1;
     }
-    return { balance, byState, byTiming, incarnation: this._incarnation };
+    return { balance, byState, byTiming, incarnation: this._incarnation, realm: this.realm };
   }
   /**
    * @internal Used by BeingSerializer for deserialization.
@@ -37225,11 +37423,13 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     this.karmicStream = state.karmicStream;
     this.experienceHistory = state.experienceHistory;
     this._incarnation = state.incarnation ?? 1;
+    this._pendingRebirth = state.pendingRebirth ?? false;
     if (state.karmicStore) {
       this.karmicStore = state.karmicStore;
       this.registerRipeningConditions();
       this.karmicStore.rebindConditions();
     }
+    this.clampFacultiesToRealm();
   }
   /**
    * Serialize this being to a plain JSON-compatible object
@@ -37275,6 +37475,91 @@ INSIGHT:
     `.trim();
   }
 };
+var HumanBeing = class extends Being {
+};
+var DevaBeing = class extends Being {
+  get realm() {
+    return "deva";
+  }
+  meditationGainFactor() {
+    return 0.5;
+  }
+  constructor() {
+    super();
+    this.aggregates.form.update({ vitality: 10 });
+  }
+};
+var AsuraBeing = class extends Being {
+  get realm() {
+    return "asura";
+  }
+  meditationGainFactor() {
+    return 0.75;
+  }
+  unwholesomeReactionBoost() {
+    return 1;
+  }
+};
+var AnimalBeing = class extends Being {
+  get realm() {
+    return "animal";
+  }
+  wisdomCap() {
+    return 4;
+  }
+};
+var PretaBeing = class extends Being {
+  get realm() {
+    return "preta";
+  }
+  unwholesomeReactionBoost() {
+    return 2;
+  }
+};
+var NarakaBeing = class extends Being {
+  get realm() {
+    return "naraka";
+  }
+  meditationGainFactor() {
+    return 0.75;
+  }
+  unpleasantIntensityShift() {
+    return 2;
+  }
+};
+var REALM_CLASSES = {
+  human: HumanBeing,
+  deva: DevaBeing,
+  asura: AsuraBeing,
+  animal: AnimalBeing,
+  preta: PretaBeing,
+  naraka: NarakaBeing
+};
+var REALM_DESCRIPTIONS = {
+  human: "the baseline realm, neutral on every hook \u2014 a precious, ordinary birth.",
+  deva: "divine comfort dulls the sense of urgency that drives practice.",
+  asura: "rivalry and envy of the devas run aversion-toned reactions hotter.",
+  animal: "instinct dominates, with little capacity for reflective wisdom.",
+  preta: "insatiable craving amplifies every reaction.",
+  naraka: "intense, unrelenting suffering makes unpleasant experience felt more intensely still."
+};
+function selectRealm(shaping, balance) {
+  if (!shaping || shaping.quality === "neutral") return "human";
+  if (shaping.quality === "unwholesome") {
+    switch (shaping.root) {
+      case "greed":
+        return "preta";
+      case "aversion":
+        return "naraka";
+      default:
+        return "animal";
+    }
+  }
+  if (shaping.strength === "weighty" || shaping.strength === "strong") return "deva";
+  const totalPotency = balance.wholesome + balance.unwholesome + balance.neutral;
+  const unwholesomeShare = totalPotency === 0 ? 0 : balance.unwholesome / totalPotency;
+  return unwholesomeShare >= 0.4 ? "asura" : "human";
+}
 
 // src/cli/utils/state.ts
 var StateManager = class {
@@ -37606,6 +37891,20 @@ var PoisonArrow = class {
 
 // src/mcp/handlers.ts
 var koanGenerator = new KoanGenerator();
+function settleRebirth(sm2, name, loaded) {
+  const result = loaded.settlePendingRebirth();
+  if (!result) {
+    return { being: loaded };
+  }
+  sm2.saveBeing(name, result.being);
+  return {
+    being: result.being,
+    rebirth: { fromRealm: result.fromRealm, toRealm: result.toRealm, incarnation: result.incarnation }
+  };
+}
+function withRebirthNote(result, rebirth) {
+  return rebirth ? Object.assign(result, { rebirth }) : result;
+}
 function createBeing(sm2, name) {
   const being = new Being();
   sm2.saveBeing(name, being);
@@ -37627,40 +37926,49 @@ function getStatus(sm2, name) {
   };
 }
 function experienceSensory(sm2, name, input) {
-  const being = sm2.loadExistingBeing(name);
+  const loaded = sm2.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm2, name, loaded);
   const result = being.experience(input);
   sm2.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 function act(sm2, name, description, intensity, root) {
-  const being = sm2.loadExistingBeing(name);
+  const loaded = sm2.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm2, name, loaded);
   const karma = being.act(description, intensity, root);
   sm2.saveBeing(name, being);
-  return karma;
+  return withRebirthNote(karma, rebirth);
 }
 function ripenKarma(sm2, name, force = false) {
-  const being = sm2.loadExistingBeing(name);
+  const loaded = sm2.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm2, name, loaded);
   const report = being.receiveKarmicResults(force);
   sm2.saveBeing(name, being);
-  return report;
+  return withRebirthNote(report, rebirth);
 }
 function cognizeObject(sm2, name, content, senseBase) {
-  const being = sm2.loadExistingBeing(name);
+  const loaded = sm2.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm2, name, loaded);
   const result = being.cognize(content, senseBase);
   sm2.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 function rebirthBeing(sm2, name) {
   const being = sm2.loadExistingBeing(name);
   const result = being.rebirth();
-  sm2.saveBeing(name, being);
-  return result;
+  sm2.saveBeing(name, result.being);
+  const { being: _being, ...summary } = result;
+  return {
+    ...summary,
+    description: `Born into the ${result.toRealm} realm: ${REALM_DESCRIPTIONS[result.toRealm]}`
+  };
 }
 function meditate(sm2, name, duration3, effort) {
-  const being = sm2.loadExistingBeing(name);
+  const loaded = sm2.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm2, name, loaded);
   const result = being.meditate(duration3, effort);
   sm2.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 function diagnose(sm2, name, suffering, cravings) {
   const being = sm2.loadExistingBeing(name);
@@ -37766,7 +38074,7 @@ server.tool(
 );
 server.tool(
   "buddha_status",
-  "Get the current status of a being",
+  "Get the current status of a being \u2014 read-only: never enacts a pending rebirth, even if the incarnation gap has elapsed since the last save (that only happens inside a mutating tool). The seeds section reports the being's current realm (gati) of rebirth: human, deva, asura, animal, preta, or naraka.",
   nameSchema,
   async ({ name }) => {
     try {
@@ -37880,7 +38188,7 @@ server.tool(
 );
 server.tool(
   "buddha_rebirth",
-  "Enact rebirth: advance the incarnation, expire timed-out (ahosi-kamma) seeds, and carry forward the seed that shapes the new incarnation",
+  "Enact rebirth: transmigrate into a new incarnation, choosing its realm (gati \u2014 human, deva, asura, animal, preta, or naraka) from the karmic seed that shapes it. Advances the incarnation, expires timed-out (ahosi-kamma) seeds, and reports the realm transition with a one-line description of what that realm means for the being. Never returns a live Being object \u2014 only the result of the transmigration.",
   nameSchema,
   async ({ name }) => {
     try {
@@ -37890,6 +38198,8 @@ server.tool(
         `Reborn into incarnation ${result.incarnation}.`,
         `${result.expiredSeeds} seed(s) expired (ahosi-kamma) in the transition.`,
         shapingText,
+        `Realm: ${result.fromRealm} -> ${result.toRealm}.`,
+        result.description,
         "",
         JSON.stringify(result, null, 2)
       ].join("\n");

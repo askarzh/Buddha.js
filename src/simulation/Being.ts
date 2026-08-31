@@ -1136,6 +1136,7 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     byState: Record<string, number>;
     byTiming: Record<string, number>;
     incarnation: number;
+    realm: Realm;
   } {
     const balance = this.karmicStore.getKarmicBalance();
     const { byState } = this.karmicStore.getStatistics();
@@ -1143,7 +1144,7 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     for (const seed of this.karmicStore.getSeeds()) {
       byTiming[seed.ripeningTiming] = (byTiming[seed.ripeningTiming] ?? 0) + 1;
     }
-    return { balance, byState, byTiming, incarnation: this._incarnation };
+    return { balance, byState, byTiming, incarnation: this._incarnation, realm: this.realm };
   }
 
   /**
@@ -1347,6 +1348,21 @@ export const REALM_CLASSES: Record<Realm, new () => Being> = {
   animal: AnimalBeing,
   preta: PretaBeing,
   naraka: NarakaBeing,
+};
+
+/**
+ * One-line, human-readable description of each realm's defining condition —
+ * transcribed from the realm class doc comments above. Used by the MCP
+ * `buddha_rebirth` handler to surface realm semantics without the caller
+ * needing to know the six gati by name.
+ */
+export const REALM_DESCRIPTIONS: Record<Realm, string> = {
+  human: 'the baseline realm, neutral on every hook — a precious, ordinary birth.',
+  deva: 'divine comfort dulls the sense of urgency that drives practice.',
+  asura: "rivalry and envy of the devas run aversion-toned reactions hotter.",
+  animal: 'instinct dominates, with little capacity for reflective wisdom.',
+  preta: 'insatiable craving amplifies every reaction.',
+  naraka: 'intense, unrelenting suffering makes unpleasant experience felt more intensely still.',
 };
 
 /**

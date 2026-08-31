@@ -140,6 +140,28 @@ describe('MCP handlers — depth features', () => {
     expect(rebirthBeing(sm, 'phoenix').incarnation).toBe(2);
   });
 
+  test('rebirthBeing persists the NEW being, not the dead loaded one', () => {
+    createBeing(sm, 'grasper');
+    act(sm, 'grasper', 'hoarded wealth', 8, 'greed');
+    act(sm, 'grasper', 'hoarded more wealth', 8, 'greed');
+    act(sm, 'grasper', 'hoarded even more wealth', 8, 'greed');
+
+    const result = rebirthBeing(sm, 'grasper');
+    expect(result.toRealm).toBe('preta');
+    expect(result).not.toHaveProperty('being');
+
+    const reloaded = sm.loadExistingBeing('grasper');
+    expect(reloaded.realm).toBe('preta');
+    expect(reloaded.realm).toBe(result.toRealm);
+  });
+
+  test('rebirthBeing response includes a one-line realm description', () => {
+    createBeing(sm, 'wanderer');
+    const result = rebirthBeing(sm, 'wanderer');
+    expect(typeof result.description).toBe('string');
+    expect(result.description).toContain(result.toRealm);
+  });
+
   test('getStatus includes a seeds section', () => {
     createBeing(sm, 'yogi');
     act(sm, 'yogi', 'meditated', 4, 'non-delusion');
@@ -148,6 +170,70 @@ describe('MCP handlers — depth features', () => {
     expect(result.seeds).toHaveProperty('byState');
     expect(result.seeds).toHaveProperty('byTiming');
     expect(result.seeds).toHaveProperty('incarnation', 1);
+    expect(result.seeds).toHaveProperty('realm', 'human');
+  });
+
+  describe('pending-rebirth settlement', () => {
+    const ORIGINAL_GAP = process.env.BUDDHA_INCARNATION_GAP_MS;
+
+    afterEach(() => {
+      if (ORIGINAL_GAP === undefined) {
+        delete process.env.BUDDHA_INCARNATION_GAP_MS;
+      } else {
+        process.env.BUDDHA_INCARNATION_GAP_MS = ORIGINAL_GAP;
+      }
+    });
+
+    test('getStatus is read-only: two consecutive calls do not settle or mutate the saved file', () => {
+      createBeing(sm, 'sleeper');
+      const beingFile = join(tempDir, 'beings', 'sleeper.json');
+      const before = readFileSync(beingFile, 'utf-8');
+
+      // Force every load to observe the incarnation gap as crossed.
+      process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+
+      const first = getStatus(sm, 'sleeper');
+      const afterFirst = readFileSync(beingFile, 'utf-8');
+      const second = getStatus(sm, 'sleeper');
+      const afterSecond = readFileSync(beingFile, 'utf-8');
+
+      expect(first.seeds.realm).toBe(second.seeds.realm);
+      expect(afterFirst).toBe(before);
+      expect(afterSecond).toBe(before);
+    });
+
+    test('act settles a pending rebirth before continuing, persists the new realm, and reports it', () => {
+      createBeing(sm, 'crosser');
+      act(sm, 'crosser', 'hoarded wealth', 8, 'greed');
+      act(sm, 'crosser', 'hoarded more wealth', 8, 'greed');
+      act(sm, 'crosser', 'hoarded even more wealth', 8, 'greed');
+      rebirthBeing(sm, 'crosser');
+
+      // Only now simulate the gap having elapsed since the last save, so
+      // exactly the next load (inside the following act() call) observes
+      // pendingRebirth — a mutating handler must settle it before doing its
+      // own work, and report that it did.
+      process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+
+      const beforeIncarnation = sm.loadExistingBeing('crosser').incarnation;
+
+      const result = act(sm, 'crosser', 'gave alms', 5, 'non-greed') as Record<string, unknown>;
+      expect(result).toHaveProperty('rebirth');
+      const rebirth = result.rebirth as { fromRealm: string; toRealm: string; incarnation: number };
+      expect(rebirth.incarnation).toBeGreaterThan(beforeIncarnation);
+
+      // Reload with the gap restored to its default so this reload itself
+      // doesn't observe a further (unsettled) gap crossing — we're checking
+      // what act() persisted, not stacking another in-memory bump on read.
+      if (ORIGINAL_GAP === undefined) {
+        delete process.env.BUDDHA_INCARNATION_GAP_MS;
+      } else {
+        process.env.BUDDHA_INCARNATION_GAP_MS = ORIGINAL_GAP;
+      }
+      const reloaded = sm.loadExistingBeing('crosser');
+      expect(reloaded.realm).toBe(rebirth.toRealm);
+      expect(reloaded.incarnation).toBe(rebirth.incarnation);
+    });
   });
 });
 

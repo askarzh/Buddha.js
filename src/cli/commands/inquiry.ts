@@ -5,7 +5,14 @@ import { header, label, insight, divider } from '../utils/format';
 export function inquiry(_localOpts: Record<string, never>, cmd: Command): void {
   const opts = getGlobalOpts(cmd);
   const mgr = getStateManager(opts);
-  const being = mgr.loadBeing(opts.being);
+  const loaded = mgr.loadBeing(opts.being);
+
+  // Settle any pending rebirth (incarnation gap crossed since the last save)
+  // before this command does its own work — observation-on-load only
+  // detects that a rebirth is due; it never enacts it on its own. If one
+  // fires, switch to the newly-transmigrated being for everything after.
+  const settled = loaded.settlePendingRebirth();
+  const being = settled ? settled.being : loaded;
 
   const result = being.investigateSelf();
   mgr.saveBeing(opts.being, being);
@@ -27,8 +34,14 @@ export function inquiry(_localOpts: Record<string, never>, cmd: Command): void {
         overallConclusion: result.conclusion,
       },
       state: { mindfulness: being.getState().mindfulnessLevel, karmicActions: being.getState().pendingKarma },
+      ...(settled ? { rebirth: { fromRealm: settled.fromRealm, toRealm: settled.toRealm, incarnation: settled.incarnation } } : {}),
     }, null, 2));
     return;
+  }
+
+  if (settled) {
+    console.log(insight(`Since you were last here, your being was reborn: ${settled.fromRealm} -> ${settled.toRealm} (incarnation ${settled.incarnation}).`));
+    console.log();
   }
 
   console.log(header('Self Investigation'));

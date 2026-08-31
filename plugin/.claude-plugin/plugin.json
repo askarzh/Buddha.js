@@ -1,6 +1,6 @@
 {
   "name": "buddha-js",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Buddhist philosophy tools for Claude Code — meditation, diagnosis, karma, koans, self-inquiry, and the Poison Arrow method, backed by a bundled MCP server",
   "author": { "name": "Askar Zhakenov", "email": "askar@zhakenov.pro" },
   "keywords": ["buddhism", "meditation", "mindfulness", "philosophy", "mcp"],

@@ -25,5 +25,6 @@ export {
   PretaBeing,
   NarakaBeing,
   REALM_CLASSES,
+  REALM_DESCRIPTIONS,
   selectRealm,
 } from './Being';

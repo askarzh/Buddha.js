@@ -1,14 +1,52 @@
 import { StateManager } from '../cli/utils/state';
-import { Being } from '../simulation/Being';
+import { Being, REALM_DESCRIPTIONS } from '../simulation/Being';
 import { KoanGenerator } from '../koan/KoanGenerator';
 import { PoisonArrow } from '../simulation/PoisonArrow';
 import type {
   SenseBase, Intensity,
   UnwholesomeRoot, WholesomeRoot,
-  DukkhaType, CravingType, FeelingTone,
+  DukkhaType, CravingType, FeelingTone, Realm,
 } from '../utils/types';
 
 const koanGenerator = new KoanGenerator();
+
+/** Optional note a mutating handler attaches when it settled a pending rebirth. */
+export interface RebirthNote {
+  fromRealm: Realm;
+  toRealm: Realm;
+  incarnation: number;
+}
+
+/**
+ * Settle any pending rebirth on a just-loaded being before a mutating
+ * handler does its own work. Observation-on-load only DETECTS that the
+ * incarnation gap has passed (`Being.pendingRebirth`) — it never enacts
+ * rebirth() itself (spec: "observation does not rebirth"). Mutating
+ * handlers are where settlement actually happens: if `settlePendingRebirth()`
+ * fires, the NEW being it returns is persisted immediately and becomes the
+ * being the caller's own operation continues on — the loaded (now-dead)
+ * object must never be operated on or saved again.
+ */
+function settleRebirth(
+  sm: StateManager,
+  name: string,
+  loaded: Being,
+): { being: Being; rebirth?: RebirthNote } {
+  const result = loaded.settlePendingRebirth();
+  if (!result) {
+    return { being: loaded };
+  }
+  sm.saveBeing(name, result.being);
+  return {
+    being: result.being,
+    rebirth: { fromRealm: result.fromRealm, toRealm: result.toRealm, incarnation: result.incarnation },
+  };
+}
+
+/** Attach an optional `rebirth` note to a handler's result, if one settled. */
+function withRebirthNote<T extends object>(result: T, rebirth?: RebirthNote): T {
+  return rebirth ? Object.assign(result, { rebirth }) : result;
+}
 
 export function createBeing(sm: StateManager, name: string): string {
   const being = new Being();
@@ -39,10 +77,11 @@ export function experienceSensory(
   name: string,
   input: { senseBase: SenseBase; object: unknown; intensity: Intensity; valence?: FeelingTone },
 ) {
-  const being = sm.loadExistingBeing(name);
+  const loaded = sm.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm, name, loaded);
   const result = being.experience(input);
   sm.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 
 export function act(
@@ -52,17 +91,19 @@ export function act(
   intensity: Intensity,
   root?: UnwholesomeRoot | WholesomeRoot,
 ) {
-  const being = sm.loadExistingBeing(name);
+  const loaded = sm.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm, name, loaded);
   const karma = being.act(description, intensity, root);
   sm.saveBeing(name, being);
-  return karma;
+  return withRebirthNote(karma, rebirth);
 }
 
 export function ripenKarma(sm: StateManager, name: string, force = false) {
-  const being = sm.loadExistingBeing(name);
+  const loaded = sm.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm, name, loaded);
   const report = being.receiveKarmicResults(force);
   sm.saveBeing(name, being);
-  return report;
+  return withRebirthNote(report, rebirth);
 }
 
 export function cognizeObject(
@@ -71,10 +112,11 @@ export function cognizeObject(
   content: string,
   senseBase?: SenseBase,
 ) {
-  const being = sm.loadExistingBeing(name);
+  const loaded = sm.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm, name, loaded);
   const result = being.cognize(content, senseBase);
   sm.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 
 export function rebirthBeing(sm: StateManager, name: string) {
@@ -82,9 +124,15 @@ export function rebirthBeing(sm: StateManager, name: string) {
   const result = being.rebirth();
   // rebirth() transmigrates into a NEW being (of a possibly different realm
   // class) and detaches/disposes the loaded one — save the new being, not
-  // the now-dead object we loaded.
+  // the now-dead object we loaded. The live `being` instance on the result
+  // must NEVER be returned/serialized — drop it and report a realm
+  // description in its place.
   sm.saveBeing(name, result.being);
-  return result;
+  const { being: _being, ...summary } = result;
+  return {
+    ...summary,
+    description: `Born into the ${result.toRealm} realm: ${REALM_DESCRIPTIONS[result.toRealm]}`,
+  };
 }
 
 export function meditate(
@@ -93,10 +141,11 @@ export function meditate(
   duration: number,
   effort: Intensity,
 ) {
-  const being = sm.loadExistingBeing(name);
+  const loaded = sm.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm, name, loaded);
   const result = being.meditate(duration, effort);
   sm.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 
 export function diagnose(

@@ -83,7 +83,7 @@ server.tool(
 
 server.tool(
   'buddha_status',
-  'Get the current status of a being',
+  'Get the current status of a being — read-only: never enacts a pending rebirth, even if the incarnation gap has elapsed since the last save (that only happens inside a mutating tool). The seeds section reports the being\'s current realm (gati) of rebirth: human, deva, asura, animal, preta, or naraka.',
   nameSchema,
   async ({ name }) => {
     try {
@@ -207,26 +207,25 @@ server.tool(
 
 server.tool(
   'buddha_rebirth',
-  'Enact rebirth: advance the incarnation, expire timed-out (ahosi-kamma) seeds, and carry forward the seed that shapes the new incarnation',
+  'Enact rebirth: transmigrate into a new incarnation, choosing its realm (gati — human, deva, asura, animal, preta, or naraka) from the karmic seed that shapes it. Advances the incarnation, expires timed-out (ahosi-kamma) seeds, and reports the realm transition with a one-line description of what that realm means for the being. Never returns a live Being object — only the result of the transmigration.',
   nameSchema,
   async ({ name }) => {
     try {
+      // rebirthBeing() never returns a live Being — it already persisted
+      // the new one and reports only the transmigration summary (incl. a
+      // realm description) — safe to JSON.stringify directly.
       const result = rebirthBeing(sm, name);
       const shapingText = result.shapingSeed
         ? `The new incarnation is shaped by a ${result.shapingSeed.reason} seed: "${result.shapingSeed.description}".`
         : 'No seed was weighty, habitual, or reserved enough to shape the new incarnation.';
-      // result.being is a full live Being instance now (rebirth() returns
-      // the newly-transmigrated being, not the loaded one) — never
-      // JSON.stringify a live Being; render a summary instead. Full
-      // response-shape work (realm descriptions etc.) is Task 4's.
-      const { being: _being, ...summary } = result;
       const text = [
         `Reborn into incarnation ${result.incarnation}.`,
         `${result.expiredSeeds} seed(s) expired (ahosi-kamma) in the transition.`,
         shapingText,
         `Realm: ${result.fromRealm} -> ${result.toRealm}.`,
+        result.description,
         '',
-        JSON.stringify(summary, null, 2),
+        JSON.stringify(result, null, 2),
       ].join('\n');
       return { content: [{ type: 'text' as const, text }] };
     } catch (e) {

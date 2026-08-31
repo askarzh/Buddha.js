@@ -859,7 +859,7 @@ This produces `dist/buddha-js.mcpb`. Open or drag it onto Claude Desktop (Settin
 | `buddha_create_being` | Create a new being and persist it to disk |
 | `buddha_list_beings` | List all saved beings |
 | `buddha_delete_being` | Delete a saved being |
-| `buddha_status` | Get the current status of a being |
+| `buddha_status` | Get the current status of a being. Read-only — never settles a pending rebirth. The `seeds` block reports the being's current realm (gati) |
 | `buddha_experience` | Process a sensory experience through the five aggregates (accepts an optional `valence` parameter — pleasant/unpleasant/neutral — independent of intensity) |
 | `buddha_act` | Perform an intentional action that creates karma (karmic quality is derived from `root`; there is no separate quality parameter) |
 | `buddha_karma_ripen` | Check for and receive any ripened karmic results (accepts an optional `force` flag to ripen everything eligible deterministically, bypassing conditional ripening conditions) |
@@ -868,12 +868,14 @@ This produces `dist/buddha-js.mcpb`. Open or drag it onto Claude Desktop (Settin
 | `buddha_inquiry` | Investigate the nature of self across the five aggregates |
 | `buddha_chain` | Visualize the 12 links of dependent origination |
 | `buddha_cognize` | Run a full cognitive process (citta-vīthi) over content through a sense door, planting karmic seeds from its javana moments |
-| `buddha_rebirth` | Enact rebirth — advance the incarnation, expire timed-out (ahosi-kamma) seeds, and carry forward the seed that shapes the new incarnation |
+| `buddha_rebirth` | Enact rebirth — advance the incarnation, expire timed-out (ahosi-kamma) seeds, select the new incarnation's realm (see [Six Realms](#six-realms-ṣaḍgati)), and carry forward the seed that shapes it. Transmigrates into a new being; never returns a live `Being` object, only the transmigration summary |
 | `buddha_koan` | Present a Zen koan for contemplation |
 | `buddha_contemplate` | Submit a response to a koan and evaluate it for dualism traps |
 | `buddha_sit` | Guided cessation via the Poison Arrow method — four steps (recognize, investigate, release, practice), one per Noble Truth — for quick relief from a named suffering |
 
 All tools except `buddha_create_being`, `buddha_list_beings`, and `buddha_sit` require an existing being. This is deliberate: unlike the CLI, which auto-creates a being on first use, the MCP server rejects unknown names with `Being not found: "<name>". Create it with buddha_create_being or list existing beings with buddha_list_beings.`
+
+Every mutating tool (`buddha_experience`, `buddha_act`, `buddha_karma_ripen`, `buddha_cognize`, `buddha_meditate`, `buddha_diagnose`, `buddha_inquiry`) settles any pending rebirth on the loaded being before doing its own work (see [Six Realms](#six-realms-ṣaḍgati)) and, when one fires, attaches a `rebirth` field (`{ fromRealm, toRealm, incarnation }`) to its result. `buddha_status` and `buddha_chain` are read-only and never settle one.
 
 ---
 
@@ -971,6 +973,75 @@ console.log(being.observeDependentOrigination());
 const state = being.getState();
 console.log(being.getSummary());
 ```
+
+### Six Realms (Ṣaḍgati)
+
+`Being.rebirth()` transmigrates the karmic continuum into a new incarnation.
+Nothing about the dying being carries over except the continuum itself — the
+`karmicStore` object and the incremented incarnation counter — everything
+else (path development, mind state, experience history) is a fresh arising.
+The type system enforces the anattā (not-self) teaching here directly:
+`rebirth()` returns a `RebirthResult` whose `being` field is a **new object,
+of a different class**, not the same being mutated in place:
+
+```typescript
+import { Being } from 'buddha-js';
+
+const being = new Being();
+// ... act, cognize, accumulate karmic seeds ...
+
+const result = being.rebirth();
+console.log(result.fromRealm, '->', result.toRealm); // e.g. "human -> deva"
+console.log(result.being.constructor.name);           // e.g. "DevaBeing"
+// `being` itself is now detached from the continuum and must not be used
+// again — everything after rebirth() happens on `result.being`.
+```
+
+Each of the six realms (gati) is a distinct `Being` subclass that overrides
+only its `realm` getter and a handful of soft-modifier hooks
+(`meditationGainFactor`, `wisdomCap`, `unwholesomeReactionBoost`,
+`unpleasantIntensityShift`) — every realm being keeps the full `Being` API;
+realms bias outcomes, they never disable them:
+
+| Realm | Class | Modifiers |
+|-------|-------|-----------|
+| Human (manuṣya) | `HumanBeing` | None — the baseline, neutral on every hook. |
+| Deva (god) | `DevaBeing` | Meditation gain ×0.5 (divine comfort dulls urgency); starts at full vitality (10). |
+| Asura (titan) | `AsuraBeing` | Meditation gain ×0.75; unwholesome reactions boosted by +1 (rivalry bias toward aversion). |
+| Animal (tiryagyoni) | `AnimalBeing` | `rightView`'s development level capped at 4 (little capacity for reflective wisdom). |
+| Preta (hungry ghost) | `PretaBeing` | Unwholesome reactions boosted by +2 (insatiable craving amplifies every reaction). |
+| Naraka (hell) | `NarakaBeing` | Meditation gain ×0.75; unpleasant-experience intensity boosted by +2. |
+
+`selectRealm()` picks the next realm from the karmic seed that shapes the
+rebirth (see `pickShapingSeed` — the weightiest, most habitual, or oldest
+active seed) and the inherited continuum's overall karmic balance:
+
+1. No shaping seed, or a neutral one → **human** (the default, precious
+   birth).
+2. Shaping seed is **unwholesome** → by its dominant root: greed → **preta**,
+   aversion → **naraka**, delusion or any unmapped root → **animal**.
+3. Shaping seed is **wholesome** and `weighty` or `strong` → **deva**
+   (heavenly comfort as the fruit of significant merit).
+4. Shaping seed is wholesome but not weighty/strong → **asura** if the
+   inherited continuum's unwholesome share of total potency is ≥ 40% (power
+   tainted by rivalry and envy), otherwise **human**.
+
+A freshly-transmigrated being's starting faculties (vipāka) — mindfulness
+and each of the 8 path factors, `rightView` additionally capped by the new
+realm's `wisdomCap()` — are derived from the potency-weighted wholesome
+share of the karmic balance it just inherited, never copied from the being
+that transmigrated into it. Rebirth is a real reset: a heavily wholesome
+continuum starts its next life ahead, but nobody is born liberated.
+
+**Observation does not rebirth.** Loading a being whose incarnation gap has
+elapsed since it was last saved only marks `pendingRebirth = true`; it never
+enacts `rebirth()` by itself. A rebirth actually happens only inside a
+mutating call (`experience`, `act`, `receiveKarmicResults`, `cognize`,
+`meditate`, `faceSuffering`, `investigateSelf`, or the MCP tools backing
+them) via `settlePendingRebirth()`, which fires before the call's own work
+and persists the new being. Purely read-only paths (`getState`,
+`getSummary`, the MCP `buddha_status`/`buddha_chain` tools) never settle a
+pending rebirth.
 
 ---
 

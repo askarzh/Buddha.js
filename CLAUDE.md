@@ -59,7 +59,7 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `cli/` | `buddha` CLI | Terminal interface with persistence and `--json` output (10 commands) |
 | `mcp/` | `buddha-mcp` server | MCP server exposing Being API as 16 tools (stdio transport) |
 | `plugin/` | Claude Code plugin | Skills and `/buddha` command for Claude Code integration |
-| `simulation/` | `Being` | Integration class combining all concepts |
+| `simulation/` | `Being`, six realm classes (`HumanBeing`, `DevaBeing`, `AsuraBeing`, `AnimalBeing`, `PretaBeing`, `NarakaBeing`) | Integration class combining all concepts; typed rebirth into realm (gati) subclasses |
 | `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |
 
 ### Key Patterns
@@ -75,6 +75,8 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 5. **Persistence**: `Being` and `KarmicStore` implement `Serializable<T>` with `toJSON()`/`fromJSON()`. Function callbacks (ripening conditions) use a named condition registry — serialize the name, re-register the function after restore, call `rebindConditions()`. Data shape types are in `src/utils/types.ts`.
 
 6. **Mind factor count**: `Mind` has 12 pre-configured factors (5 variable, 3 unwholesome, 4 wholesome). `Citta` has the full 52-factor Abhidhamma model.
+
+7. **Typed rebirth (six realms)**: `Being.rebirth()` transmigrates the karmic continuum — the `karmicStore` object and the incremented incarnation counter, nothing else — into a **new** `Being` instance of a realm-specific subclass (`RebirthResult.being`); the calling being does not mutate in place and must not be reused after `rebirth()`. `selectRealm()` (in `src/simulation/Being.ts`, re-exported from `src/simulation/realms.ts`) picks the realm from the karmic seed shaping the rebirth and the inherited karmic balance. Loading a being across the incarnation gap only sets `pendingRebirth`; it never enacts `rebirth()` itself (observation does not rebirth) — mutating handlers call `settlePendingRebirth()` before their own work. See the README's [Six Realms](README.md#six-realms-ṣaḍgati) section for the full selector table and per-realm modifiers.
 
 ### CLI
 

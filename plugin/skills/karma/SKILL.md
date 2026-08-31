@@ -40,6 +40,14 @@ To plant a new karmic seed, call `buddha_act` with:
 | `intensity` | integer 0-10, required | How strong the intention is |
 | `root` | optional enum: `greed`, `aversion`, `delusion`, `non-greed`, `non-aversion`, `non-delusion` | The root motivation. Karmic quality (wholesome/unwholesome) is *derived* from this root — there is no separate `quality` parameter. Omit `root` entirely for a neutral act. |
 
+Both `buddha_act` and `buddha_karma_ripen` are mutating tools: before doing their own work, they settle any pending rebirth the being's incarnation gap has produced since it was last saved (see below). If one fires, the result carries an extra `rebirth` field — `{ fromRealm, toRealm, incarnation }` — describing the transition; mention it to the user before presenting the rest of the result, since everything after it now describes the *new* incarnation, not the one they last saw.
+
+### Rebirth and the Six Realms
+
+`buddha_rebirth` explicitly enacts rebirth: it advances the incarnation, expires any timed-out (ahosi-kamma) seeds, and transmigrates the karmic continuum into a new incarnation whose realm (gati) — `human`, `deva`, `asura`, `animal`, `preta`, or `naraka` — is chosen by the karmic seed that shaped it (its dominant root if unwholesome, or its weight/strength if wholesome) and the inherited karmic balance. It never returns a live being object, only the transmigration summary (`incarnation`, `expiredSeeds`, `shapingSeed`, `fromRealm`, `toRealm`, and a one-line `description` of what the new realm means). Present the realm transition as a meaningful event, not a number bump — each realm biases how the being's next life unfolds (e.g. a deva's meditation gains are halved by comfort-driven complacency, a preta's reactions run hotter from insatiable craving) without disabling anything it can still do.
+
+Rebirth can also happen implicitly: any mutating tool (`buddha_act`, `buddha_karma_ripen`, `buddha_experience`, `buddha_cognize`, `buddha_meditate`, `buddha_diagnose`, `buddha_inquiry`) settles a rebirth that was merely *pending* (detected on load, once the being's incarnation gap has elapsed) before doing its own work — observation alone (e.g. `buddha_status`) never triggers it.
+
 ### Presentation
 
 - When viewing the stream, show a summary of wholesome vs unwholesome seeds, any recently ripened results, and the overall trajectory

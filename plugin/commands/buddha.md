@@ -12,7 +12,7 @@ Buddha.js ships as a bundled MCP server (`buddha-js`) — no build step is requi
 | `buddha_create_being` | Create a new being and persist it to disk |
 | `buddha_list_beings` | List all saved beings |
 | `buddha_delete_being` | Delete a saved being |
-| `buddha_status` | Get the current status of a being |
+| `buddha_status` | Get the current status of a being (read-only — reports the being's current realm but never settles a pending rebirth) |
 | `buddha_experience` | Process a sensory experience through the five aggregates |
 | `buddha_act` | Perform an intentional action that creates karma (quality derives from `root`) |
 | `buddha_karma_ripen` | Check for and receive any ripened karmic results |
@@ -21,7 +21,7 @@ Buddha.js ships as a bundled MCP server (`buddha-js`) — no build step is requi
 | `buddha_inquiry` | Investigate the nature of self (anatta) across the five aggregates |
 | `buddha_chain` | Visualize the 12 links of dependent origination |
 | `buddha_cognize` | Run a full cognitive process (citta-vīthi) over content through a sense door, planting karmic seeds |
-| `buddha_rebirth` | Enact rebirth — advance the incarnation, expire timed-out seeds, carry forward a shaping seed |
+| `buddha_rebirth` | Enact rebirth — advance the incarnation, expire timed-out seeds, select the new incarnation's realm (human, deva, asura, animal, preta, or naraka), and carry forward a shaping seed. Transmigrates into a new being; never returns a live being object |
 | `buddha_koan` | Present a Zen koan for contemplation |
 | `buddha_contemplate` | Submit a response to a koan for dualism-trap evaluation |
 | `buddha_sit` | Guided cessation via the Poison Arrow method |
@@ -35,6 +35,8 @@ Most tools are **stateful** and operate on a named being (`buddha_experience`, `
 3. Then call the stateful tool with that `name`.
 
 `buddha_koan`, `buddha_contemplate`, and `buddha_sit` are **stateless** — no being required.
+
+Most stateful, mutating calls (`buddha_experience`, `buddha_act`, `buddha_karma_ripen`, `buddha_cognize`, `buddha_meditate`, `buddha_diagnose`, `buddha_inquiry`) may settle a **pending rebirth** before doing their own work — a being that was loaded after its incarnation gap has elapsed carries `pendingRebirth`, and the next mutating call transmigrates it into a new incarnation (a different realm class) before proceeding, attaching a `rebirth` field to the result. `buddha_status` (read-only) never does this — observation alone does not rebirth a being.
 
 ## Usage
 

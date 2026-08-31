@@ -21,6 +21,8 @@ Run a full cognitive process (citta-vīthi) over some content and show how a sin
 
 The tool returns a moment-by-moment listing (stage, quality, karmic potency), a "Seeds planted" listing (id, quality, strength, ripening timing), and the full JSON result.
 
+`buddha_cognize` is a mutating tool: before running the vīthi, it settles any pending rebirth left over from the being's incarnation gap (see the `buddha-karma` skill). If one fires, the result carries a `rebirth` field (`{ fromRealm, toRealm, incarnation }`) — mention the realm transition before walking through the moment stream, since the vīthi that follows runs on the *new* incarnation.
+
 ### Presenting the moment stream
 
 Walk the user through the vīthi contemplatively, not as a debug dump:

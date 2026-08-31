@@ -76,16 +76,21 @@ complete, real-composition working example.
 enough that npm exhausts memory resolving it on this machine (verified
 twice). pnpm resolves it in ~10s.
 
+From a fresh clone, the root package must be installed and built first — the
+`buddha-js: file:..` dependency resolves to the root `dist/index.js`, and
+there is no `prepare` script to build it for you:
+
 ```bash
-cd dsh
-pnpm install
+npm install && npm run build     # repo root, npm is fine here
+cd dsh && pnpm install && pnpm build
 ```
 
 ## Scripts
 
 ```bash
 pnpm build      # tsup -> lib/ (CJS-free ESM, with .d.ts)
-pnpm typecheck  # tsc --noEmit -p . — a full type-check tsup's dts build does not do
+pnpm typecheck  # tsc -p tsconfig.check.json — covers src AND tests (the build
+                # tsconfig.json is src-only); a full type-check tsup's dts build does not do
 pnpm test       # vitest run (runs `pnpm typecheck` first, via pretest)
 ```
 
@@ -111,9 +116,15 @@ of the plugin before continuing, not just a test to patch in isolation.
 ## Local dev run
 
 `cordis.dev.yml` is a template overlay (the plugin path is machine-specific,
-so replace `<ABSOLUTE PATH>` before use):
+so replace `<ABSOLUTE PATH>` before use). It points at the **built**
+`dsh/lib/index.js`, not `src/index.ts`: Node's native TypeScript
+type-stripping does not remap a relative `./config.js` specifier to an
+on-disk `./config.ts`, so loading the raw source through the cordis plugin
+loader throws `ERR_MODULE_NOT_FOUND` (see `tests/e2e/headless.test.ts`'s
+module doc). Run `pnpm build` (after the root build, see Setup) first:
 
 ```bash
 cd dsh
+pnpm build
 pnpm dsh web --patch ./cordis.dev.yml
 ```

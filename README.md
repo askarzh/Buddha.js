@@ -939,9 +939,20 @@ DSH composes plugins via a `cordis.yml` insert applied with `--patch`:
 ```yaml
 - insert:
     - id: buddha
-      name: '<ABSOLUTE PATH>/dsh/src/index.ts'
+      name: '<ABSOLUTE PATH>/dsh/lib/index.js'
       config: {}
 ```
+
+The entry must be the **built** `dsh/lib/index.js`, not `dsh/src/index.ts` — Node's native TypeScript type-stripping does not remap a relative `./config.js` specifier to an on-disk `./config.ts`, so loading the raw source through the cordis plugin loader fails with `ERR_MODULE_NOT_FOUND`.
+
+Build it first. From a fresh clone (the `buddha-js: file:..` dependency resolves to the root `dist/index.js`, and there is no `prepare` script):
+
+```bash
+npm install && npm run build     # repo root
+cd dsh && pnpm install && pnpm build
+```
+
+Then run:
 
 ```bash
 cd dsh
@@ -958,7 +969,7 @@ See `dsh/cordis.dev.yml` for the full template (the plugin path is machine-speci
 | `breaker.enabled` | `true` | Whether the Poison Arrow circuit breaker mounts at all |
 | `breaker.threshold` | `3` | Consecutive-failure count that trips the breaker (blocks at `2 × threshold`) |
 | `breaker.mutatingTools` | `['write', 'edit', 'str_replace_editor']` | Tool names whose successful call counts as intervening progress, resetting every streak |
-| `loop` | `'off'` (or `'citta-vithi'`) | Reserved for an opt-in Layer B reactive loop overlay; Layer A citta-vīthi observation (see the table above) mounts unconditionally regardless of this setting |
+| `loop` | `'off'` (or `'citta-vithi'`) | `'citta-vithi'` opts into the **experimental** Layer B agent loop (`src/loop.ts`), which replaces DSH's stock loop with an `AgentFactory` that structures each step as explicit citta-vīthi phases; it is not feature-complete with the stock loop and requires an overlay that also disables the stock `agent-loop` plugin (`ctx.agents.setFactory()` throws if a factory is already registered). See [`dsh/README.md`'s Experimental section](dsh/README.md#experimental-the-citta-vīthi-agent-loop-loop-citta-vithi) for the known gaps. Layer A citta-vīthi observation (see the table above) mounts unconditionally regardless of this setting |
 
 ### pnpm note
 

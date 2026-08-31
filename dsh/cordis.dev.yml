@@ -4,9 +4,24 @@
 # meant to be run as-is. Copy it (or point `--patch` at a local, gitignored
 # copy) and replace the placeholder with this repo's absolute path.
 #
+# The entry MUST be the BUILT `dsh/lib/index.js`, not `dsh/src/index.ts`:
+# Node's native TypeScript type-stripping does not remap a relative
+# `./config.js` specifier to an on-disk `./config.ts`, so loading the raw
+# source through the cordis plugin loader throws `ERR_MODULE_NOT_FOUND`
+# (see tests/e2e/headless.test.ts's module doc). tsup's bundle inlines every
+# local import into one file and loads fine.
+#
+# Build prerequisite, from a fresh clone (the `buddha-js: file:..` dependency
+# resolves to the root `dist/index.js`, and there is no `prepare` script):
+#
+#   npm install && npm run build     # repo root
+#   cd dsh && pnpm install && pnpm build
+#
+# Use pnpm, NOT npm, inside `dsh/` — npm exhausts memory resolving its tree.
+#
 # Usage, from `dsh/`:
 #   pnpm dsh web --patch ./cordis.dev.yml
 - insert:
     - id: buddha
-      name: '<ABSOLUTE PATH>/dsh/src/index.ts'
+      name: '<ABSOLUTE PATH>/dsh/lib/index.js'
       config: {}

@@ -1,0 +1,12 @@
+# Local dev overlay for running dsh-plugin-buddha against a real dsh app.
+#
+# Template only — `<ABSOLUTE PATH>` is machine-specific, so this file is not
+# meant to be run as-is. Copy it (or point `--patch` at a local, gitignored
+# copy) and replace the placeholder with this repo's absolute path.
+#
+# Usage, from `dsh/`:
+#   pnpm dsh web --patch ./cordis.dev.yml
+- insert:
+    - id: buddha
+      name: '<ABSOLUTE PATH>/dsh/src/index.ts'
+      config: {}

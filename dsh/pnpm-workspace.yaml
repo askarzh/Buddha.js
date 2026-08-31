@@ -1,0 +1,14 @@
+allowBuilds:
+  # esbuild's postinstall fetches its platform binary; tsup and vitest need it.
+  esbuild: true
+  # Not exercised by this scaffold (no subprocess/genai/native-addon usage
+  # yet) — left unapproved rather than running build scripts we don't need.
+  '@deepseek-ai/dsh-subprocess-local': false
+  '@google/genai': false
+  koffi: false
+  node-pty: false
+  protobufjs: false
+minimumReleaseAgeExclude:
+  - '@deepseek-ai/cordis@4.0.2'
+  - '@deepseek-ai/cosmokit@1.8.3'
+  - '@deepseek-ai/cordis-plugin-loader@1.0.3'

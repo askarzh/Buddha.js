@@ -17,6 +17,10 @@ out/
 mcpb/server/
 *.mcpb
 
+# dsh plugin (pnpm workspace-less package)
+dsh/lib/
+dsh/node_modules/
+
 # Misc
 .DS_Store
 .env

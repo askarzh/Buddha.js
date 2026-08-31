@@ -13,6 +13,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
@@ -25,3 +28,4 @@ jobs:
       - run: bash scripts/mcp-smoke.sh plugin/dist/mcp.mjs
       - run: npm run build:mcpb
       - run: bash scripts/mcp-smoke.sh mcpb/server/index.mjs
+      - run: npm run build:dsh && npm run test:dsh

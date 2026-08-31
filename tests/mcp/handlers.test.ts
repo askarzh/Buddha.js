@@ -234,6 +234,52 @@ describe('MCP handlers — depth features', () => {
       expect(reloaded.realm).toBe(rebirth.toRealm);
       expect(reloaded.incarnation).toBe(rebirth.incarnation);
     });
+
+    test('diagnose settles a pending rebirth before continuing and persists the new realm', () => {
+      createBeing(sm, 'crosser2');
+      act(sm, 'crosser2', 'hoarded wealth', 8, 'greed');
+      act(sm, 'crosser2', 'hoarded more wealth', 8, 'greed');
+      act(sm, 'crosser2', 'hoarded even more wealth', 8, 'greed');
+      rebirthBeing(sm, 'crosser2');
+
+      process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+
+      const result = diagnose(sm, 'crosser2', ['dukkha-dukkha'], ['sensory']) as Record<string, unknown>;
+      expect(result).toHaveProperty('rebirth');
+      const rebirth = result.rebirth as { fromRealm: string; toRealm: string; incarnation: number };
+
+      if (ORIGINAL_GAP === undefined) {
+        delete process.env.BUDDHA_INCARNATION_GAP_MS;
+      } else {
+        process.env.BUDDHA_INCARNATION_GAP_MS = ORIGINAL_GAP;
+      }
+      const reloaded = sm.loadExistingBeing('crosser2');
+      expect(reloaded.realm).toBe(rebirth.toRealm);
+      expect(reloaded.incarnation).toBe(rebirth.incarnation);
+    });
+
+    test('inquiry settles a pending rebirth before continuing and persists the new realm', () => {
+      createBeing(sm, 'crosser3');
+      act(sm, 'crosser3', 'hoarded wealth', 8, 'greed');
+      act(sm, 'crosser3', 'hoarded more wealth', 8, 'greed');
+      act(sm, 'crosser3', 'hoarded even more wealth', 8, 'greed');
+      rebirthBeing(sm, 'crosser3');
+
+      process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+
+      const result = inquiry(sm, 'crosser3') as Record<string, unknown>;
+      expect(result).toHaveProperty('rebirth');
+      const rebirth = result.rebirth as { fromRealm: string; toRealm: string; incarnation: number };
+
+      if (ORIGINAL_GAP === undefined) {
+        delete process.env.BUDDHA_INCARNATION_GAP_MS;
+      } else {
+        process.env.BUDDHA_INCARNATION_GAP_MS = ORIGINAL_GAP;
+      }
+      const reloaded = sm.loadExistingBeing('crosser3');
+      expect(reloaded.realm).toBe(rebirth.toRealm);
+      expect(reloaded.incarnation).toBe(rebirth.incarnation);
+    });
   });
 });
 

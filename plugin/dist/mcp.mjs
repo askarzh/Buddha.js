@@ -37971,16 +37971,18 @@ function meditate(sm2, name, duration3, effort) {
   return withRebirthNote(result, rebirth);
 }
 function diagnose(sm2, name, suffering, cravings) {
-  const being = sm2.loadExistingBeing(name);
+  const loaded = sm2.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm2, name, loaded);
   const result = being.faceSuffering(suffering, cravings);
   sm2.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 function inquiry(sm2, name) {
-  const being = sm2.loadExistingBeing(name);
+  const loaded = sm2.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm2, name, loaded);
   const result = being.investigateSelf();
   sm2.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 function chain(sm2, name) {
   const being = sm2.loadExistingBeing(name);

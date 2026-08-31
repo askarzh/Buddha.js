@@ -154,17 +154,19 @@ export function diagnose(
   suffering: DukkhaType[],
   cravings: CravingType[],
 ) {
-  const being = sm.loadExistingBeing(name);
+  const loaded = sm.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm, name, loaded);
   const result = being.faceSuffering(suffering, cravings);
   sm.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 
 export function inquiry(sm: StateManager, name: string) {
-  const being = sm.loadExistingBeing(name);
+  const loaded = sm.loadExistingBeing(name);
+  const { being, rebirth } = settleRebirth(sm, name, loaded);
   const result = being.investigateSelf();
   sm.saveBeing(name, being);
-  return result;
+  return withRebirthNote(result, rebirth);
 }
 
 export function chain(sm: StateManager, name: string): string {

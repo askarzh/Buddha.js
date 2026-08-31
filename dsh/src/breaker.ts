@@ -81,10 +81,6 @@ export class BreakerState {
   recordMutatingCall(): void {
     this.streaks.clear()
   }
-
-  streak(tool: string): number {
-    return this.streaks.get(tool)?.count ?? 0
-  }
 }
 
 /**

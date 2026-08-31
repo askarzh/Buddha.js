@@ -1,10 +1,11 @@
 import z from '@deepseek-ai/schemastery'
 
 /**
- * Poison Arrow circuit breaker config, reserved by this scaffold and
- * implemented in a later task: it guards against loops of mutating tool
- * calls (`mutatingTools`) by tripping after `threshold` calls without
- * intervening progress, when `enabled`.
+ * Poison Arrow circuit breaker config (implemented in `src/breaker.ts`):
+ * when `enabled`, a per-agent, per-tool consecutive-failure streak trips the
+ * cessation protocol at `threshold` and blocks the call at `2 * threshold`.
+ * A successful call to any tool named in `mutatingTools` counts as
+ * intervening progress and resets every streak.
  */
 export interface BreakerConfig {
   enabled: boolean
@@ -16,9 +17,9 @@ export interface BreakerConfig {
  * Configuration for `dsh-plugin-buddha`.
  *
  * - `stateDir`: where Being state is persisted. `''` (the default) resolves
- *   to `<os.homedir()>/.buddha/dsh` at apply time (later task).
- * - `breaker`: the Poison Arrow circuit breaker (mutating-tool loop guard),
- *   implemented in a later task — this schema only reserves its shape.
+ *   to `<os.homedir()>/.buddha/dsh` at apply time.
+ * - `breaker`: the Poison Arrow circuit breaker (consecutive-failure loop
+ *   guard), implemented in `src/breaker.ts`.
  * - `loop`: which agent loop to run. `'off'` (default) leaves DSH's stock
  *   `agent-loop` plugin driving every agent, untouched. `'citta-vithi'`
  *   replaces it with the experimental citta-vīthi structured loop

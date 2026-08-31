@@ -7,6 +7,7 @@ import { applyBreaker } from './breaker.js'
 import { applyKarma } from './karma.js'
 import { applyVithi } from './vithi.js'
 import { applyCommands } from './commands.js'
+import { applyRealms } from './realms.js'
 
 export { Config }
 
@@ -57,4 +58,9 @@ export function apply(ctx: Context, config?: Config) {
   // The four human slash commands: `/sit`, `/koan`, `/status`, `/rebirth`.
   // Dispatch straight to a handler, no model round trip.
   applyCommands(ctx, { registry, vithi })
+
+  // Six-realm subagent personas: a `buddha-realms` provider on
+  // `ctx.subagents` mapping persona -> realm, delegating actual execution
+  // to the stock in-process `spawn` provider.
+  applyRealms(ctx, { registry })
 }

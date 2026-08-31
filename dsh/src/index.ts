@@ -6,6 +6,7 @@ import { BeingRegistry } from './being-registry.js'
 import { applyBreaker } from './breaker.js'
 import { applyKarma } from './karma.js'
 import { applyVithi } from './vithi.js'
+import { applyCommands } from './commands.js'
 
 export { Config }
 
@@ -49,5 +50,11 @@ export function apply(ctx: Context, config?: Config) {
   // Layer A citta-vīthi: pure observation of `agent/pre-step` (step/turn
   // records other sub-plugins read from) + one `being.cognize()` per step.
   // Never a loop replacement — that is Layer B, opt-in, a later task.
-  applyVithi(ctx, { registry })
+  // Its handle is captured (not discarded) — `/status` below reads
+  // `getLastVithi()` from it.
+  const vithi = applyVithi(ctx, { registry })
+
+  // The four human slash commands: `/sit`, `/koan`, `/status`, `/rebirth`.
+  // Dispatch straight to a handler, no model round trip.
+  applyCommands(ctx, { registry, vithi })
 }

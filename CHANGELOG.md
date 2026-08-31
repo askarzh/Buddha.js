@@ -31,15 +31,22 @@ DeepSeek Harness (Cordis) plugin: `dsh/`.
   [DeepSeek Harness Plugin](README.md#deepseek-harness-plugin) section for
   the full failure-mode-to-mechanism mapping, install instructions, and
   config keys.
-- `dsh/`'s own `typecheck` script (`tsc --noEmit -p .`), wired into `pnpm
-  test` via `pretest` so a real type-checking gate can't silently rot again.
+- `dsh/`'s own `typecheck` script (`tsc -p tsconfig.check.json`, a check-only
+  config covering `src` **and** `tests` — the build `tsconfig.json` is
+  `src`-only), wired into `pnpm test` via `pretest` so a real type-checking
+  gate can't silently rot again, and so the type-level `satisfies` pins in
+  `tests/compat.test.ts` are actually enforced.
 
 ### Changed
 
 - **Unified versioning** now spans five surfaces instead of four:
   `package.json`, the MCP server's `serverInfo.version`, the Claude Code
   plugin manifest, the MCPB manifest, and `dsh/package.json` are all bumped
-  together on every release from 0.5.0 on.
+  together on every release from 0.5.0 on. (One deliberate exception in this
+  release: `dsh/package.json` sits at **0.5.1**, not 0.5.0 — its content
+  changed after the 0.5.0 unification commit, so it was patch-bumped on
+  purpose. Do not "fix" it back down to 0.5.0; the next release brings all
+  five surfaces level again.)
 
 ## [0.4.0]
 

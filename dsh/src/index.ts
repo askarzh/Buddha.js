@@ -4,6 +4,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Config } from './config.js'
 import { BeingRegistry } from './being-registry.js'
 import { applyBreaker } from './breaker.js'
+import { applyKarma } from './karma.js'
+import { applyVithi } from './vithi.js'
 
 export { Config }
 
@@ -24,6 +26,12 @@ export function apply(ctx: Context, config?: Config) {
   // '' (the schema default) resolves to <os.homedir()>/.buddha/dsh, per
   // config.ts's documented contract.
   const stateDir = resolved.stateDir || path.join(os.homedir(), '.buddha', 'dsh')
+
+  // ONE registry instance is threaded through every sub-plugin below. Two
+  // registries over the same stateDir could hand out divergent `Being`
+  // objects for the same session (each with its own in-memory `live` map),
+  // so this must stay a single hoisted instance, never one constructed
+  // per sub-plugin.
   const registry = new BeingRegistry(stateDir)
 
   // Poison Arrow circuit breaker: registers a `tools/post-execute` waterfall
@@ -34,6 +42,12 @@ export function apply(ctx: Context, config?: Config) {
   // through it, which requires this plugin's own declared `inject` above.
   applyBreaker(ctx, { registry, config: resolved.breaker })
 
-  // Karma tracking and the citta-vithi loop overlay mount here in later
-  // tasks.
+  // Karma from tool outcomes: `tools/result` experiences + `agent/turn-
+  // stopping` wholesome act on a clean turn.
+  applyKarma(ctx, { registry })
+
+  // Layer A citta-vīthi: pure observation of `agent/pre-step` (step/turn
+  // records other sub-plugins read from) + one `being.cognize()` per step.
+  // Never a loop replacement — that is Layer B, opt-in, a later task.
+  applyVithi(ctx, { registry })
 }

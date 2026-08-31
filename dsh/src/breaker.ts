@@ -6,6 +6,7 @@ import { PoisonArrow, type Being, type Intensity } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
 import type { Config } from './config.js'
 import { pluginUserMessage } from './messages.js'
+import { stepRecords } from './step-records.js'
 
 /** One tool, scoped to one agent — the unit the breaker tracks a streak for. */
 export interface StreakKey {
@@ -99,33 +100,14 @@ function hashArguments(args: unknown): string {
 }
 
 /**
- * TODO(Task 4): replace this per-agent monotonic counter with the real step
- * id sourced from `agent/pre-step`. Until that event is wired up, `stepId`
- * only advances when something explicitly calls `advanceStep()` (which
- * Task 4 will do from an `agent/pre-step` listener) — so calls that arrive
- * without an intervening `advanceStep()` (e.g. several tool calls
+ * The current step id for `agent`, sourced from the real `agent/pre-step`
+ * step records (`applyVithi` in vithi.ts populates them). Calls that arrive
+ * without an intervening `agent/pre-step` (e.g. several tool calls
  * dispatched in parallel within one step) legitimately share a `stepId`,
  * which is exactly the grouping `BreakerState.recordFailure` needs.
  */
-const stepCounters = new WeakMap<Agent, { current: number }>()
-
-function stepCounterFor(agent: Agent): { current: number } {
-  let counter = stepCounters.get(agent)
-  if (!counter) {
-    counter = { current: 0 }
-    stepCounters.set(agent, counter)
-  }
-  return counter
-}
-
-/** The current step id for `agent` — see the TODO above `stepCounters`. */
 export function currentStepId(agent: Agent): string {
-  return String(stepCounterFor(agent).current)
-}
-
-/** Advance `agent`'s step counter. Task 4 calls this from `agent/pre-step`. */
-export function advanceStep(agent: Agent): void {
-  stepCounterFor(agent).current += 1
+  return stepRecords.currentStepId(agent)
 }
 
 function sessionIdOf(agent: Agent): string {

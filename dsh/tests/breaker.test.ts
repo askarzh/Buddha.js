@@ -7,7 +7,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, PostToolDecision } from '@deepseek-ai/dsh-tools'
 import { BeingRegistry } from '../src/being-registry.js'
-import { applyBreaker, advanceStep } from '../src/breaker.js'
+import { applyBreaker } from '../src/breaker.js'
+import { stepRecords } from '../src/step-records.js'
 import type { Config } from '../src/config.js'
 
 /**
@@ -20,10 +21,11 @@ import type { Config } from '../src/config.js'
  * `exec.agent.ctx.effect`, `exec.agent.id`, and the fields on `exec`/`result`
  * itself.
  *
- * `currentStepId` is a temporary per-agent monotonic counter (see the
- * TODO(Task 4) in `src/breaker.ts`) that only advances when `advanceStep()`
- * is called. Tests simulate step boundaries explicitly: calling
- * `advanceStep()` between calls puts them in different steps (sequential
+ * `currentStepId` reads from `../src/step-records.js`'s shared `stepRecords`
+ * table, the same one the real `agent/pre-step` listener (`applyVithi` in
+ * `src/vithi.ts`) populates. Tests simulate step boundaries explicitly via
+ * the local `advanceStep()` helper below, which records a new step for the
+ * agent: calling it between calls puts them in different steps (sequential
  * retries); NOT calling it between calls puts them in the same step
  * (parallel calls within one step).
  */
@@ -51,6 +53,15 @@ describe('Poison Arrow circuit breaker', () => {
     // Only `.id` and `.ctx` are ever read by the breaker; a real Cordis
     // Context is used for `.ctx` so `ctx.effect()` behaves like production.
     return { id, ctx: new Context() } as unknown as Agent
+  }
+
+  const stepCounters = new WeakMap<Agent, number>()
+
+  /** Record a new step for `agent` in the shared `stepRecords` table. */
+  function advanceStep(agent: Agent): void {
+    const next = (stepCounters.get(agent) ?? 0) + 1
+    stepCounters.set(agent, next)
+    stepRecords.advance(agent, { phase: 'āvajjana', turn: 0, step: next })
   }
 
   function fakeExec(agent: Agent, name: string, args: unknown = {}, opts: { rootCallId?: string } = {}): ToolExecution {

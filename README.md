@@ -1035,13 +1035,18 @@ continuum starts its next life ahead, but nobody is born liberated.
 
 **Observation does not rebirth.** Loading a being whose incarnation gap has
 elapsed since it was last saved only marks `pendingRebirth = true`; it never
-enacts `rebirth()` by itself. A rebirth actually happens only inside a
-mutating call (`experience`, `act`, `receiveKarmicResults`, `cognize`,
-`meditate`, `faceSuffering`, `investigateSelf`, or the MCP tools backing
-them) via `settlePendingRebirth()`, which fires before the call's own work
-and persists the new being. Purely read-only paths (`getState`,
-`getSummary`, the MCP `buddha_status`/`buddha_chain` tools) never settle a
-pending rebirth.
+enacts `rebirth()` by itself. `Being`'s own methods (`experience`, `act`,
+`receiveKarmicResults`, `cognize`, `meditate`, `faceSuffering`,
+`investigateSelf`, ...) never settle it either — settlement is a caller-side
+policy, not something the library performs on your behalf. The CLI and MCP
+handlers backing those tools settle it for you: they call
+`settlePendingRebirth()` before doing their own mutating work, persist the
+new being, and report the transition. Purely read-only handler paths
+(`getState`, `getSummary`, the MCP `buddha_status`/`buddha_chain` tools)
+never settle a pending rebirth. A direct library caller (embedding `Being`
+without going through the CLI/MCP layer) must call
+`being.settlePendingRebirth()` itself after loading, before relying on any
+mutating call's result.
 
 ---
 

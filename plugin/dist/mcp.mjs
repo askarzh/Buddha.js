@@ -36744,7 +36744,7 @@ var Being = class _Being {
    */
   experience(input) {
     const shift = this.unpleasantIntensityShift();
-    const adjustedInput = input.valence === "unpleasant" && shift !== 0 ? { ...input, intensity: input.intensity + shift } : input;
+    const adjustedInput = input.valence === "unpleasant" && shift !== 0 ? { ...input, intensity: Math.min(10, input.intensity + shift) } : input;
     const processed = this.aggregates.processExperience(adjustedInput);
     this.experienceHistory.push(processed);
     const boost = this.unwholesomeReactionBoost();
@@ -37140,7 +37140,12 @@ var Being = class _Being {
    * Pick the seed that shapes the next incarnation: a weighty seed takes
    * priority (garuka-kamma), then the most habitually-repeated slug
    * (āciṇṇa-kamma), then the oldest active seed as a reserve
-   * (kaṭattā-kamma). Null when the store holds no active seeds.
+   * (kaṭattā-kamma). A tie in planting count between two slugs — or between
+   * two seeds when falling back to the reserve — is resolved in favor of
+   * whichever was formed earliest, since the strict `>` comparisons below
+   * only ever displace the current best, never match it: this is intentional
+   * (āciṇṇa inertia — an established habit outweighs a newer one of equal
+   * strength). Null when the store holds no active seeds.
    */
   pickShapingSeed() {
     const seeds = this.karmicStore.getSeeds({ state: "active" });
@@ -37274,12 +37279,23 @@ var Being = class _Being {
    * result; otherwise returns null without side effects. Centralizes the
    * "observation does not rebirth" policy so callers (e.g. CLI/MCP command
    * handlers) never call rebirth() directly off of a load.
+   *
+   * BeingSerializer's gap-load already advances `_incarnation` by 1 (so
+   * seed-window eligibility and `status` read correctly for a being that
+   * hasn't settled yet), and `rebirth()` unconditionally advances it by 1
+   * more. Left alone that's a double-advance: a being saved at incarnation N
+   * with a next-life seed would land on N+2 after settling, jumping straight
+   * past the N+1 window the seed was waiting for and exhausting it via the
+   * ahosi sweep unripened. To keep the net change across load+settle at
+   * exactly +1, undo the load-time advance here before delegating to
+   * rebirth() (which then reapplies it as part of the real transition).
    */
   settlePendingRebirth() {
     if (!this._pendingRebirth) {
       return null;
     }
     this._pendingRebirth = false;
+    this._incarnation -= 1;
     return this.rebirth();
   }
   /**
@@ -37538,10 +37554,10 @@ var REALM_CLASSES = {
 var REALM_DESCRIPTIONS = {
   human: "the baseline realm, neutral on every hook \u2014 a precious, ordinary birth.",
   deva: "divine comfort dulls the sense of urgency that drives practice.",
-  asura: "rivalry and envy of the devas run aversion-toned reactions hotter.",
+  asura: "rivalry and envy of the devas run aversion-toned reactions hotter, undermining practice.",
   animal: "instinct dominates, with little capacity for reflective wisdom.",
   preta: "insatiable craving amplifies every reaction.",
-  naraka: "intense, unrelenting suffering makes unpleasant experience felt more intensely still."
+  naraka: "intense, unrelenting suffering is felt more intensely still, and undermines practice."
 };
 function selectRealm(shaping, balance) {
   if (!shaping || shaping.quality === "neutral") return "human";
@@ -37955,7 +37971,7 @@ function cognizeObject(sm2, name, content, senseBase) {
 }
 function rebirthBeing(sm2, name) {
   const being = sm2.loadExistingBeing(name);
-  const result = being.rebirth();
+  const result = being.settlePendingRebirth() ?? being.rebirth();
   sm2.saveBeing(name, result.being);
   const { being: _being, ...summary } = result;
   return {

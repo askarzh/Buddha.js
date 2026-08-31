@@ -61,6 +61,10 @@ Typed rebirth: transmigration into six realm classes.
   Consumers will see new insight text at high practice levels that was
   previously impossible to reach.
 
+### Fixed
+
+- `settlePendingRebirth()` no longer double-advances the incarnation counter on top of the gap-load's own +1, which was silently exhausting next-life seeds unripened on a caller's first mutating call after a gap.
+
 ## [0.3.0] (internal — never published separately; merged as PRs #8/#9)
 
 The karmic seed/depth engine underlying 0.4.0's rebirth work. Not tagged or

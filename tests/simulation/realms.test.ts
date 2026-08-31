@@ -81,6 +81,14 @@ describe('Realm classes', () => {
     expect(narakaIntensity).toBe(Math.min(10, humanIntensity + 2));
   });
 
+  it('naraka clamps an already-maximal unpleasant experience to intensity 10 instead of overflowing to 12', () => {
+    const naraka = new NarakaBeing();
+    const input = { senseBase: 'body' as const, object: 'agony', intensity: 10, valence: 'unpleasant' as const };
+    naraka.experience(input);
+    const narakaIntensity = naraka.aggregates.feeling.getState().intensity;
+    expect(narakaIntensity).toBeLessThanOrEqual(10);
+  });
+
   it('naraka meditation gains are reduced like asura', () => {
     const human = new HumanBeing();
     const naraka = new NarakaBeing();

@@ -121,7 +121,12 @@ export function cognizeObject(
 
 export function rebirthBeing(sm: StateManager, name: string) {
   const being = sm.loadExistingBeing(name);
-  const result = being.rebirth();
+  // A gap-crossed load already marks a rebirth as pending (and has already
+  // advanced the incarnation counter once, in anticipation of settling it).
+  // Calling being.rebirth() directly here would advance it a second time —
+  // settle the pending rebirth first (which nets exactly +1) and only fall
+  // back to a fresh rebirth() when nothing was pending.
+  const result = being.settlePendingRebirth() ?? being.rebirth();
   // rebirth() transmigrates into a NEW being (of a possibly different realm
   // class) and detaches/disposes the loaded one — save the new being, not
   // the now-dead object we loaded. The live `being` instance on the result

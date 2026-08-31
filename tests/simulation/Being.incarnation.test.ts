@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Being } from '../../src/simulation/Being';
 
 describe('Being incarnation tracking', () => {
@@ -178,6 +178,67 @@ describe('Being incarnation tracking', () => {
     const { being: reborn } = being.rebirth();
     const after = reborn.receiveKarmicResults(true);
     expect(after.seedVipakas.some(v => v.description.includes('next-life fruit'))).toBe(true);
+  });
+
+  describe('settling a pending rebirth after a gap-load does not double-advance the incarnation', () => {
+    const ORIGINAL_GAP = process.env.BUDDHA_INCARNATION_GAP_MS;
+
+    afterEach(() => {
+      if (ORIGINAL_GAP === undefined) {
+        delete process.env.BUDDHA_INCARNATION_GAP_MS;
+      } else {
+        process.env.BUDDHA_INCARNATION_GAP_MS = ORIGINAL_GAP;
+      }
+    });
+
+    it('REGRESSION: a next-life seed planted before a gap ripens in the settled life instead of being exhausted unripened', () => {
+      const being = new Being();
+      // Plant a next-life (upapajja) seed at incarnation 1 — the same shape
+      // cognize() plants at javana 7 on every cognition.
+      being.karmicStore.plantSeed({
+        quality: 'wholesome',
+        description: 'next-life fruit',
+        ripeningTiming: 'next-life',
+        tags: ['non-delusion', 'incarnation:1'],
+      });
+      const saved = being.toJSON();
+
+      process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+      const restored = Being.fromJSON(saved);
+      expect(restored.pendingRebirth).toBe(true);
+
+      const result = restored.settlePendingRebirth();
+      expect(result).not.toBeNull();
+      const reborn = result!.being;
+
+      // The seed must have survived rebirth()'s ahosi sweep still active —
+      // the double-advance bug lands the settled life on incarnation 3,
+      // which is already past the seed's incarnation-2 window, so the sweep
+      // exhausts it before it ever gets a chance to ripen.
+      const seed = reborn.karmicStore.getSeeds().find(s => s.description === 'next-life fruit');
+      expect(seed?.state).toBe('active');
+
+      const report = reborn.receiveKarmicResults(true);
+      // KarmicStore.createVipaka() wraps the seed description ("Result of
+      // ... karma: <description>"), so match with includes() as the sibling
+      // test above ("ripens after rebirth") does — not exact equality.
+      expect(report.seedVipakas.some(v => v.description.includes('next-life fruit'))).toBe(true);
+    });
+
+    it('COUNTER: saving at incarnation N, gap-loading, then settling advances to exactly N+1', () => {
+      const being = new Being();
+      being.act('daily practice', 5, 'non-delusion');
+      const savedIncarnation = being.incarnation;
+      const saved = being.toJSON();
+
+      process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+      const restored = Being.fromJSON(saved);
+      const result = restored.settlePendingRebirth();
+
+      expect(result).not.toBeNull();
+      expect(result!.incarnation).toBe(savedIncarnation + 1);
+      expect(result!.being.incarnation).toBe(savedIncarnation + 1);
+    });
   });
 
   it('a distant-future seed never expires and ripens once in the future', () => {

@@ -215,12 +215,16 @@ describe('MCP handlers — depth features', () => {
       // own work, and report that it did.
       process.env.BUDDHA_INCARNATION_GAP_MS = '0';
 
+      // This load itself observes the gap as crossed too (BUDDHA_INCARNATION_GAP_MS=0),
+      // so it already reflects the load-time +1 advance that settling below
+      // is designed to net out to a single +1 overall — beforeIncarnation is
+      // therefore the SAME value act() below should settle to, not one less.
       const beforeIncarnation = sm.loadExistingBeing('crosser').incarnation;
 
       const result = act(sm, 'crosser', 'gave alms', 5, 'non-greed') as Record<string, unknown>;
       expect(result).toHaveProperty('rebirth');
       const rebirth = result.rebirth as { fromRealm: string; toRealm: string; incarnation: number };
-      expect(rebirth.incarnation).toBeGreaterThan(beforeIncarnation);
+      expect(rebirth.incarnation).toBe(beforeIncarnation);
 
       // Reload with the gap restored to its default so this reload itself
       // doesn't observe a further (unsettled) gap crossing — we're checking
@@ -279,6 +283,28 @@ describe('MCP handlers — depth features', () => {
       const reloaded = sm.loadExistingBeing('crosser3');
       expect(reloaded.realm).toBe(rebirth.toRealm);
       expect(reloaded.incarnation).toBe(rebirth.incarnation);
+    });
+
+    test('rebirthBeing on a gap-crossed being settles the pending rebirth rather than double-advancing', () => {
+      createBeing(sm, 'crosser4');
+      const savedIncarnation = sm.loadExistingBeing('crosser4').incarnation;
+      expect(savedIncarnation).toBe(1);
+
+      // Force the load inside rebirthBeing to observe the gap as crossed —
+      // it must settle that pending rebirth (net +1), not call being.rebirth()
+      // directly on top of an already-advanced-by-load incarnation.
+      process.env.BUDDHA_INCARNATION_GAP_MS = '0';
+
+      const result = rebirthBeing(sm, 'crosser4');
+      expect(result.incarnation).toBe(savedIncarnation + 1);
+
+      if (ORIGINAL_GAP === undefined) {
+        delete process.env.BUDDHA_INCARNATION_GAP_MS;
+      } else {
+        process.env.BUDDHA_INCARNATION_GAP_MS = ORIGINAL_GAP;
+      }
+      const reloaded = sm.loadExistingBeing('crosser4');
+      expect(reloaded.incarnation).toBe(savedIncarnation + 1);
     });
   });
 });

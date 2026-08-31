@@ -19,8 +19,11 @@ export interface BreakerConfig {
  *   to `<os.homedir()>/.buddha/dsh` at apply time (later task).
  * - `breaker`: the Poison Arrow circuit breaker (mutating-tool loop guard),
  *   implemented in a later task — this schema only reserves its shape.
- * - `loop`: which reactive loop overlay to mount, if any. `'off'` mounts
- *   nothing; `'citta-vithi'` is implemented in a later task.
+ * - `loop`: which agent loop to run. `'off'` (default) leaves DSH's stock
+ *   `agent-loop` plugin driving every agent, untouched. `'citta-vithi'`
+ *   replaces it with the experimental citta-vīthi structured loop
+ *   (`src/loop.ts`) — requires disabling the stock `agent-loop` plugin in
+ *   the cordis overlay; see `dsh/README.md`'s "Experimental" section.
  */
 export interface Config {
   stateDir: string

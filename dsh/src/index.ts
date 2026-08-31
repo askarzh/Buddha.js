@@ -8,6 +8,7 @@ import { applyKarma } from './karma.js'
 import { applyVithi } from './vithi.js'
 import { applyCommands } from './commands.js'
 import { applyRealms } from './realms.js'
+import { applyLoop } from './loop.js'
 
 export { Config }
 
@@ -63,4 +64,12 @@ export function apply(ctx: Context, config?: Config) {
   // `ctx.subagents` mapping persona -> realm, delegating actual execution
   // to the stock in-process `spawn` provider.
   applyRealms(ctx, { registry })
+
+  // Layer B (experimental, opt-in): replace DSH's stock agent loop with the
+  // citta-vīthi structured loop. A no-op unless `config.loop ===
+  // 'citta-vithi'` — the default ('off') leaves every existing test and
+  // deployment completely unaffected.
+  if (resolved.loop === 'citta-vithi') {
+    applyLoop(ctx, { registry })
+  }
 }

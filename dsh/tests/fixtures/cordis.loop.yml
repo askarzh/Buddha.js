@@ -1,0 +1,43 @@
+# Test overlay for tests/e2e/loop.test.ts's real-composition headless boot of
+# the experimental citta-vīthi agent loop (Task 9, opt-in via
+# `config.loop: 'citta-vithi'`). Identical to cordis.test.yml except:
+# - the buddha plugin's config also sets `loop: citta-vithi`;
+# - the stock `agent-loop` plugin is disabled, since
+#   `AgentRegistry.setFactory()` throws if a factory is already registered
+#   (see `applyLoop` in src/loop.ts).
+#
+# __BUDDHA_PLUGIN__, __MOCK_PLUGIN__, and __STATE_DIR__ are substituted with
+# absolute paths at test time (see tests/e2e/loop.test.ts) before this
+# template is written to a temp file and passed via `dsh --patch`.
+
+- insert:
+    - id: buddha
+      name: __BUDDHA_PLUGIN__
+      config:
+        stateDir: __STATE_DIR__
+        loop: citta-vithi
+
+    - id: mock-llm
+      name: __MOCK_PLUGIN__
+
+- id: agent-default-model
+  config:
+    provider: mock
+    model: mock
+
+- id: llm-deepseek
+  disabled: true
+
+- id: agent-loop
+  disabled: true
+
+# Session-title generation dispatches its own `ctx.llm.stream()` call
+# through the same 'mock' route (`agent-default-model` routes everything at
+# it), which races the mock adapter's own sequential request-counter script
+# against this loop's own step dispatch. Disabled so the mock's
+# fail-3-times-then-check-protocol script sees exactly the loop's own
+# requests, deterministically, matching the plain headless e2e test's
+# composition intent.
+- id: session-title-llm
+  disabled: true
+

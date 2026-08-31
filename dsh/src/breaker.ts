@@ -124,13 +124,19 @@ function sessionIdOf(agent: Agent): string {
  * investigate → release → practice) as plain text for injection into what
  * the model sees.
  */
-function renderPoisonArrow(exec: ToolExecution, result: ToolExecutionResult, streak: number, being: Being): string {
+function renderPoisonArrow(
+  exec: ToolExecution,
+  result: ToolExecutionResult,
+  streak: number,
+  threshold: number,
+  being: Being,
+): string {
   const failureMessage = result.isError ? result.error.message : 'unknown failure'
-  const suffering = `repeatedly calling "${exec.name}" and hitting the same failure (${streak} times in a row): ${failureMessage}`
+  const suffering = `repeatedly calling "${exec.name}" and hitting the same failure (pressure ${streak}): ${failureMessage}`
   const arrow = new PoisonArrow(suffering)
 
   const lines = [
-    `Poison Arrow circuit breaker: "${exec.name}" has failed ${streak} times in a row for this ${being.realm} being. Before retrying again, walk through cessation:`,
+    `Poison Arrow circuit breaker: "${exec.name}" is failing repeatedly for this ${being.realm} being. Failure pressure is ${streak}, past the threshold of ${threshold} (a retry with identical arguments adds 2, a varied one adds 1, and all failures within one step add 1 between them — so this is a weight, not a count of calls). Before retrying again, walk through cessation:`,
     '',
   ]
   for (let i = 0; i < 4; i++) {
@@ -193,7 +199,7 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; conf
     being.act(`blind retry of ${exec.name}`, Math.min(10, 3 + streak) as Intensity, 'aversion')
     registry.save(sessionIdOf(agent), being)
 
-    const protocol = renderPoisonArrow(exec, result, streak, being)
+    const protocol = renderPoisonArrow(exec, result, streak, config.threshold, being)
     // `pluginUserMessage()` brands its `id` locally (see messages.ts) rather
     // than importing dsh-llm's real `MessageId` brand, to avoid taking a
     // runtime dependency on dsh-llm just for a value we already construct by

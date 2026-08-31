@@ -5,7 +5,7 @@ import * as os from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CallId } from '@deepseek-ai/dsh-llm'
-import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
+import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, JsonValue } from '@deepseek-ai/dsh-tools'
 import { BeingRegistry } from '../src/being-registry.js'
 import { applyKarma } from '../src/karma.js'
 import { stepRecords } from '../src/step-records.js'
@@ -61,7 +61,7 @@ describe('karma from tool outcomes', () => {
     return { isError: true, error: { message }, content: [] }
   }
 
-  function success(value: unknown = {}): ToolExecutionResult {
+  function success(value: JsonValue = {}): ToolExecutionResult {
     return { isError: false, value, content: [] }
   }
 

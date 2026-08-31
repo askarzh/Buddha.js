@@ -62,8 +62,10 @@ describe('dsh compatibility tripwire', () => {
     // Type-level only: this compiles iff PostToolDecision still has exactly
     // these three discriminated-union shapes. `vitest run` uses esbuild,
     // which strips types without checking them, so a shape change here is
-    // only caught by a real type-checker (`tsc --noEmit` over this
-    // package) — `pnpm build`'s dts step only covers `src/`, not `tests/`.
+    // only caught by a real type-checker. That is `pnpm typecheck` /
+    // `pretest` (`tsc -p tsconfig.check.json`), whose `include` covers `src`
+    // AND `tests` — the build `tsconfig.json` and `pnpm build`'s dts step
+    // both cover `src/` only, so neither would ever see this file.
     const accept = { kind: 'accept', content: [] } satisfies PostToolDecision
     const acceptValue = { kind: 'accept', value: 1 } satisfies PostToolDecision
     const block = { kind: 'block', feedback: [] } satisfies PostToolDecision

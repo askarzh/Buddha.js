@@ -5,7 +5,7 @@ import * as os from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { CallId } from '@deepseek-ai/dsh-llm'
-import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
+import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, JsonValue } from '@deepseek-ai/dsh-tools'
 import { BeingRegistry } from '../src/being-registry.js'
 import { applyVithi, type VithiHandle } from '../src/vithi.js'
 
@@ -54,7 +54,7 @@ describe('Layer A citta-vīthi', () => {
     }
   }
 
-  function success(value: unknown = {}): ToolExecutionResult {
+  function success(value: JsonValue = {}): ToolExecutionResult {
     return { isError: false, value, content: [] }
   }
 

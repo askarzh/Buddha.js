@@ -7,8 +7,8 @@
   "types": "lib/index.d.ts",
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit -p .",
-    "pretest": "tsc --noEmit -p .",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "pretest": "tsc -p tsconfig.check.json",
     "test": "vitest run"
   },
   "peerDependencies": {

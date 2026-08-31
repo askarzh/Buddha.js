@@ -5,7 +5,7 @@ import * as os from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CallId } from '@deepseek-ai/dsh-llm'
-import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, PostToolDecision } from '@deepseek-ai/dsh-tools'
+import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, PostToolDecision, JsonValue } from '@deepseek-ai/dsh-tools'
 import { BeingRegistry } from '../src/being-registry.js'
 import { applyBreaker } from '../src/breaker.js'
 import { stepRecords } from '../src/step-records.js'
@@ -82,7 +82,7 @@ describe('Poison Arrow circuit breaker', () => {
     return { isError: true, error: { message }, content: [] }
   }
 
-  function success(value: unknown = {}): ToolExecutionResult {
+  function success(value: JsonValue = {}): ToolExecutionResult {
     return { isError: false, value, content: [] }
   }
 

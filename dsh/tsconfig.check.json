@@ -1,0 +1,17 @@
+{
+  // Type-check config for `pnpm typecheck` / `pretest`.
+  //
+  // The base `tsconfig.json` is the BUILD config: `rootDir: "src"` and
+  // `include: ["src"]`, so it covers zero test files — which left the
+  // type-level `satisfies` pins in `tests/compat.test.ts` unchecked (vitest
+  // strips types without checking them). This config extends it to cover
+  // `tests` as well, emitting nothing and dropping the `rootDir` constraint.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": null,
+    "outDir": null
+  },
+  "include": ["src", "tests"]
+}

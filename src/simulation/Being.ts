@@ -62,7 +62,11 @@ export interface KarmicResultsReport {
 export interface RebirthResult {
   incarnation: number;
   expiredSeeds: number;
-  shapingSeed: { id: string; description: string; reason: 'weighty' | 'habitual' | 'reserve' } | null;
+  shapingSeed: {
+    id: string;
+    description: string;
+    reason: 'weighty' | 'proximate' | 'habitual' | 'reserve';
+  } | null;
   /** The realm the dying being inhabited. */
   fromRealm: Realm;
   /** The realm selected for the new incarnation (see `selectRealm`). */
@@ -783,9 +787,10 @@ export class Being implements Serializable<BeingData> {
   }
 
   /**
-   * Pick the seed that shapes the next incarnation: a weighty seed takes
-   * priority (garuka-kamma), then the most habitually-repeated slug
-   * (āciṇṇa-kamma), then the oldest active seed as a reserve
+   * Pick the seed that shapes the next incarnation, in the canonical
+   * Theravāda order: a weighty seed takes priority (garuka-kamma), then the
+   * deed nearest death (āsanna-kamma), then the most habitually-repeated
+   * slug (āciṇṇa-kamma), then the oldest active seed as a reserve
    * (kaṭattā-kamma). A tie in planting count between two slugs — or between
    * two seeds when falling back to the reserve — is resolved in favor of
    * whichever was formed earliest, since the strict `>` comparisons below
@@ -793,7 +798,9 @@ export class Being implements Serializable<BeingData> {
    * (āciṇṇa inertia — an established habit outweighs a newer one of equal
    * strength). Null when the store holds no active seeds.
    */
-  private pickShapingSeed(): { seed: KarmicSeed; reason: 'weighty' | 'habitual' | 'reserve' } | null {
+  private pickShapingSeed():
+    | { seed: KarmicSeed; reason: 'weighty' | 'proximate' | 'habitual' | 'reserve' }
+    | null {
     const seeds = this.karmicStore.getSeeds({ state: 'active' });
     if (seeds.length === 0) return null;
 
@@ -818,6 +825,23 @@ export class Being implements Serializable<BeingData> {
         bestSlug = slug;
       }
     }
+
+    // āsanna-kamma: the deed nearest death shapes the next birth when it is
+    // strong enough to be remembered. A trivial last act does not outrank a
+    // life's habit, so only 'moderate' and above qualify. Nor does a last act
+    // that IS the habit displace the āciṇṇa reading of it — āsanna names a
+    // deed distinct from the pattern, otherwise habit would never be
+    // reportable at all. Ties in `createdAt` (one citta-vīthi plants several
+    // seeds at one instant) resolve to the last one planted.
+    const newest = seeds.reduce((a, b) => (b.createdAt >= a.createdAt ? b : a));
+    const newestIsTheHabit = bestSlug !== undefined && this.slugOf(newest) === bestSlug;
+    if (
+      !newestIsTheHabit &&
+      (newest.strength === 'moderate' || newest.strength === 'strong')
+    ) {
+      return { seed: newest, reason: 'proximate' };
+    }
+
     if (bestSlug) {
       const habitual = seeds.find(s => this.slugOf(s) === bestSlug);
       if (habitual) {
@@ -1357,7 +1381,7 @@ export const REALM_DESCRIPTIONS: Record<Realm, string> = {
 
 /**
  * Select the realm of the next rebirth from the seed that shapes it
- * (garuka/āciṇṇa/kaṭattā-kamma — see `Being.pickShapingSeed`) and the
+ * (garuka/āsanna/āciṇṇa/kaṭattā-kamma — see `Being.pickShapingSeed`) and the
  * inherited karmic continuum's overall balance.
  *
  * Canonical mapping (spec §3, transcribed exactly):

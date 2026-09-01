@@ -164,7 +164,8 @@ describe('Being.rebirth() — transmigration', () => {
     // Fake time so createdAt ordering is deterministic: the wholesome seed
     // is planted first (oldest), so pickShapingSeed's kaṭattā-kamma reserve
     // rule picks it as the shaping seed (none of these three are weighty or
-    // share a habitual slug).
+    // share a habitual slug, and the last-planted one is too weak to count
+    // as āsanna-kamma).
     vi.useFakeTimers();
     try {
       const b = new Being();
@@ -190,11 +191,11 @@ describe('Being.rebirth() — transmigration', () => {
       b.karmicStore.plantSeed({
         quality: 'neutral',
         description: 'idle habit',
-        potency: 40,
+        potency: 20,
         tags: ['neutral', 'idle-habit', 'incarnation:1'],
       });
 
-      // unwholesome share = 40 / (20 + 40 + 40) = 0.4 >= 0.4 threshold
+      // unwholesome share = 40 / (20 + 40 + 20) = 0.5 >= 0.4 threshold
       const r = b.rebirth();
 
       expect(r.shapingSeed?.description).toBe('a small kindness');

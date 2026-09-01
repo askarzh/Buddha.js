@@ -87,6 +87,86 @@ describe('Being incarnation tracking', () => {
     }
   });
 
+  it('lets the last deed before death outweigh a merely habitual one', () => {
+    // āsanna-kamma. Distinct timestamps are what make the five filings read
+    // as a habit at all (āciṇṇa counts distinct planting events).
+    vi.useFakeTimers();
+    try {
+      const being = new Being();
+      for (let i = 0; i < 5; i++) {
+        vi.setSystemTime(1000 * (i + 1));
+        being.act('routine filing', 3, 'non-greed');
+      }
+      vi.setSystemTime(9000);
+      being.act('a sudden cruelty', 8, 'aversion'); // āsanna: last, and strong
+
+      const result = being.rebirth();
+
+      expect(result.shapingSeed?.description).toBe('a sudden cruelty');
+      expect(result.shapingSeed?.reason).toBe('proximate');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still prefers a weighty deed over the last one', () => {
+    const being = new Being();
+    // act() derives potency as intensity * 7, which tops out below the
+    // weighty threshold (80), so a genuinely weighty deed is planted directly.
+    being.karmicStore.plantSeed({
+      quality: 'wholesome',
+      description: 'a life-defining vow',
+      potency: 90,
+      tags: ['non-delusion', 'act', 'a-life-defining-vow', 'incarnation:1'],
+    });
+    being.act('an idle remark', 8, 'greed'); // last, and strong
+
+    const result = being.rebirth();
+    expect(result.shapingSeed?.reason).toBe('weighty');
+    expect(result.shapingSeed?.description).toBe('a life-defining vow');
+  });
+
+  it('falls back to the habitual deed when the last one is unremarkable', () => {
+    vi.useFakeTimers();
+    try {
+      const being = new Being();
+      for (let i = 0; i < 5; i++) {
+        vi.setSystemTime(1000 * (i + 1));
+        being.act('daily practice', 5, 'non-greed');
+      }
+      vi.setSystemTime(9000);
+      being.act('a passing thought', 1); // neutral root, weak
+
+      const result = being.rebirth();
+      expect(result.shapingSeed?.reason).toBe('habitual');
+      expect(result.shapingSeed?.description).toBe('daily practice');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not relabel the habit as proximate when the last deed IS the habit', () => {
+    vi.useFakeTimers();
+    try {
+      const being = new Being();
+      for (let i = 0; i < 3; i++) {
+        vi.setSystemTime(1000 * (i + 1));
+        being.act('daily practice', 5, 'non-delusion');
+      }
+      expect(being.rebirth().shapingSeed?.reason).toBe('habitual');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('names a lone strong last deed proximate when there is no habit', () => {
+    const being = new Being();
+    being.act('a sudden cruelty', 8, 'aversion');
+    const result = being.rebirth();
+    expect(result.shapingSeed?.reason).toBe('proximate');
+    expect(result.shapingSeed?.description).toBe('a sudden cruelty');
+  });
+
   it('rebirth reports null shaping seed when the store is empty', () => {
     const being = new Being();
     const result = being.rebirth();

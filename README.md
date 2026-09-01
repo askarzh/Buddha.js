@@ -1170,8 +1170,18 @@ realms bias outcomes, they never disable them:
 | Naraka (hell) | `NarakaBeing` | Meditation gain ×0.75; unpleasant-experience intensity boosted by +2. |
 
 `selectRealm()` picks the next realm from the karmic seed that shapes the
-rebirth (see `pickShapingSeed` — the weightiest, most habitual, or oldest
-active seed) and the inherited continuum's overall karmic balance:
+rebirth and the inherited continuum's overall karmic balance. `pickShapingSeed`
+names that seed in the canonical Theravāda order, reporting which tier chose it
+as `RebirthResult.shapingSeed.reason`:
+
+| Order | Tier | `reason` | The seed picked |
+|-------|------|----------|-----------------|
+| 1 | garuka (weighty) | `weighty` | Any active seed of `weighty` strength (potency ≥ 80). |
+| 2 | āsanna (death-proximate) | `proximate` | The last-planted active seed, when it is `moderate` or `strong` (potency ≥ 25) **and** is not itself the habitual deed — a trivial last thought never outranks a life's pattern, and a last act that merely continues the habit is still reported as `habitual`. |
+| 3 | āciṇṇa (habitual) | `habitual` | The most repeated description-slug, counted by distinct planting events; ties go to the older habit. |
+| 4 | kaṭattā (reserve) | `reserve` | The oldest active seed, when nothing above applies. |
+
+The rules on that seed and the balance:
 
 1. No shaping seed, or a neutral one → **human** (the default, precious
    birth).

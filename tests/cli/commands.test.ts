@@ -1,8 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { Command } from 'commander';
 import { StateManager } from '../../src/cli/utils/state';
+import { status } from '../../src/cli/commands/status';
+import { karma } from '../../src/cli/commands/karma';
+import { inquiry } from '../../src/cli/commands/inquiry';
+import { chain } from '../../src/cli/commands/chain';
+import { diagnose } from '../../src/cli/commands/diagnose';
+import { koan } from '../../src/cli/commands/koan';
+import { sit } from '../../src/cli/commands/sit';
+import { meditate } from '../../src/cli/commands/meditate';
+import { reset } from '../../src/cli/commands/reset';
+import { beings, beingsDelete } from '../../src/cli/commands/beings';
 import {
   runKarma,
   runStatus,
@@ -311,5 +322,123 @@ describe('CLI command bodies', () => {
       runDiagnose(sm, 'tester', {});
       expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(false);
     });
+  });
+});
+
+/**
+ * The Commander action handlers themselves.
+ *
+ * Each handler reads its globals through `cmd.optsWithGlobals()` and nothing
+ * else off the Command, so a stub is enough to drive the `--json` branch —
+ * the branch that returns before any @inquirer prompt is reached. This covers
+ * the printing layer that the runner tests above deliberately skip.
+ */
+describe('CLI action handlers (--json)', () => {
+  let dir: string;
+  let logged: string[];
+  let logSpy: ReturnType<typeof vi.spyOn>;
+
+  /** A Command stand-in carrying the global options the handlers read. */
+  function stubCmd(being = 'tester'): Command {
+    return {
+      optsWithGlobals: () => ({ json: true, being, stateDir: dir }),
+    } as unknown as Command;
+  }
+
+  /** The single JSON document a handler printed. */
+  function lastJson(): any {
+    return JSON.parse(logged[logged.length - 1]);
+  }
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'buddha-cli-'));
+    logged = [];
+    logSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logged.push(args.map(String).join(' '));
+    });
+  });
+  afterEach(() => {
+    logSpy.mockRestore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('status prints the being status as JSON', () => {
+    status({}, stubCmd());
+    expect(lastJson().command).toBe('status');
+    expect(lastJson().being).toBe('tester');
+  });
+
+  it('karma prints the seed it planted', async () => {
+    await karma(
+      { description: 'helped a stranger', intensity: '6', root: 'non-greed' },
+      stubCmd(),
+    );
+    const out = lastJson();
+    expect(out.command).toBe('karma');
+    expect(out.result.karmicSeeds[0].quality).toBe('wholesome');
+  });
+
+  it('karma exits non-zero when quality contradicts the root', async () => {
+    const previousExitCode = process.exitCode;
+    try {
+      await karma(
+        { description: 'gave freely', intensity: '5', root: 'non-greed', quality: 'unwholesome' },
+        stubCmd(),
+      );
+      expect(lastJson().error).toContain('contradicts');
+      expect(process.exitCode).toBe(1);
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
+
+  it('inquiry prints its analysis', () => {
+    inquiry({}, stubCmd());
+    expect(lastJson().command).toBe('inquiry');
+    expect(lastJson().result.selfFound).toBe(false);
+  });
+
+  it('chain prints the twelve links', () => {
+    chain({}, stubCmd());
+    expect(lastJson().result.links).toHaveLength(12);
+  });
+
+  it('diagnose prints a diagnosis', async () => {
+    await diagnose({}, stubCmd());
+    expect(lastJson().command).toBe('diagnose');
+    expect(lastJson().result.path.practices.length).toBeGreaterThan(0);
+  });
+
+  it('koan prints a koan', async () => {
+    await koan({}, stubCmd());
+    expect(lastJson().result.id).toBeTruthy();
+  });
+
+  it('sit prints the four cessation stages', async () => {
+    await sit({ situation: 'a missed deadline' }, stubCmd());
+    expect(lastJson().result.steps).toHaveLength(4);
+  });
+
+  it('meditate prints the session it would run', async () => {
+    await meditate({ duration: '15' }, stubCmd());
+    expect(lastJson().result.durationMinutes).toBe(15);
+  });
+
+  it('reset prints its confirmation and clears the being', () => {
+    reset({}, stubCmd());
+    expect(lastJson().result.reset).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(true);
+  });
+
+  it('beings lists and beings delete removes', () => {
+    reset({}, stubCmd('alice'));
+    beings({}, stubCmd());
+    expect(lastJson().result.beings).toEqual(['alice']);
+
+    beingsDelete('alice', {}, stubCmd());
+    expect(lastJson().result.deleted).toBe('alice');
+
+    beings({}, stubCmd());
+    expect(lastJson().result.count).toBe(0);
   });
 });

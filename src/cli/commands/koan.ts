@@ -1,26 +1,18 @@
 import { Command } from 'commander';
 import { input, confirm } from '@inquirer/prompts';
 import { KoanGenerator } from '../../koan/KoanGenerator';
-import { getGlobalOpts } from '../utils/state';
+import { getGlobalOpts, getStateManager } from '../utils/state';
+import { KoanOpts, runKoan } from '../utils/runner';
 import { header, label, insight, subtle, divider, success } from '../utils/format';
 import chalk from 'chalk';
 
-export async function koan(localOpts: { id?: string }, cmd: Command): Promise<void> {
+export async function koan(localOpts: KoanOpts, cmd: Command): Promise<void> {
   const globalOpts = getGlobalOpts(cmd);
   const generator = new KoanGenerator();
 
   if (globalOpts.json) {
-    const k = localOpts.id ? generator.present(localOpts.id) : generator.present();
-    console.log(JSON.stringify({
-      command: 'koan',
-      result: {
-        id: k.id,
-        title: k.title,
-        case: k.case,
-        source: k.source,
-        hint: k.hint ?? null,
-      },
-    }, null, 2));
+    const mgr = getStateManager(globalOpts);
+    console.log(JSON.stringify(runKoan(mgr, globalOpts.being, localOpts), null, 2));
     return;
   }
 

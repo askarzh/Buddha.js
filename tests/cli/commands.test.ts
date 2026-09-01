@@ -7,6 +7,7 @@ import {
   runKarma,
   runStatus,
   runMeditate,
+  runKoan,
   isKarmaError,
   KarmaResult,
 } from '../../src/cli/utils/runner';
@@ -120,6 +121,26 @@ describe('CLI command bodies', () => {
     it('persists nothing today', () => {
       runMeditate(sm, 'tester', { duration: '15' });
       expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(false);
+    });
+  });
+
+  describe('koan', () => {
+    it('returns a koan with an id and a source', () => {
+      const { result } = runKoan(sm, 'tester', {});
+      expect(result.id).toBeTruthy();
+      expect(result.source).toBeTruthy();
+      expect(result.case).toBeTruthy();
+      expect(result.title).toBeTruthy();
+    });
+
+    it('presents the koan named by --id', () => {
+      const anyKoan = runKoan(sm, 'tester', {}).result;
+      expect(runKoan(sm, 'tester', { id: anyKoan.id }).result.id).toBe(anyKoan.id);
+    });
+
+    it('reports a missing hint as null rather than undefined', () => {
+      const { result } = runKoan(sm, 'tester', {});
+      expect(result.hint === null || typeof result.hint === 'string').toBe(true);
     });
   });
 });

@@ -14,6 +14,7 @@
  * is a change of body, not of call sites.
  */
 import { Being } from '../../simulation/Being';
+import { KoanGenerator } from '../../koan/KoanGenerator';
 import { KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot } from '../../utils/types';
 import { StateManager } from './state';
 
@@ -45,6 +46,32 @@ export function loadSettledBeing(
       fromRealm: settled.fromRealm,
       toRealm: settled.toRealm,
       incarnation: settled.incarnation,
+    },
+  };
+}
+
+// ------------------------------------------------------------------- koan
+
+export interface KoanOpts {
+  id?: string;
+}
+
+/**
+ * Present a koan — the one named by `--id`, or a random one. Stateless: no
+ * being is loaded and nothing is saved.
+ */
+export function runKoan(_sm: StateManager, _beingName: string, opts: KoanOpts) {
+  const generator = new KoanGenerator();
+  const k = opts.id ? generator.present(opts.id) : generator.present();
+
+  return {
+    command: 'koan' as const,
+    result: {
+      id: k.id,
+      title: k.title,
+      case: k.case,
+      source: k.source,
+      hint: k.hint ?? null,
     },
   };
 }

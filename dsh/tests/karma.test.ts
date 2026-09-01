@@ -7,6 +7,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, JsonValue } from '@deepseek-ai/dsh-tools'
 import { BeingRegistry } from '../src/being-registry.js'
+import { SaveScheduler } from '../src/persistence.js'
 import { applyKarma } from '../src/karma.js'
 import { stepRecords } from '../src/step-records.js'
 
@@ -24,14 +25,16 @@ import { stepRecords } from '../src/step-records.js'
 describe('karma from tool outcomes', () => {
   let stateDir: string
   let registry: BeingRegistry
+  let scheduler: SaveScheduler
   let ctx: Context
   let callCounter: number
 
   beforeEach(() => {
     stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-karma-'))
     registry = new BeingRegistry(stateDir)
+    scheduler = new SaveScheduler(registry)
     ctx = new Context()
-    applyKarma(ctx, { registry })
+    applyKarma(ctx, { registry, scheduler })
     callCounter = 0
   })
 
@@ -73,7 +76,7 @@ describe('karma from tool outcomes', () => {
     await ctx.serial('agent/turn-stopping', { agent, turn, signal: new AbortController().signal })
   }
 
-  it('a failed tool result lowers feeling valence to unpleasant on the session being and persists', async () => {
+  it('a failed tool result lowers feeling valence to unpleasant on the session being and persists at the turn boundary', async () => {
     const agent = fakeAgent('session-fail')
     stepRecords.advance(agent, { phase: 'āvajjana', turn: 0, step: 0 })
 
@@ -81,6 +84,11 @@ describe('karma from tool outcomes', () => {
 
     const being = registry.peek('session-fail')
     expect(being.aggregates.feeling.getCurrentTone()).toBe('unpleasant')
+
+    // The tool result only MARKS the being (see SaveScheduler) — the write
+    // happens once, at the turn boundary. Nothing is on disk until then.
+    expect(fs.existsSync(path.join(stateDir, 'beings', 'session-fail.json'))).toBe(false)
+    await stopTurn(agent, 0)
 
     // Persistence: a FRESH registry over the same stateDir must load the
     // same unpleasant experience from disk — `experienceHistory` is the

@@ -179,6 +179,10 @@ function registerDefinitions(ctx: Context, registry: BeingRegistry, vithi: Vithi
       const sessionId = sessionIdOf(invocation)
       const acquired = registry.acquire(sessionId)
       const rebirth = acquired.rebirth ?? acquired.being.rebirth()
+      // DELIBERATELY a direct write, never `scheduler.mark()`: a human typed
+      // `/rebirth` and expects the new incarnation to be durable the moment
+      // the command returns, not at the next turn boundary. Pinned by
+      // tests/commands.test.ts ("/rebirth writes through immediately").
       registry.save(sessionId, rebirth.being)
 
       const shaping = rebirth.shapingSeed ? ` — shaped by: ${rebirth.shapingSeed.description}` : ''

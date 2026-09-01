@@ -3,6 +3,7 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { CognitionResult } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
+import type { SaveScheduler } from './persistence.js'
 import { stepRecords } from './step-records.js'
 
 function sessionIdOf(agent: Agent): string {
@@ -37,8 +38,8 @@ export interface VithiHandle {
  *
  * Returns a `VithiHandle` exposing `getLastVithi` for `/status`.
  */
-export function applyVithi(ctx: Context, deps: { registry: BeingRegistry }): VithiHandle {
-  const { registry } = deps
+export function applyVithi(ctx: Context, deps: { registry: BeingRegistry; scheduler: SaveScheduler }): VithiHandle {
+  const { registry, scheduler } = deps
   const cognizedSteps = new WeakMap<Agent, string>()
   const lastVithi = new WeakMap<Agent, CognitionResult>()
   const cleanedUp = new WeakSet<Agent>()
@@ -84,7 +85,9 @@ export function applyVithi(ctx: Context, deps: { registry: BeingRegistry }): Vit
     const content = `${exec.name}: ${result.isError ? 'failed' : 'ok'}`
     const vithi = being.cognize(content, 'mind')
     lastVithi.set(agent, vithi)
-    registry.save(sessionIdOf(agent), being)
+    // Marked, not written — see SaveScheduler; breaker and karma mutate the
+    // same being on this same tool result and one write covers all three.
+    scheduler.mark(sessionIdOf(agent), being)
   })
 
   return {

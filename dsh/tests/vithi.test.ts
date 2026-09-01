@@ -7,6 +7,7 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { CallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, JsonValue } from '@deepseek-ai/dsh-tools'
 import { BeingRegistry } from '../src/being-registry.js'
+import { SaveScheduler } from '../src/persistence.js'
 import { applyVithi, type VithiHandle } from '../src/vithi.js'
 
 /**
@@ -20,6 +21,7 @@ import { applyVithi, type VithiHandle } from '../src/vithi.js'
 describe('Layer A citta-vīthi', () => {
   let stateDir: string
   let registry: BeingRegistry
+  let scheduler: SaveScheduler
   let ctx: Context
   let handle: VithiHandle
   let callCounter: number
@@ -27,8 +29,9 @@ describe('Layer A citta-vīthi', () => {
   beforeEach(() => {
     stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-vithi-'))
     registry = new BeingRegistry(stateDir)
+    scheduler = new SaveScheduler(registry)
     ctx = new Context()
-    handle = applyVithi(ctx, { registry })
+    handle = applyVithi(ctx, { registry, scheduler })
     callCounter = 0
   })
 

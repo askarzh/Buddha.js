@@ -3,6 +3,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { Intensity } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
+import type { SaveScheduler } from './persistence.js'
 import { stepRecords } from './step-records.js'
 
 /**
@@ -55,8 +56,8 @@ function sessionIdOf(agent: Agent): string {
  * telemetry of the agent's conduct planted as karma, not a context-
  * management system.
  */
-export function applyKarma(ctx: Context, deps: { registry: BeingRegistry }): void {
-  const { registry } = deps
+export function applyKarma(ctx: Context, deps: { registry: BeingRegistry; scheduler: SaveScheduler }): void {
+  const { registry, scheduler } = deps
   const states = new WeakMap<Agent, KarmaState>()
 
   function stateFor(agent: Agent): KarmaState {
@@ -101,7 +102,9 @@ export function applyKarma(ctx: Context, deps: { registry: BeingRegistry }): voi
       })
     }
 
-    registry.save(sessionIdOf(agent), being)
+    // Marked, not written — see SaveScheduler. The turn's single write is
+    // the `scheduler.flush()` at the bottom of `agent/turn-stopping` below.
+    scheduler.mark(sessionIdOf(agent), being)
   })
 
   ctx.on('agent/turn-stopping', ({ agent, turn }: { agent: Agent; turn: number }) => {
@@ -110,9 +113,16 @@ export function applyKarma(ctx: Context, deps: { registry: BeingRegistry }): voi
     if (!state.turnHadError(turn)) {
       const { being } = registry.acquire(sessionIdOf(agent))
       being.act('completed turn', 6, 'non-delusion')
-      registry.save(sessionIdOf(agent), being)
+      scheduler.mark(sessionIdOf(agent), being)
     }
 
     state.forgetTurn(turn)
+
+    // THE turn boundary write: everything breaker/karma/vīthi marked during
+    // this turn lands in ONE write+rename here. This must stay the LAST
+    // action of this listener — the wholesome 'completed turn' act above is
+    // marked, not written, so flushing any earlier would defer it to the
+    // next turn's write.
+    scheduler.flush(sessionIdOf(agent))
   })
 }

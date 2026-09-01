@@ -5,6 +5,7 @@ import type { ToolExecution, ToolExecutionResult, PostToolDecision } from '@deep
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { PoisonArrow, type Being, type Intensity } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
+import type { SaveScheduler } from './persistence.js'
 import type { Config } from './config.js'
 import { pluginUserMessage } from './messages.js'
 import { stepRecords } from './step-records.js'
@@ -169,8 +170,8 @@ function renderPoisonArrow(
  * the downstream decision, augmented — never a fabricated fresh decision,
  * which would silently disable other plugins on the same waterfall.
  */
-export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; config: Config['breaker'] }): void {
-  const { registry, config } = deps
+export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; scheduler: SaveScheduler; config: Config['breaker'] }): void {
+  const { registry, scheduler, config } = deps
   const states = new WeakMap<Agent, BreakerState>()
 
   function stateFor(agent: Agent): BreakerState {
@@ -210,7 +211,10 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; conf
 
     const { being } = registry.acquire(sessionIdOf(agent))
     being.act(`blind retry of ${exec.name}`, Math.min(10, 3 + streak) as Intensity, 'aversion')
-    registry.save(sessionIdOf(agent), being)
+    // Marked, not written: karma and vīthi mutate the SAME being object on
+    // this same tool result. The turn's single write happens at
+    // `agent/turn-stopping` (karma.ts) or at session end (index.ts).
+    scheduler.mark(sessionIdOf(agent), being)
 
     const protocol = renderPoisonArrow(exec, result, streak, config.threshold, being)
     // `pluginUserMessage()` brands its `id` locally (see messages.ts) rather

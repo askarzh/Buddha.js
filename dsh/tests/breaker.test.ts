@@ -7,6 +7,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, PostToolDecision, JsonValue } from '@deepseek-ai/dsh-tools'
 import { BeingRegistry } from '../src/being-registry.js'
+import { SaveScheduler } from '../src/persistence.js'
 import { applyBreaker } from '../src/breaker.js'
 import { stepRecords } from '../src/step-records.js'
 import type { Config } from '../src/config.js'
@@ -32,6 +33,7 @@ import type { Config } from '../src/config.js'
 describe('Poison Arrow circuit breaker', () => {
   let stateDir: string
   let registry: BeingRegistry
+  let scheduler: SaveScheduler
   let ctx: Context
   let breakerConfig: Config['breaker']
   let callCounter: number
@@ -39,9 +41,10 @@ describe('Poison Arrow circuit breaker', () => {
   beforeEach(() => {
     stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-breaker-'))
     registry = new BeingRegistry(stateDir)
+    scheduler = new SaveScheduler(registry)
     ctx = new Context()
     breakerConfig = { enabled: true, threshold: 3, mutatingTools: ['write', 'edit', 'str_replace_editor'] }
-    applyBreaker(ctx, { registry, config: breakerConfig })
+    applyBreaker(ctx, { registry, scheduler, config: breakerConfig })
     callCounter = 0
   })
 
@@ -201,7 +204,11 @@ describe('Poison Arrow circuit breaker', () => {
   it('(h) enabled:false passes the downstream decision through untouched', async () => {
     const disabledCtx = new Context()
     const disabledRegistry = new BeingRegistry(stateDir)
-    applyBreaker(disabledCtx, { registry: disabledRegistry, config: { ...breakerConfig, enabled: false } })
+    applyBreaker(disabledCtx, {
+      registry: disabledRegistry,
+      scheduler: new SaveScheduler(disabledRegistry),
+      config: { ...breakerConfig, enabled: false },
+    })
 
     const agent = fakeAgent()
     const downstream: PostToolDecision = { kind: 'accept', content: [] }

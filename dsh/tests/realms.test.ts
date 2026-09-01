@@ -6,6 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ResolvedSubagentStartRequest, SubagentProvider, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
 import { BeingRegistry } from '../src/being-registry.js'
+import { SaveScheduler } from '../src/persistence.js'
 import { applyRealms, REALM_PERSONAS, resetPersonaWarning } from '../src/realms.js'
 
 /**
@@ -25,20 +26,26 @@ import { applyRealms, REALM_PERSONAS, resetPersonaWarning } from '../src/realms.
 describe('six-realm subagent personas', () => {
   let stateDir: string
   let registry: BeingRegistry
+  let scheduler: SaveScheduler
   let ctx: Context
   let captured: SubagentProvider | undefined
   let spawnCalls: Array<{ name: string; request: SubagentStartRequest }>
   let spawnResult: { output: []; stopReason: string; diagnostic?: string }
   let childRunId: string
+  // Gate in front of the fake run's result, so a test can hold a run open and
+  // observe the child being's on-disk file BEFORE `discard()` removes it.
+  let spawnGate: Promise<void>
 
   beforeEach(async () => {
     stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-realms-'))
     registry = new BeingRegistry(stateDir)
+    scheduler = new SaveScheduler(registry)
     ctx = new Context()
     captured = undefined
     spawnCalls = []
     spawnResult = { output: [], stopReason: 'completed' }
     childRunId = 'child-session-1'
+    spawnGate = Promise.resolve()
 
     const fakeSubagents = {
       registerProvider(provider: SubagentProvider) {
@@ -52,14 +59,14 @@ describe('six-realm subagent personas', () => {
         const run: SubagentRun = {
           id: childRunId as never,
           localAgent: undefined,
-          result: Promise.resolve(spawnResult as never),
+          result: spawnGate.then(() => spawnResult) as never,
           async dispose() {},
         }
         return run
       },
     }
     ctx.provide('subagents', fakeSubagents as never)
-    await applyRealms(ctx, { registry })
+    await applyRealms(ctx, { registry, scheduler })
     resetPersonaWarning()
   })
 
@@ -206,6 +213,30 @@ describe('six-realm subagent personas', () => {
     const beforeTotal = Object.values(before).reduce((a, b) => a + b, 0)
     const afterTotal = Object.values(after).reduce((a, b) => a + b, 0)
     expect(afterTotal).toBeGreaterThan(beforeTotal)
+  })
+
+  it('writes the child being file directly at start, before the run settles', async () => {
+    // PIN: the child being's save is one of only two deliberate direct
+    // `registry.save()` sites left after the save-scheduler refactor (the
+    // other is `/rebirth` in commands.ts). It must be on disk before the run
+    // starts so the `discard()` in the run's `.finally` has a file to remove
+    // — batching it into a flush would leave an orphan written after the
+    // discard. The gate holds the run open, and nothing here flushes, so the
+    // file can only exist if `startRealmChild` wrote it synchronously.
+    let release!: () => void
+    spawnGate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+
+    const parent = fakeAgent('parent-session-direct-child')
+    await captured!.start(fakeRequest('deva', parent))
+
+    const childFile = path.join(stateDir, 'beings', `${childRunId}.json`)
+    expect(fs.existsSync(childFile)).toBe(true)
+
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(fs.existsSync(childFile)).toBe(false)
   })
 
   it('discards the ephemeral child being after the run settles, never persisting a file for it', async () => {

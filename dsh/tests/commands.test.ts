@@ -6,6 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandDefinition, CommandInvocation } from '@deepseek-ai/dsh-commands'
 import { BeingRegistry } from '../src/being-registry.js'
+import { SaveScheduler } from '../src/persistence.js'
 import { applyVithi } from '../src/vithi.js'
 import { applyCommands } from '../src/commands.js'
 
@@ -41,7 +42,7 @@ import { applyCommands } from '../src/commands.js'
  */
 async function mountCommands(registry: BeingRegistry): Promise<Map<string, CommandDefinition>> {
   const ctx = new Context()
-  const vithi = applyVithi(ctx, { registry })
+  const vithi = applyVithi(ctx, { registry, scheduler: new SaveScheduler(registry) })
   const defs = new Map<string, CommandDefinition>()
   const fakeCommandsService = {
     register(definition: CommandDefinition) {
@@ -221,6 +222,23 @@ describe('/sit /koan /status /rebirth commands', () => {
       // The registry's live cache for this session must now be the NEW being.
       const reread = registry.peek(sessionId)
       expect(reread.incarnation).toBe(incarnationBefore + 1)
+    })
+
+    it('writes through immediately, never deferring to the SaveScheduler', async () => {
+      // PIN: `/rebirth` is one of only two deliberate direct `registry.save()`
+      // sites left after the save-scheduler refactor (the other is the child
+      // being in realms.ts). A human typed the command and expects the new
+      // incarnation durable the moment it returns — a later refactor must not
+      // quietly batch this into the turn-boundary flush. Nothing here stops a
+      // turn or flushes anything, so the file can only exist if the handler
+      // wrote it synchronously.
+      const sessionId = 'session-rebirth-direct'
+      const filePath = path.join(stateDir, 'beings', `${sessionId}.json`)
+      expect(fs.existsSync(filePath)).toBe(false)
+
+      await definition('rebirth').handler(fakeInvocation(fakeAgent(sessionId), ''))
+
+      expect(fs.existsSync(filePath)).toBe(true)
     })
 
     it('settles a pending rebirth instead of double-advancing when one is already due', async () => {

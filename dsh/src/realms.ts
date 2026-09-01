@@ -8,6 +8,7 @@ import type {
 import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
 import { Being, REALM_CLASSES, type Intensity } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
+import type { SaveScheduler } from './persistence.js'
 
 /** The three personas this provider maps to — a subset of buddha-js's six-realm `Realm` type. */
 export type SubagentRealm = 'deva' | 'asura' | 'human'
@@ -158,14 +159,23 @@ function transmigrateChild(parentBeing: Being, realm: SubagentRealm): Being {
  * Settles any pending rebirth first (subagent start is a mutating path,
  * per the v0.3 access discipline), and persists the result.
  */
-function plantVipaka(registry: BeingRegistry, parentSessionId: string, realm: SubagentRealm, stopReason: SubagentStopReason): void {
+function plantVipaka(
+  registry: BeingRegistry,
+  scheduler: SaveScheduler,
+  parentSessionId: string,
+  realm: SubagentRealm,
+  stopReason: SubagentStopReason
+): void {
   const { being } = registry.acquire(parentSessionId)
   if (stopReason === 'completed') {
     being.act(`${realm} subagent completed`, 6, 'non-delusion')
   } else {
     being.act(`${realm} subagent ended: ${stopReason}`, 6, 'delusion')
   }
-  registry.save(parentSessionId, being)
+  // Marked, not written: this is the PARENT's being, whose turn write happens
+  // at `agent/turn-stopping` (or at session end). The child's own save below
+  // stays direct — see `startRealmChild`.
+  scheduler.mark(parentSessionId, being)
 }
 
 /**
@@ -183,7 +193,12 @@ function plantVipaka(registry: BeingRegistry, parentSessionId: string, realm: Su
  * (and any file it was given) is discarded — it leaves no trace, matching
  * `BeingRegistry.discard`'s ephemeral-being contract.
  */
-async function startRealmChild(ctx: Context, registry: BeingRegistry, request: ResolvedSubagentStartRequest): Promise<SubagentRun> {
+async function startRealmChild(
+  ctx: Context,
+  registry: BeingRegistry,
+  scheduler: SaveScheduler,
+  request: ResolvedSubagentStartRequest
+): Promise<SubagentRun> {
   const realm = toRealm(request.persona)
   if (request.persona !== realm) warnFallbackPersona(request.persona)
   const persona = REALM_PERSONAS[realm]
@@ -202,11 +217,16 @@ async function startRealmChild(ctx: Context, registry: BeingRegistry, request: R
   const run = await ctx.subagents.start('spawn', rewritten)
 
   const childSessionId = String(run.id)
+  // DELIBERATELY a direct write, never `scheduler.mark()`: the child being
+  // must exist on disk before the run starts, so the `discard()` below has a
+  // file to remove when the run settles. Deferring it to a flush would leave
+  // an orphan file written after the discard. Pinned by
+  // tests/realms.test.ts ("the child being file is written directly").
   registry.save(childSessionId, child)
 
   run.result
     .then((result) => {
-      plantVipaka(registry, parentSessionId, realm, result.stopReason)
+      plantVipaka(registry, scheduler, parentSessionId, realm, result.stopReason)
     })
     .finally(() => {
       registry.discard(childSessionId)
@@ -231,8 +251,8 @@ async function startRealmChild(ctx: Context, registry: BeingRegistry, request: R
  * provides it. Returns the `ctx.inject` fiber so a test can `await` past
  * the async service-availability check.
  */
-export function applyRealms(ctx: Context, deps: { registry: BeingRegistry }) {
-  const { registry } = deps
+export function applyRealms(ctx: Context, deps: { registry: BeingRegistry; scheduler: SaveScheduler }) {
+  const { registry, scheduler } = deps
 
   return ctx.inject(['subagents'], (ctx) => {
     ctx.subagents.registerProvider({
@@ -240,7 +260,7 @@ export function applyRealms(ctx: Context, deps: { registry: BeingRegistry }) {
       capabilities: { outputSchema: false, depthLimit: true, toolFilter: true, persona: true },
       inheritsParentContext: false,
       async start(request: ResolvedSubagentStartRequest): Promise<SubagentRun> {
-        return startRealmChild(ctx, registry, request)
+        return startRealmChild(ctx, registry, scheduler, request)
       },
     })
   })

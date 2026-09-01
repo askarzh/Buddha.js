@@ -3,39 +3,29 @@ import { input, select } from '@inquirer/prompts';
 import { Being } from '../../simulation/Being';
 import { KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot } from '../../utils/types';
 import { GlobalOpts, getStateManager } from '../utils/state';
+import { KarmaOpts, runKarma, isKarmaError, loadSettledBeing } from '../utils/runner';
 import { header, label, insight, subtle, divider, success } from '../utils/format';
 import chalk from 'chalk';
 
-interface KarmaLocalOpts {
-  quality?: string;
-  description?: string;
-  intensity?: string;
-  root?: string;
-}
-
-export async function karma(localOpts: KarmaLocalOpts, cmd: Command): Promise<void> {
+export async function karma(localOpts: KarmaOpts, cmd: Command): Promise<void> {
   const globalOpts = cmd.optsWithGlobals() as GlobalOpts;
   const mgr = getStateManager(globalOpts);
-  const loaded = mgr.loadBeing(globalOpts.being);
+
+  if (globalOpts.json) {
+    const payload = runKarma(mgr, globalOpts.being, localOpts);
+    console.log(JSON.stringify(payload, null, 2));
+    if (isKarmaError(payload)) {
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   // Settle any pending rebirth (incarnation gap crossed since the last save)
   // before this command does its own work — observation-on-load only
   // detects that a rebirth is due; it never enacts it on its own. If one
-  // fires, persist the newly-transmigrated being immediately and continue
-  // on it for everything after.
-  const settled = loaded.settlePendingRebirth();
-  const being = settled ? settled.being : loaded;
-  if (settled) {
-    mgr.saveBeing(globalOpts.being, being);
-  }
-  const rebirth = settled
-    ? { fromRealm: settled.fromRealm, toRealm: settled.toRealm, incarnation: settled.incarnation }
-    : undefined;
-
-  if (globalOpts.json) {
-    await jsonMode(being, localOpts, globalOpts, mgr, rebirth);
-    return;
-  }
+  // fires, the newly-transmigrated being is persisted immediately and
+  // everything after continues on it.
+  const { being, rebirth } = loadSettledBeing(mgr, globalOpts.being);
 
   if (rebirth) {
     console.log(insight(`Since you were last here, your being was reborn: ${rebirth.fromRealm} -> ${rebirth.toRealm} (incarnation ${rebirth.incarnation}).`));
@@ -44,61 +34,6 @@ export async function karma(localOpts: KarmaLocalOpts, cmd: Command): Promise<vo
 
   await interactiveMode(being);
   mgr.saveBeing(globalOpts.being, being);
-}
-
-const UNWHOLESOME_ROOTS: UnwholesomeRoot[] = ['greed', 'aversion', 'delusion'];
-
-function deriveQuality(root: UnwholesomeRoot | WholesomeRoot): KarmaQuality {
-  return UNWHOLESOME_ROOTS.includes(root as UnwholesomeRoot) ? 'unwholesome' : 'wholesome';
-}
-
-async function jsonMode(
-  being: Being,
-  localOpts: KarmaLocalOpts,
-  globalOpts: GlobalOpts,
-  mgr: ReturnType<typeof getStateManager>,
-  rebirth?: { fromRealm: string; toRealm: string; incarnation: number },
-): Promise<void> {
-  if (localOpts.description && localOpts.intensity && localOpts.root) {
-    const intensity = Number(localOpts.intensity) as Intensity;
-    const root = localOpts.root as WholesomeRoot | UnwholesomeRoot;
-
-    if (localOpts.quality) {
-      const derivedQuality = deriveQuality(root);
-      if (localOpts.quality !== derivedQuality) {
-        console.log(JSON.stringify({
-          error: `Quality '${localOpts.quality}' contradicts root '${root}' — quality is determined by the root`,
-        }, null, 2));
-        process.exitCode = 1;
-        return;
-      }
-    }
-
-    being.act(localOpts.description, intensity, root);
-    mgr.saveBeing(globalOpts.being, being);
-  }
-
-  const seeds = being.karmicStore.getSeeds();
-  const state = being.getState();
-
-  console.log(JSON.stringify({
-    command: 'karma',
-    being: globalOpts.being,
-    result: {
-      // `karmicStream` until 0.6.0, when the duplicate stream record of every
-      // act was removed; these are the seeds those acts planted.
-      karmicSeeds: seeds.map(seed => ({
-        quality: seed.quality,
-        intensity: seed.intentionStrength,
-        description: seed.description,
-        state: seed.state,
-        potency: seed.potency,
-      })),
-      totalActions: seeds.length,
-    },
-    state: { mindfulness: state.mindfulnessLevel, karmicActions: state.pendingKarma },
-    ...(rebirth ? { rebirth } : {}),
-  }, null, 2));
 }
 
 async function interactiveMode(being: Being): Promise<void> {

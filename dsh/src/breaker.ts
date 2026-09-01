@@ -133,10 +133,42 @@ function sessionIdOf(agent: Agent): string {
   return agent.id
 }
 
+/** Which tier of the breaker is speaking. The two say categorically different things about what just happened to the call. */
+export type BreakerTier = 'advisory' | 'block'
+
+/**
+ * The opening clause that tells the model WHICH tier this is.
+ *
+ * Both tiers now arrive the same way — as content on the failing tool's own
+ * result — which is what makes them obey-able and also what made them
+ * indistinguishable. A live run confirmed the cost: the model reported an
+ * advisory call as "refused/blocked before the read ran" when that call had
+ * in fact executed. A harness that misdescribes its own state forfeits
+ * exactly the trust the block arm runs on, so each tier names itself.
+ *
+ * Both clauses are literally true, which is the whole point:
+ * - advisory: the call ran, its real error is preserved above this text, and
+ *   nothing was withheld;
+ * - block: the call's output is withheld and replaced by this notice.
+ *
+ * Note what the block clause does NOT claim. This listener sits on
+ * `tools/post-execute`, so a blocked call HAS already been dispatched — its
+ * result is discarded, not prevented. Saying "refused before it ran" would
+ * be the same species of inaccuracy in the other direction. Making that
+ * sentence true would mean denying the call at `tools/pre-execute` once the
+ * streak is already past the boundary; see the Task 4d report.
+ */
+function tierClause(tier: BreakerTier): string {
+  return tier === 'advisory'
+    ? 'ADVISORY, not a refusal: this call RAN and FAILED — its real error is above this notice — and the harness is not blocking you yet.'
+    : 'BLOCKED, not advice: the harness has cut this call off. Its output is withheld and replaced by this notice, and further retries of it will be cut off the same way.'
+}
+
 /**
  * Render the four-step Poison Arrow cessation protocol (recognize →
  * investigate → release → practice) as plain text for injection into what
- * the model sees.
+ * the model sees, led by the `tier` clause that says what just happened to
+ * the call.
  */
 function renderPoisonArrow(
   exec: ToolExecution,
@@ -144,13 +176,14 @@ function renderPoisonArrow(
   streak: number,
   threshold: number,
   being: Being,
+  tier: BreakerTier,
 ): string {
   const failureMessage = result.isError ? result.error.message : 'unknown failure'
   const suffering = `repeatedly calling "${exec.name}" and hitting the same failure (pressure ${streak}): ${failureMessage}`
   const arrow = new PoisonArrow(suffering)
 
   const lines = [
-    `Poison Arrow circuit breaker: "${exec.name}" is failing repeatedly for this ${being.realm} being. Failure pressure is ${streak}, past the threshold of ${threshold} (a retry with identical arguments adds 2, a varied one adds 1, and all failures within one step add 1 between them — so this is a weight, not a count of calls). Before retrying again, walk through cessation:`,
+    `Poison Arrow circuit breaker — ${tierClause(tier)} "${exec.name}" is failing repeatedly for this ${being.realm} being. Failure pressure is ${streak}, past the threshold of ${threshold} (a retry with identical arguments adds 2, a varied one adds 1, and all failures within one step add 1 between them — so this is a weight, not a count of calls). Before retrying again, walk through cessation:`,
     '',
   ]
   for (let i = 0; i < 4; i++) {
@@ -235,7 +268,8 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
     // `agent/turn-stopping` (karma.ts) or at session end (index.ts).
     scheduler.mark(sessionIdOf(agent), being)
 
-    const protocol = renderPoisonArrow(exec, result, streak, config.threshold, being)
+    const enforcing = streak >= config.threshold * config.blockMultiplier
+    const protocol = renderPoisonArrow(exec, result, streak, config.threshold, being, enforcing ? 'block' : 'advisory')
 
     // ENFORCEMENT TIER (streak >= threshold * blockMultiplier).
     //
@@ -251,7 +285,7 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
     // reads, so a second copy in `additionalContexts` would re-introduce
     // exactly the free-floating user-role message the advisory tier stopped
     // sending. One delivery, one provenance.
-    if (streak >= config.threshold * config.blockMultiplier && decision.kind === 'accept') {
+    if (enforcing && decision.kind === 'accept') {
       const feedback: ContentBlock[] = [{ type: 'text', text: protocol }]
       const blocked: PostToolDecision = {
         kind: 'block',

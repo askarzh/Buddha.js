@@ -926,7 +926,7 @@ Each skill calls the corresponding `buddha_*` MCP tool from the bundled `buddha-
 
 | Failure mode | Mechanism | Where |
 |---|---|---|
-| Blind retry loops — repeatedly calling a failing tool the same or nearly the same way | Poison Arrow circuit breaker: a `tools/post-execute` waterfall listener counts a per-agent, per-tool failure streak (a call sharing the same step counts once; a call replaying the same arguments counts double). At `breaker.threshold` it appends the four-step cessation protocol (recognize → investigate → release → practice) to the failing tool's own result — **informational only; see [what we measured](#what-we-measured-about-the-advisory-tier)**. At `threshold × blockMultiplier` it blocks the call outright, and that is the tier that actually stops the loop | `src/breaker.ts` |
+| Blind retry loops — repeatedly calling a failing tool the same or nearly the same way | Poison Arrow circuit breaker: a `tools/post-execute` waterfall listener counts a per-agent, per-tool failure streak (a call sharing the same step counts once; a call replaying the same arguments counts double). At `breaker.threshold` it appends the four-step cessation protocol (recognize → investigate → release → practice) to the failing tool's own result — **informational only; see [what we measured](#what-we-measured-about-the-advisory-tier)**. At `threshold × blockMultiplier` it blocks the call, withholding the result, and that is the tier that actually stops the loop. Each tier opens by naming itself ("ADVISORY, not a refusal: this call RAN and FAILED" versus "BLOCKED, not advice"), so the model is never told a call was refused when it ran | `src/breaker.ts` |
 | Silent erosion of conduct across a session — failures and successes leave no trace the agent (or operator) can inspect | Karma tracking: every tool result becomes a `Being.experience()` (unpleasant, scaled by that tool's consecutive-failure streak, on failure; pleasant on success), and a turn that closes with no tool failure plants a wholesome `act()` | `src/karma.ts` |
 | Ungrounded step-by-step execution with no per-step self-observation | Layer A citta-vīthi: a pure-passthrough `agent/pre-step` listener records step/turn identity (shared with the breaker and karma tracking) and one `Being.cognize()` runs per step — observation only, never a loop replacement | `src/vithi.ts`, `src/step-records.ts` |
 | Undifferentiated subagent roles — a "planning" delegate quietly writing files, or an "audit" delegate fixing instead of verifying | Six-realm subagent personas on a `buddha-realms` provider: `deva` (architect) gets a read-only tool allowlist, `asura` (adversarial auditor) gets read tools plus `bash` but never `write`/`edit`, `human` (implementer) keeps full access; each child spawns as a fresh realm-typed `Being` seeded from the parent's karmic balance, and the run's outcome is planted back into the parent as vipāka on completion | `src/realms.ts` |
@@ -997,6 +997,16 @@ three times, changing how it was delivered each time:
 The last one is worth sitting with: the framing this whole library is built
 from is itself read as evidence of an attack. A model right to be suspicious
 of unattributed instructions is right to be suspicious of ours.
+
+**Each tier says which it is.** Once both tiers arrived as tool-result
+content they became indistinguishable, and a live model duly reported an
+advisory call as "refused/blocked before the read ran" when that call had in
+fact executed. So the informational tier now opens "ADVISORY, not a refusal:
+this call RAN and FAILED ... the harness is not blocking you yet" and the
+enforcement tier opens "BLOCKED, not advice: the harness has cut this call
+off." Neither claims more than is true: the breaker listens on
+`tools/post-execute`, so a blocked call has already been dispatched and its
+result discarded rather than prevented.
 
 **What produced compliance was the block.** In the run where pressure crossed
 the block boundary, the same model described the harness as having "issued a

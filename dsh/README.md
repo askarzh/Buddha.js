@@ -30,7 +30,17 @@ DeepSeek model rather than assuming.
 | Pressure | Tier | What happens |
 |---|---|---|
 | `>= breaker.threshold` (default 3) | Informational | The four-step cessation protocol is appended to the failing tool's own result |
-| `>= threshold * breaker.blockMultiplier` (default 4.5) | Enforcement | The call is **blocked**: the protocol becomes the tool's error result |
+| `>= threshold * breaker.blockMultiplier` (default 4.5) | Enforcement | The call is **blocked**: its output is withheld and the protocol becomes the tool's error result |
+
+Each tier names itself in its opening clause, because both arrive the same way
+— as content on the failing tool's own result — and a live model consequently
+read an advisory notice as a refusal for a call that had actually executed.
+The informational tier now opens "ADVISORY, not a refusal: this call RAN and
+FAILED ... the harness is not blocking you yet"; the enforcement tier opens
+"BLOCKED, not advice: the harness has cut this call off." Note what the second
+one does not say: the breaker sits on `tools/post-execute`, so a blocked call
+has already been dispatched and its result discarded — it is not prevented
+from running.
 
 Pressure is a weight, not a count of calls: a retry with identical arguments
 adds 2, a varied one adds 1, and every failure inside a single step adds 1

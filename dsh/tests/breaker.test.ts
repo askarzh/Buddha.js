@@ -252,6 +252,46 @@ describe('Poison Arrow circuit breaker', () => {
     expect(trippedOnResult(atTwo[2]!)).toBe(true)
   })
 
+  it('(t1) the ADVISORY tier says the call ran and failed, and never claims a refusal', async () => {
+    const agent = fakeAgent()
+    let last: PostToolDecision | undefined
+    for (let i = 0; i < 3; i++) {
+      advanceStep(agent)
+      last = await dispatch(fakeExec(agent, 'bash', { i }), failure())
+    }
+
+    // The wording IS the deliverable: a live model read an advisory notice as
+    // "refused/blocked before the read ran" when the call had in fact
+    // executed, because both tiers arrive as tool-result content. Each tier
+    // now names itself, so both clauses are pinned here.
+    expect(last!.kind).toBe('accept')
+    const text = resultText(last!)
+    expect(text).toContain('ADVISORY, not a refusal')
+    expect(text).toContain('this call RAN and FAILED')
+    expect(text).not.toContain('BLOCKED, not advice')
+    expect(text).not.toContain('cut this call off')
+  })
+
+  it('(t2) the BLOCK tier says the output is withheld, and never claims it is only advice', async () => {
+    const agent = fakeAgent()
+    let last: PostToolDecision | undefined
+    for (let i = 0; i < 5; i++) {
+      advanceStep(agent)
+      last = await dispatch(fakeExec(agent, 'bash', { i }), failure())
+    }
+
+    expect(last!.kind).toBe('block')
+    const text = resultText(last!)
+    expect(text).toContain('BLOCKED, not advice')
+    expect(text).toContain('cut this call off')
+    expect(text).not.toContain('ADVISORY, not a refusal')
+    expect(text).not.toContain('the harness is not blocking you yet')
+    // Both tiers still walk the same four cessation stages.
+    for (const stage of ['recognize', 'investigate', 'release', 'practice']) {
+      expect(text).toContain(stage)
+    }
+  })
+
   it('(f) the downstream decision is preserved: its additionalContexts and its replaced content both survive', async () => {
     const agent = fakeAgent()
     const downstreamContext = { id: 'downstream-x', role: 'user', content: [], source: { kind: 'user' } }

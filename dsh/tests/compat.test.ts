@@ -74,6 +74,36 @@ describe('dsh compatibility tripwire', () => {
     expect(block.kind).toBe('block')
   })
 
+  it('the accept arm can REPLACE the tool result content (spec: the breaker delivers the advisory cessation protocol on the failing tool result)', () => {
+    // Load-bearing since Task 4b: below `2 * threshold` the Poison Arrow
+    // breaker no longer ships the protocol as `additionalContexts` (a
+    // free-floating user-role message live models discount as injected
+    // content, under BOTH loops). It returns
+    // `{ kind: 'accept', content: [...original blocks, ...protocol] }`, so
+    // the notice arrives as the failing tool's own result — the same
+    // provenance the `block` arm gets through `feedback`, and the reason the
+    // block arm is obeyed.
+    //
+    // Three things must hold, pinned here:
+    // 1. the accept arm still accepts a `content` replacement (type-level);
+    // 2. `content` and `value` stay mutually exclusive, so the breaker's
+    //    value-replacement fallback to `additionalContexts` stays necessary;
+    // 3. `postExecute` still HONOURS an accepted `content` replacement
+    //    rather than discarding it — the runtime half, which no type can
+    //    express and which esbuild-stripped types would never catch.
+    const replaced = { kind: 'accept', content: [{ type: 'text', text: 'x' }] } satisfies PostToolDecision
+    expect(replaced.content).toHaveLength(1)
+
+    const dtsPath = require.resolve('@deepseek-ai/dsh-tools/package.json').replace(/package\.json$/, 'lib/types/index.d.ts')
+    const dts = readFileSync(dtsPath, 'utf-8')
+    expect(dts).toMatch(/kind: 'accept';\s*content\?: ContentBlock\[\];\s*value\?: never;/)
+    expect(dts).toMatch(/kind: 'accept';\s*value: JsonValue;\s*content\?: never;/)
+
+    const libPath = require.resolve('@deepseek-ai/dsh-tools')
+    const lib = readFileSync(libPath, 'utf-8')
+    expect(lib).toMatch(/decision\.content !== void 0 \? \{ content: decision\.content \} : \{\}/)
+  })
+
   it('createToolResultMessage nests EVERY given block inside one tool-result block (spec: the citta-vithi loop attaches breaker context to its owning tool result)', async () => {
     // `src/loop.ts` delivers a tool call's `additionalContexts` — the Poison
     // Arrow cessation protocol above all — by appending their content blocks

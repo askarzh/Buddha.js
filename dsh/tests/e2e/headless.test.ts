@@ -113,7 +113,12 @@ describe('real-composition headless boot (Poison Arrow reaches the model)', () =
     const { code, stdout, stateDir } = runHeadless('Run the failing command until it works')
 
     expect(code).toBe(0)
-    expect(stdout).toContain('PROTOCOL SEEN')
+    // The protocol must arrive as the failing tool's OWN result content, not
+    // as a free-floating plugin `user/message` — the provenance live models
+    // accept versus the one they call injected content. The Layer B loop is
+    // held to the identical assertion in `loop-breaker.test.ts`.
+    expect(stdout).not.toContain('PROTOCOL DETACHED')
+    expect(stdout).toContain('PROTOCOL AS TOOL CONTEXT')
 
     // The being state file records the breaker's `blind retry of read` act
     // (see src/breaker.ts's `being.act(\`blind retry of ${exec.name}\`, ...)`

@@ -93,6 +93,22 @@ describe('Poison Arrow circuit breaker', () => {
     return async () => ({ kind: 'accept', content: [] })
   }
 
+  /**
+   * All model-facing text a decision carries on the tool result itself —
+   * the accept arm's replacement `content`, or the block arm's `feedback`.
+   * This, not `additionalContexts`, is where the advisory tier now delivers
+   * the cessation protocol (see the ADVISORY TIER comment in src/breaker.ts).
+   */
+  function resultText(decision: PostToolDecision): string {
+    const blocks = decision.kind === 'block' ? decision.feedback : (decision.content ?? [])
+    return blocks.map((block) => (block.type === 'text' ? block.text : '')).join('\n')
+  }
+
+  /** Whether the cessation protocol reached the model on the tool result. */
+  function trippedOnResult(decision: PostToolDecision): boolean {
+    return resultText(decision).includes('Poison Arrow circuit breaker')
+  }
+
   async function dispatch(
     exec: ToolExecution,
     result: ToolExecutionResult,
@@ -101,7 +117,7 @@ describe('Poison Arrow circuit breaker', () => {
     return ctx.waterfall('tools/post-execute', exec, result, next)
   }
 
-  it('(a) three failures on the same tool with different args trips on the third call, with one plugin-sourced notice containing all four stage names', async () => {
+  it('(a) three failures on the same tool with different args trips on the third call, delivering all four stage names ON THE TOOL RESULT', async () => {
     const agent = fakeAgent()
     let last: PostToolDecision | undefined
     for (let i = 0; i < 3; i++) {
@@ -109,14 +125,38 @@ describe('Poison Arrow circuit breaker', () => {
       last = await dispatch(fakeExec(agent, 'bash', { cmd: `echo ${i}` }), failure())
     }
 
-    expect(last!.additionalContexts).toHaveLength(1)
-    const notice = last!.additionalContexts![0]
-    expect(notice.source).toEqual({ kind: 'plugin', plugin: 'dsh-plugin-buddha' })
-    const text = (notice.content[0] as { text: string }).text
+    expect(last!.kind).toBe('accept')
+    const text = resultText(last!)
     expect(text).toContain('recognize')
     expect(text).toContain('investigate')
     expect(text).toContain('release')
     expect(text).toContain('practice')
+    // ONE delivery, not two: at the advisory tier the protocol rides the
+    // result's own content, so nothing is duplicated into the free-floating
+    // `additionalContexts` channel a model reads as unattributed user text.
+    expect(last!.additionalContexts ?? []).toHaveLength(0)
+  })
+
+  it('(a2) the advisory notice PRESERVES the original error content ahead of the protocol', async () => {
+    const agent = fakeAgent()
+    const errored: ToolExecutionResult = {
+      isError: true,
+      error: { message: 'ENOENT: no such file' },
+      content: [{ type: 'text', text: 'ENOENT: no such file' }],
+    }
+
+    let last: PostToolDecision | undefined
+    for (let i = 0; i < 3; i++) {
+      advanceStep(agent)
+      // A downstream listener that accepts without replacing content, so the
+      // breaker falls back to the result's own blocks.
+      last = await dispatch(fakeExec(agent, 'bash', { cmd: `echo ${i}` }), errored, async () => ({ kind: 'accept' }))
+    }
+
+    const blocks = (last as { kind: 'accept'; content?: { type: string; text?: string }[] }).content!
+    expect(blocks[0]).toEqual({ type: 'text', text: 'ENOENT: no such file' })
+    expect(blocks).toHaveLength(2)
+    expect(trippedOnResult(last!)).toBe(true)
   })
 
   it('(b) identical args reach the threshold on the second failure', async () => {
@@ -124,11 +164,11 @@ describe('Poison Arrow circuit breaker', () => {
 
     advanceStep(agent)
     const first = await dispatch(fakeExec(agent, 'bash', { cmd: 'flaky' }), failure())
-    expect(first.additionalContexts ?? []).toHaveLength(0)
+    expect(trippedOnResult(first)).toBe(false)
 
     advanceStep(agent)
     const second = await dispatch(fakeExec(agent, 'bash', { cmd: 'flaky' }), failure())
-    expect(second.additionalContexts).toHaveLength(1)
+    expect(trippedOnResult(second)).toBe(true)
   })
 
   it('(c) a successful mutating call between failures resets the streak', async () => {
@@ -144,6 +184,7 @@ describe('Poison Arrow circuit breaker', () => {
     const last = await dispatch(fakeExec(agent, 'bash', { n: 3 }), failure())
 
     // Post-reset streak is only 2 (below the threshold of 3): no trip.
+    expect(trippedOnResult(last)).toBe(false)
     expect(last.additionalContexts ?? []).toHaveLength(0)
   })
 
@@ -156,6 +197,7 @@ describe('Poison Arrow circuit breaker', () => {
       last = await dispatch(fakeExec(agent, 'bash', { i }), failure())
     }
 
+    expect(trippedOnResult(last!)).toBe(false)
     expect(last!.additionalContexts ?? []).toHaveLength(0)
   })
 
@@ -170,9 +212,13 @@ describe('Poison Arrow circuit breaker', () => {
 
     expect(last!.kind).toBe('block')
     expect((last as { kind: 'block'; feedback: unknown[] }).feedback.length).toBeGreaterThan(0)
+    expect(trippedOnResult(last!)).toBe(true)
+    // The block arm is unchanged by the advisory-tier rework: it still pairs
+    // its `feedback` with the plugin-sourced context message.
+    expect(last!.additionalContexts).toHaveLength(1)
   })
 
-  it('(f) the downstream decision is preserved: additionalContexts:[X] yields [X, notice], never [notice]', async () => {
+  it('(f) the downstream decision is preserved: its additionalContexts and its replaced content both survive', async () => {
     const agent = fakeAgent()
     const downstreamContext = { id: 'downstream-x', role: 'user', content: [], source: { kind: 'user' } }
 
@@ -181,13 +227,44 @@ describe('Poison Arrow circuit breaker', () => {
       advanceStep(agent)
       const next =
         i === 2
-          ? async (): Promise<PostToolDecision> => ({ kind: 'accept', additionalContexts: [downstreamContext as never] })
+          ? async (): Promise<PostToolDecision> => ({
+              kind: 'accept',
+              content: [{ type: 'text', text: 'downstream replacement' }],
+              additionalContexts: [downstreamContext as never],
+            })
           : accept()
       last = await dispatch(fakeExec(agent, 'bash', { i }), failure(), next)
     }
 
-    expect(last!.additionalContexts).toHaveLength(2)
+    // Context another plugin attached is carried through untouched — and the
+    // breaker adds nothing of its own to that channel any more.
+    expect(last!.additionalContexts).toHaveLength(1)
     expect(last!.additionalContexts![0]).toBe(downstreamContext)
+    // A downstream CONTENT replacement is what the model would have seen, so
+    // it is what the protocol is appended to — not the raw result blocks.
+    const blocks = (last as { kind: 'accept'; content?: { type: string; text?: string }[] }).content!
+    expect(blocks[0]).toEqual({ type: 'text', text: 'downstream replacement' })
+    expect(trippedOnResult(last!)).toBe(true)
+  })
+
+  it('(f2) a downstream BLOCK is preserved: the protocol is appended to its feedback, not converted to an accept', async () => {
+    const agent = fakeAgent()
+
+    let last: PostToolDecision | undefined
+    for (let i = 0; i < 3; i++) {
+      advanceStep(agent)
+      const next =
+        i === 2
+          ? async (): Promise<PostToolDecision> => ({ kind: 'block', feedback: [{ type: 'text', text: 'downstream veto' }] })
+          : accept()
+      last = await dispatch(fakeExec(agent, 'bash', { i }), failure(), next)
+    }
+
+    expect(last!.kind).toBe('block')
+    const feedback = (last as { kind: 'block'; feedback: { type: string; text?: string }[] }).feedback
+    expect(feedback[0]).toEqual({ type: 'text', text: 'downstream veto' })
+    expect(trippedOnResult(last!)).toBe(true)
+    expect(last!.additionalContexts ?? []).toHaveLength(0)
   })
 
   it('(g) sub-dispatch calls (rootCallId !== callId) never count toward the streak', async () => {
@@ -197,6 +274,7 @@ describe('Poison Arrow circuit breaker', () => {
       advanceStep(agent)
       const exec = fakeExec(agent, 'bash', { i }, { rootCallId: 'root-fixed-and-never-equal-to-callid' })
       const decision = await dispatch(exec, failure())
+      expect(trippedOnResult(decision)).toBe(false)
       expect(decision.additionalContexts ?? []).toHaveLength(0)
     }
   })

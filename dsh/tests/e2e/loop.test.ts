@@ -18,7 +18,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
  *
  * Two things prove this is a genuine loop replacement, not the stock loop
  * running unmodified:
- * - the same `PROTOCOL SEEN` outcome as `headless.test.ts` — the mock's
+ * - the same protocol outcome as `headless.test.ts` — the mock's
  *   scripted tool-failure loop must still trip the Poison Arrow breaker
  *   (`agent/pre-step`/`tools/post-execute`, dispatched by THIS loop) and
  *   the resulting plugin-sourced notice must still reach the model through
@@ -104,7 +104,9 @@ describe('real-composition headless boot of the citta-vithi loop', () => {
     )
 
     expect(result.status).toBe(0)
-    expect(result.stdout ?? '').toContain('PROTOCOL SEEN')
+    // Framing (tool-result content, never a loose user message) is asserted
+    // in `loop-breaker.test.ts`; here it is enough that the notice arrived.
+    expect(result.stdout ?? '').not.toContain('PROTOCOL MISSING')
 
     const logs = findSessionLogs(dshHome)
     expect(logs.length).toBeGreaterThan(0)

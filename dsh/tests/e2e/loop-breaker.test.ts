@@ -9,10 +9,16 @@ import { execFileSync, spawnSync } from 'node:child_process'
  * How the Poison Arrow cessation protocol is FRAMED when the experimental
  * citta-vīthi loop (`config.loop: 'citta-vithi'`) delivers it.
  *
- * `loop.test.ts` proves the protocol reaches the model at all. This test
- * proves it arrives attached to the failing tool call that produced it,
- * inside that call's `tool-result` block, rather than as a standalone
- * plugin-sourced `user/message`.
+ * `loop.test.ts` proves this loop drives the run at all (its own
+ * `buddha/vithi-phase` markers). This test proves the cessation protocol
+ * arrives attached to the failing tool call that produced it, inside that
+ * call's `tool-result` block, rather than as a standalone plugin-sourced
+ * `user/message`.
+ *
+ * Two changes put it there, and this test covers both ends: the breaker's
+ * advisory tier now returns `{ kind: 'accept', content: [...] }` instead of
+ * `additionalContexts` (src/breaker.ts), and this loop attaches whatever
+ * `additionalContexts` do arrive to their owning tool result (src/loop.ts).
  *
  * That distinction is not cosmetic. Run against a real DeepSeek model under
  * this loop, the detached form was received and then deliberately
@@ -30,13 +36,14 @@ import { execFileSync, spawnSync } from 'node:child_process'
  *
  * Harness: the same real-composition boot as `loop.test.ts` (`dsh --profile
  * headless --patch <overlay>` over `tests/fixtures/cordis.loop.yml`, with
- * the stock `agent-loop` disabled), pointed at
- * `tests/fixtures/mock-llm-breaker-plugin.ts` instead of the shared mock.
+ * the stock `agent-loop` disabled) and the same shared mock adapter, whose
+ * request-4 probe reports the framing directly. `headless.test.ts` runs that
+ * identical probe against the STOCK loop; both must now say the same thing.
  */
 describe('citta-vithi loop: cessation protocol framing', () => {
   const dshRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
   const buddhaPluginPath = path.join(dshRoot, 'lib', 'index.js')
-  const mockPluginPath = path.join(dshRoot, 'tests', 'fixtures', 'mock-llm-breaker-plugin.ts')
+  const mockPluginPath = path.join(dshRoot, 'tests', 'fixtures', 'mock-llm-plugin.ts')
   const overlayTemplatePath = path.join(dshRoot, 'tests', 'fixtures', 'cordis.loop.yml')
   const dshBinPath = path.join(dshRoot, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 

@@ -164,6 +164,24 @@ function renderPoisonArrow(
 }
 
 /**
+ * Wrap the rendered protocol as one plugin-sourced context message.
+ *
+ * `pluginUserMessage()` brands its `id` locally (see messages.ts) rather than
+ * importing dsh-llm's real `MessageId` brand, to avoid taking a runtime
+ * dependency on dsh-llm just for a value we already construct by hand. The
+ * two brands are nominally distinct but structurally identical strings, so
+ * this is the narrowest cast that bridges them for the type dsh's
+ * `additionalContexts` actually expects.
+ *
+ * Only two callers remain, both of them cases where the protocol cannot ride
+ * the tool result's own content: the block arm (which pairs the context with
+ * its `feedback`, unchanged) and the value-replacement fallback.
+ */
+function noticeFor(protocol: string): AdditionalContext {
+  return pluginUserMessage(protocol) as unknown as AdditionalContext
+}
+
+/**
  * Mount the Poison Arrow circuit breaker on `tools/post-execute`.
  *
  * A waterfall listener: it ALWAYS delegates to `next()` first and returns
@@ -217,26 +235,74 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
     scheduler.mark(sessionIdOf(agent), being)
 
     const protocol = renderPoisonArrow(exec, result, streak, config.threshold, being)
-    // `pluginUserMessage()` brands its `id` locally (see messages.ts) rather
-    // than importing dsh-llm's real `MessageId` brand, to avoid taking a
-    // runtime dependency on dsh-llm just for a value we already construct by
-    // hand. The two brands are nominally distinct but structurally identical
-    // strings, so this is the narrowest cast that bridges them for the type
-    // dsh's `additionalContexts` actually expects.
-    const notice = pluginUserMessage(protocol) as unknown as AdditionalContext
 
     if (streak >= 2 * config.threshold && decision.kind === 'accept') {
       const feedback: ContentBlock[] = [{ type: 'text', text: protocol }]
       const blocked: PostToolDecision = {
         kind: 'block',
         feedback,
-        additionalContexts: [...(decision.additionalContexts ?? []), notice],
+        additionalContexts: [...(decision.additionalContexts ?? []), noticeFor(protocol)],
       }
       return blocked
     }
+
+    // ADVISORY TIER (threshold <= streak < 2 * threshold).
+    //
+    // The protocol is delivered as part of the failing call's OWN result
+    // content, via the accept arm's `content` replacement — the same channel
+    // the block arm above already uses through `feedback`, and the reason
+    // that arm is obeyed. It is NOT sent as `additionalContexts`.
+    //
+    // Why (measured, not assumed): `additionalContexts` is delivered by BOTH
+    // loops — the stock `agent-loop` splices it into its next-step inbox and
+    // appends it as a standalone `user/message`; this plugin's Layer B loop
+    // attaches it to the tool result (src/loop.ts) — but as a free-floating
+    // user-role message it reads to a model as text of unknown provenance in
+    // the user's voice. Live DeepSeek runs at this tier, under EITHER loop,
+    // said so and refused it: "prompting-injection-style material
+    // masquerading as a system/cessation signal", "injected into my context
+    // between tool invocations ... treated as untrusted injected content".
+    // The same model at the block tier, where the protocol arrives as the
+    // tool's own result, followed it. Provenance, not wording, is what the
+    // model was reasoning about, so the advisory tier now uses the same
+    // provenance.
+    //
+    // The original blocks are preserved ahead of it: the model still needs to
+    // read the actual error it is retrying into. `decision.content` wins over
+    // `result.content` when a downstream listener replaced it — that
+    // replacement is what the model would otherwise have seen, and the
+    // waterfall's earlier decision is not ours to discard.
+    const protocolBlock: ContentBlock = { type: 'text', text: protocol }
+
+    if (decision.kind === 'block') {
+      // A downstream listener already blocked this call. Its `feedback` IS
+      // the model-facing result content, so the protocol rides there —
+      // preserving the block, which is a stronger verdict than ours.
+      return { ...decision, feedback: [...decision.feedback, protocolBlock] }
+    }
+
+    if (Object.hasOwn(decision, 'value')) {
+      // A downstream `accept` that replaces the result VALUE: dsh-tools
+      // throws if one decision carries both `value` and `content`
+      // (`postExecute()`), so the content channel is unavailable and the
+      // notice would otherwise vanish. Fall back to `additionalContexts` —
+      // the only remaining delivery — rather than dropping the protocol or
+      // overriding another plugin's decision. (Unreachable today: this arm
+      // only runs on `result.isError`, and dsh-tools separately rejects
+      // replacing the value of a failed result. Kept as an honest fallback,
+      // not dead-code theatre: the union permits it, so the code answers it.)
+      return { ...decision, additionalContexts: [...(decision.additionalContexts ?? []), noticeFor(protocol)] }
+    }
+
+    const base = decision.content ?? result.content
+    // Rebuilt field by field rather than spread: `PostToolDecision`'s two
+    // accept arms make `content` and `value` mutually exclusive, and the
+    // value arm is already returned above, but `Object.hasOwn` does not
+    // narrow the union for the compiler.
     const augmented: PostToolDecision = {
-      ...decision,
-      additionalContexts: [...(decision.additionalContexts ?? []), notice],
+      kind: 'accept',
+      content: [...base, protocolBlock],
+      ...(decision.additionalContexts === undefined ? {} : { additionalContexts: decision.additionalContexts }),
     }
     return augmented
   })

@@ -96,6 +96,29 @@ export abstract class PathFactor extends Phenomenon {
     return this._developmentLevel;
   }
 
+  /**
+   * Practise until this factor reaches `target`, and no further.
+   *
+   * Callers used to reconstruct `practice()`'s internal step size to avoid
+   * overshooting a cap (see the realm wisdom cap in `Being`). The step size is
+   * this class's business; the caller's business is where it wants to land.
+   *
+   * Guarded against a factor whose `practice()` cannot move the level any
+   * further (a no-op override, or one already at its own ceiling) so this
+   * never spins forever.
+   */
+  practiceTo(target: Intensity): Intensity {
+    while (this._developmentLevel < target) {
+      const before = this._developmentLevel;
+      this.practice(1);
+      if (this._developmentLevel > target) {
+        this._developmentLevel = target;
+      }
+      if (this._developmentLevel === before) break; // practice() is a no-op here
+    }
+    return this._developmentLevel;
+  }
+
   /** Is this factor being actively cultivated? */
   get isActive(): boolean {
     return this._isActive;

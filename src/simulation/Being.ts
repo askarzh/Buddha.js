@@ -370,23 +370,19 @@ export class Being implements Serializable<BeingData> {
 
   /**
    * Practice a path factor through Being, applying wisdomCap() as a ceiling
-   * on rightView specifically. PathFactor has no setter for developmentLevel
-   * (only reset() to zero), so the cap is enforced by pre-limiting the
-   * effort passed to practice() rather than clamping the result — this
-   * duplicates PathFactor.practice()'s internal `effort * 0.15` increment
-   * formula, a documented coupling accepted so PathFactor itself is never
-   * edited (see task-1-report.md).
+   * on rightView specifically. Growth toward the cap is delegated to
+   * PathFactor.practiceTo(), which owns the step size internally — Being no
+   * longer reconstructs practice()'s `effort * 0.15` increment formula to
+   * pre-limit effort (see task-7-report.md; this replaces the coupling
+   * accepted in task-1-report.md).
    */
   private practicePathFactor(factor: PathFactor, effort: Intensity): Intensity {
     if (factor === this.path.rightView) {
       const cap = this.wisdomCap();
-      const current = factor.developmentLevel;
-      if (current >= cap) {
-        return current;
+      if (factor.developmentLevel >= cap) {
+        return factor.developmentLevel;
       }
-      const room = cap - current;
-      const maxEffort = room / 0.15;
-      effort = Math.min(effort, maxEffort) as Intensity;
+      return factor.practiceTo(cap);
     }
     return factor.practice(effort);
   }

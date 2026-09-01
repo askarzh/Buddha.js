@@ -5,7 +5,14 @@ import * as os from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CallId } from '@deepseek-ai/dsh-llm'
-import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, PostToolDecision, JsonValue } from '@deepseek-ai/dsh-tools'
+import type {
+  ToolExecution,
+  ToolExecutionResult,
+  ToolExecutionToken,
+  PostToolDecision,
+  PreToolDecision,
+  JsonValue,
+} from '@deepseek-ai/dsh-tools'
 import { BeingRegistry } from '../src/being-registry.js'
 import { SaveScheduler } from '../src/persistence.js'
 import { applyBreaker } from '../src/breaker.js'
@@ -115,6 +122,22 @@ describe('Poison Arrow circuit breaker', () => {
     next: () => Promise<PostToolDecision> = accept()
   ): Promise<PostToolDecision> {
     return ctx.waterfall('tools/post-execute', exec, result, next)
+  }
+
+  /** Run the `tools/pre-execute` waterfall — the gate that refuses a call outright. */
+  async function preDispatch(
+    exec: ToolExecution,
+    next: () => Promise<PreToolDecision> = async () => ({ kind: 'allow' }),
+  ): Promise<PreToolDecision> {
+    return ctx.waterfall('tools/pre-execute', exec, next)
+  }
+
+  /** Drive `count` failures of one tool with identical arguments, one per step. */
+  async function pressureUp(agent: Agent, tool: string, count: number): Promise<void> {
+    for (let i = 0; i < count; i++) {
+      advanceStep(agent)
+      await dispatch(fakeExec(agent, tool, { cmd: 'same' }), failure())
+    }
   }
 
   it('(a) three failures on the same tool with different args trips on the third call, delivering all four stage names ON THE TOOL RESULT', async () => {
@@ -339,6 +362,95 @@ describe('Poison Arrow circuit breaker', () => {
     expect(feedback[0]).toEqual({ type: 'text', text: 'downstream veto' })
     expect(trippedOnResult(last!)).toBe(true)
     expect(last!.additionalContexts ?? []).toHaveLength(0)
+  })
+
+  it('(p1) a call whose streak is ALREADY past the boundary is denied before it runs', async () => {
+    const agent = fakeAgent()
+    // Identical retries: pressure 1 -> 3 -> 5, and 5 >= 3 * 1.5.
+    await pressureUp(agent, 'bash', 3)
+
+    const decision = await preDispatch(fakeExec(agent, 'bash', { cmd: 'same' }))
+
+    expect(decision.kind).toBe('deny')
+    const reason = (decision as { kind: 'deny'; reason: string }).reason
+    // Every clause of the refusal has to be checkable by the model.
+    expect(reason).toContain('"bash"')
+    expect(reason).toContain('REFUSED before dispatch')
+    expect(reason).toContain('this call did not run')
+    expect(reason).toContain('Failure pressure 5')
+    expect(reason).toContain('block boundary of 4.5')
+    expect(reason).toContain('write, edit, str_replace_editor')
+    // The deny reason is not the place for the cessation liturgy.
+    expect(reason).not.toContain('recognize')
+    expect(reason).not.toContain('Insight:')
+  })
+
+  it('(p2) below the boundary the call is allowed through untouched', async () => {
+    const agent = fakeAgent()
+    // Pressure 3: advisory tier, not enforcement.
+    await pressureUp(agent, 'bash', 2)
+
+    const decision = await preDispatch(fakeExec(agent, 'bash', { cmd: 'same' }))
+    expect(decision.kind).toBe('allow')
+
+    // And an untouched tool is never affected by another tool's streak.
+    await pressureUp(agent, 'bash', 1)
+    expect((await preDispatch(fakeExec(agent, 'bash', { cmd: 'same' }))).kind).toBe('deny')
+    expect((await preDispatch(fakeExec(agent, 'read', { file: 'x' }))).kind).toBe('allow')
+  })
+
+  it('(p3) a foreign deny or ask is never overridden', async () => {
+    const agent = fakeAgent()
+    await pressureUp(agent, 'bash', 3)
+
+    const foreignDeny = await preDispatch(fakeExec(agent, 'bash', { cmd: 'same' }), async () => ({
+      kind: 'deny',
+      reason: 'downstream policy',
+    }))
+    expect(foreignDeny).toEqual({ kind: 'deny', reason: 'downstream policy' })
+
+    // An `ask` is an approval about to be offered to the operator; turning it
+    // into a deny would cancel that choice.
+    const foreignAsk = await preDispatch(fakeExec(agent, 'bash', { cmd: 'same' }), async () => ({
+      kind: 'ask',
+      reason: 'needs approval',
+    }))
+    expect(foreignAsk).toEqual({ kind: 'ask', reason: 'needs approval' })
+  })
+
+  it('(p4) the deny LIFTS after a successful mutating call — it is not a trap', async () => {
+    const agent = fakeAgent()
+    await pressureUp(agent, 'bash', 3)
+    expect((await preDispatch(fakeExec(agent, 'bash', { cmd: 'same' }))).kind).toBe('deny')
+
+    // Real progress: a successful `edit` (a configured mutating tool).
+    advanceStep(agent)
+    await dispatch(fakeExec(agent, 'edit', {}), success())
+
+    expect((await preDispatch(fakeExec(agent, 'bash', { cmd: 'same' }))).kind).toBe('allow')
+  })
+
+  it('(p5) our own denial is not re-counted as a failure when it flows back through post-execute', async () => {
+    const agent = fakeAgent()
+    await pressureUp(agent, 'bash', 3)
+
+    // dsh-tools materializes a deny as a failed result and still runs
+    // post-execute over it; the breaker must leave that alone.
+    const exec = fakeExec(agent, 'bash', { cmd: 'same' })
+    const denial = await preDispatch(exec)
+    expect(denial.kind).toBe('deny')
+
+    advanceStep(agent)
+    const downstream: PostToolDecision = { kind: 'accept', content: [{ type: 'text', text: 'Error: refused' }] }
+    const after = await dispatch(exec, failure('refused'), async () => downstream)
+    // Passed straight through: no protocol appended over the deny reason.
+    expect(after).toBe(downstream)
+
+    // And the pressure did not grow for a call that never ran: one more real
+    // failure would have taken 5 -> 7 had the denial been counted.
+    advanceStep(agent)
+    const next = await dispatch(fakeExec(agent, 'bash', { cmd: 'same' }), failure())
+    expect(resultText(next)).toContain('Failure pressure is 7')
   })
 
   it('(g) sub-dispatch calls (rootCallId !== callId) never count toward the streak', async () => {

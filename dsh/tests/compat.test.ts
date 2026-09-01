@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import type { PostToolDecision } from '@deepseek-ai/dsh-tools'
+import type { PostToolDecision, PreToolDecision } from '@deepseek-ai/dsh-tools'
 
 const require = createRequire(import.meta.url)
 
@@ -72,6 +72,33 @@ describe('dsh compatibility tripwire', () => {
     expect(accept.kind).toBe('accept')
     expect(acceptValue.kind).toBe('accept')
     expect(block.kind).toBe('block')
+  })
+
+  it('PreToolDecision keeps its deny arm and a denial is materialized as a failed result (spec: the breaker refuses a call that is already past the block boundary)', () => {
+    // Load-bearing since Task 4e: the breaker's third tier denies at
+    // `tools/pre-execute` so an already-blocked tool is never dispatched —
+    // a block that still executes a `write`/`edit`/`bash` pays the call's
+    // cost and side effects and only hides the output.
+    const allow = { kind: 'allow' } satisfies PreToolDecision
+    const deny = { kind: 'deny', reason: 'past the block boundary' } satisfies PreToolDecision
+    const ask = { kind: 'ask', reason: 'needs approval' } satisfies PreToolDecision
+    expect([allow.kind, deny.kind, ask.kind]).toEqual(['allow', 'deny', 'ask'])
+
+    const dtsPath = require.resolve('@deepseek-ai/dsh-tools/package.json').replace(/package\.json$/, 'lib/types/index.d.ts')
+    const dts = readFileSync(dtsPath, 'utf-8')
+    expect(dts).toMatch(/kind: 'deny';\s*reason: string;/)
+    // The waterfall's own signature: a listener sees the pending decision
+    // through `next()` and returns one, which is what lets the breaker
+    // override an `allow` while leaving a foreign `deny`/`ask` standing.
+    expect(dts).toMatch(/'tools\/pre-execute'\(this: [^)]*exec: ToolExecution, next: \(\) => Promise<PreToolDecision>\): Promise<PreToolDecision>;/)
+
+    const libPath = require.resolve('@deepseek-ai/dsh-tools')
+    const lib = readFileSync(libPath, 'utf-8')
+    // A denial becomes an ordinary failed result that STILL runs through
+    // post-execute (`post-result`), which is why the breaker records the
+    // call ids it denied and passes them straight back through.
+    expect(lib).toMatch(/const denialReason = decision\.kind === "allow" \? this\.guardReason\(exec\) : decision\.reason;/)
+    expect(lib).toMatch(/if \(denialReason !== void 0\) return await next\(\{\s*kind: "post-result"/)
   })
 
   it('the accept arm can REPLACE the tool result content (spec: the breaker delivers the advisory cessation protocol on the failing tool result)', () => {

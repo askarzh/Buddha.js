@@ -10,7 +10,7 @@ and mounts five sub-plugins on top of it:
 
 | Sub-plugin | File | Mounts on |
 |---|---|---|
-| Poison Arrow circuit breaker | `src/breaker.ts` | `tools/post-execute` |
+| Poison Arrow circuit breaker | `src/breaker.ts` | `tools/pre-execute`, `tools/post-execute` |
 | Karma tracking | `src/karma.ts` | `tools/result`, `agent/turn-stopping` |
 | Layer A citta-vīthi step observer | `src/vithi.ts`, `src/step-records.ts` | `agent/pre-step`, `tools/result` |
 | Six-realm subagent personas | `src/realms.ts` | `ctx.subagents` (`buddha-realms` provider) |
@@ -23,30 +23,39 @@ mechanism table, install instructions, and config keys.
 
 ## The breaker: what it enforces, and what it only says
 
-The Poison Arrow circuit breaker has two tiers, and only one of them changes
-an agent's behaviour. We know which, because we measured it against a live
-DeepSeek model rather than assuming.
+The Poison Arrow circuit breaker escalates in three tiers — advise, withhold,
+refuse — and only the last two change an agent's behaviour. We know which,
+because we measured it against a live DeepSeek model rather than assuming.
 
-| Pressure | Tier | What happens |
-|---|---|---|
-| `>= breaker.threshold` (default 3) | Informational | The four-step cessation protocol is appended to the failing tool's own result |
-| `>= threshold * breaker.blockMultiplier` (default 4.5) | Enforcement | The call is **blocked**: its output is withheld and the protocol becomes the tool's error result |
+| Pressure | Tier | Where | What happens to the call |
+|---|---|---|---|
+| `>= breaker.threshold` (default 3) | Advise | `tools/post-execute` | It ran and failed. Its real error is kept, and the four-step cessation protocol is appended to it |
+| `>= threshold * breaker.blockMultiplier` (default 4.5), the call that CROSSES | Withhold | `tools/post-execute` | It ran. Its output is discarded and replaced by the protocol |
+| already `>= threshold * blockMultiplier` | Refuse | `tools/pre-execute` | It is **never dispatched** |
 
-Each tier names itself in its opening clause, because both arrive the same way
-— as content on the failing tool's own result — and a live model consequently
-read an advisory notice as a refusal for a call that had actually executed.
-The informational tier now opens "ADVISORY, not a refusal: this call RAN and
-FAILED ... the harness is not blocking you yet"; the enforcement tier opens
-"BLOCKED, not advice: the harness has cut this call off." Note what the second
-one does not say: the breaker sits on `tools/post-execute`, so a blocked call
-has already been dispatched and its result discarded — it is not prevented
-from running.
+The crossing call has to run before anything can know it crossed — that is why
+enforcement needs both halves. Everything after it is refused outright, which
+is the part that matters for `write`, `edit` and `bash`: a block that still
+executes the tool pays its cost and its side effects and only hides the
+output.
+
+Each tier says which it is, because a live model, reading an advisory notice
+that arrived as tool-result content, reported a call as refused when it had
+actually executed. So: "ADVISORY, not a refusal: this call RAN and FAILED ...
+the harness is not blocking you yet"; "BLOCKED, not advice: the harness has
+cut this call off"; and, on a refused call, the whole message is a terse
+refusal naming the tool, the pressure, the boundary, and the one thing that
+clears it — a successful mutating tool (`breaker.mutatingTools`) resets every
+streak, so a refused tool becomes callable again after real progress. Deny
+reasons get facts only; the cessation walk stays on the tiers that have a real
+tool result to ride.
 
 Pressure is a weight, not a count of calls: a retry with identical arguments
 adds 2, a varied one adds 1, and every failure inside a single step adds 1
 between them. At the defaults, identical retries run 1 → 3 (informational) →
-5 (blocked) — two retries before enforcement. Set `blockMultiplier: 2` for
-the older, laxer boundary (three retries).
+5 (withheld, and every retry after it refused) — two retries before
+enforcement. Set `blockMultiplier: 2` for the older, laxer boundary (three
+retries).
 
 **The informational tier does not discipline a model that reasons about
 provenance.** Three live runs, three deliveries: as an injected user-role

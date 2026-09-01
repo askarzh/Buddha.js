@@ -42,6 +42,8 @@ interface ToolStreak {
  */
 export class BreakerState {
   private readonly streaks = new Map<string, ToolStreak>()
+  /** Call ids this breaker denied at `tools/pre-execute` (see `markDenied`). */
+  private readonly denied = new Set<string>()
 
   /**
    * Record one failed call of `tool`.
@@ -73,6 +75,15 @@ export class BreakerState {
     return existing.count
   }
 
+  /**
+   * The streak `tool` has ALREADY accumulated, without recording anything.
+   * Read at `tools/pre-execute`, where the question is whether the call
+   * about to be dispatched is one this agent has already been blocked on.
+   */
+  streakFor(tool: string): number {
+    return this.streaks.get(tool)?.count ?? 0
+  }
+
   /** A successful call resets that tool's streak — the loop broke. */
   recordSuccess(tool: string): void {
     this.streaks.delete(tool)
@@ -81,6 +92,26 @@ export class BreakerState {
   /** A mutating call (e.g. an edit) is intervening progress: reset every streak. */
   recordMutatingCall(): void {
     this.streaks.clear()
+  }
+
+  /**
+   * Remember that WE denied this call at `tools/pre-execute`.
+   *
+   * dsh-tools materializes a denial as an ordinary failed result and still
+   * runs it through `tools/post-execute` (`prepareExecution()` hands the
+   * denial to the scheduler as a `post-result`). Without this record the
+   * breaker would see its own refusal as a fresh failure: it would raise the
+   * streak for a call that never ran and overwrite the deny reason — which
+   * says the call was not dispatched — with a block notice that says its
+   * output was withheld. Both cannot be true of one call.
+   */
+  markDenied(callId: string): void {
+    this.denied.add(callId)
+  }
+
+  /** Whether this call was denied by us, consuming the record. */
+  takeDenied(callId: string): boolean {
+    return this.denied.delete(callId)
   }
 }
 
@@ -197,6 +228,27 @@ function renderPoisonArrow(
 }
 
 /**
+ * The refusal a denied call carries. This is the entire message the model
+ * sees for that call, so it is terse and mechanical on purpose: that is the
+ * register a model demonstrably respects (it honours DSH's own anti-loop
+ * guard), and it is the opposite of the four-step cessation walk, which
+ * three live runs read as rhetoric and declined. The walk stays on the two
+ * tiers that have a real tool result to ride; a deny reason gets facts only.
+ *
+ * Every clause is checkable: the call was not dispatched, the pressure and
+ * boundary are the real numbers, and the escape is the one that actually
+ * exists — `mutatingTools` is the only reset a tool that can no longer run
+ * could ever reach (its own success is unreachable by construction).
+ */
+function denyReason(tool: string, streak: number, boundary: number, mutatingTools: string[]): string {
+  return (
+    `Poison Arrow circuit breaker: "${tool}" was REFUSED before dispatch — this call did not run, and nothing was attempted. ` +
+    `Failure pressure ${streak} is past the block boundary of ${boundary}, so retries of this tool keep being refused. ` +
+    `This clears when a mutating tool (${mutatingTools.join(', ')}) succeeds — actual progress, not another retry.`
+  )
+}
+
+/**
  * Wrap the rendered protocol as one plugin-sourced context message.
  *
  * `pluginUserMessage()` brands its `id` locally (see messages.ts) rather than
@@ -216,11 +268,29 @@ function noticeFor(protocol: string): AdditionalContext {
 }
 
 /**
- * Mount the Poison Arrow circuit breaker on `tools/post-execute`.
+ * Mount the Poison Arrow circuit breaker: `tools/pre-execute` (refuse) and
+ * `tools/post-execute` (advise, then withhold).
  *
- * A waterfall listener: it ALWAYS delegates to `next()` first and returns
- * the downstream decision, augmented — never a fabricated fresh decision,
- * which would silently disable other plugins on the same waterfall.
+ * Three tiers, escalating, all keyed off the same per-agent, per-tool
+ * failure pressure:
+ *
+ * | pressure | where | what happens to the call |
+ * |---|---|---|
+ * | `>= threshold` | post-execute | it ran; its real error is kept and the cessation protocol is appended |
+ * | `>= threshold * blockMultiplier` (the CROSSING call) | post-execute | it ran; its output is withheld and replaced by the protocol |
+ * | already `>= threshold * blockMultiplier` | pre-execute | it is never dispatched |
+ *
+ * The crossing call has to run before anyone knows it crossed, which is why
+ * enforcement needs both halves. Everything after it is refused outright —
+ * the point being that a block which still EXECUTES a `write`, `edit` or
+ * `bash` is not enforcement: it pays the call's cost and its side effects
+ * and only hides the output.
+ *
+ * Both listeners are waterfall listeners: they ALWAYS delegate to `next()`
+ * first and only ever augment or narrow the downstream decision — never a
+ * fabricated fresh one, which would silently disable other plugins on the
+ * same waterfall. In particular the pre-execute listener overrides only an
+ * `allow`; another plugin's `deny` or `ask` stands.
  */
 export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; scheduler: SaveScheduler; config: Config['breaker'] }): void {
   const { registry, scheduler, config } = deps
@@ -241,6 +311,25 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
     return state
   }
 
+  ctx.on('tools/pre-execute', async function (exec, next) {
+    const decision = await next() // ALWAYS delegate first
+
+    if (!config.enabled || !exec.agent) return decision
+    if (exec.rootCallId !== exec.callId) return decision // Code-Mode sub-dispatch: ignore
+    // Only an `allow` is ours to narrow. A downstream `deny` is already at
+    // least as strict as ours, and turning another plugin's `ask` into a
+    // deny would cancel an approval the operator was about to be offered.
+    if (decision.kind !== 'allow') return decision
+
+    const state = stateFor(exec.agent)
+    const streak = state.streakFor(exec.name)
+    const boundary = config.threshold * config.blockMultiplier
+    if (streak < boundary) return decision
+
+    state.markDenied(exec.callId)
+    return { kind: 'deny', reason: denyReason(exec.name, streak, boundary, config.mutatingTools) }
+  })
+
   ctx.on('tools/post-execute', async function (exec, result, next) {
     const decision = await next() // ALWAYS delegate first
 
@@ -249,6 +338,13 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
 
     const agent = exec.agent
     const state = stateFor(agent)
+
+    // Our own refusal coming back around: dsh-tools turns a `deny` into a
+    // failed result and still runs post-execute over it. Leave it exactly as
+    // it is — the deny reason is the message, the call never ran, and
+    // counting it as a failure would inflate the pressure of a call that
+    // was never dispatched.
+    if (state.takeDenied(exec.callId)) return decision
 
     if (config.mutatingTools.includes(exec.name) && !result.isError) {
       state.recordMutatingCall()

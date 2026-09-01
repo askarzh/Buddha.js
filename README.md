@@ -926,7 +926,7 @@ Each skill calls the corresponding `buddha_*` MCP tool from the bundled `buddha-
 
 | Failure mode | Mechanism | Where |
 |---|---|---|
-| Blind retry loops — repeatedly calling a failing tool the same or nearly the same way | Poison Arrow circuit breaker: a `tools/post-execute` waterfall listener counts a per-agent, per-tool failure streak (a call sharing the same step counts once; a call replaying the same arguments counts double). At `breaker.threshold` it appends the four-step cessation protocol (recognize → investigate → release → practice) to the failing tool's own result — **informational only; see [what we measured](#what-we-measured-about-the-advisory-tier)**. At `threshold × blockMultiplier` it blocks the call, withholding the result, and that is the tier that actually stops the loop. Each tier opens by naming itself ("ADVISORY, not a refusal: this call RAN and FAILED" versus "BLOCKED, not advice"), so the model is never told a call was refused when it ran | `src/breaker.ts` |
+| Blind retry loops — repeatedly calling a failing tool the same or nearly the same way | Poison Arrow circuit breaker: a `tools/post-execute` waterfall listener counts a per-agent, per-tool failure streak (a call sharing the same step counts once; a call replaying the same arguments counts double). Three escalating tiers — **advise** (`>= breaker.threshold`: the call ran, its real error is kept and the four-step cessation protocol recognize → investigate → release → practice is appended — *informational only; see [what we measured](#what-we-measured-about-the-advisory-tier)*), **withhold** (`>= threshold × blockMultiplier`, the call that crosses: it ran, its output is discarded and replaced by the protocol) and **refuse** (already past the boundary: denied at `tools/pre-execute`, never dispatched). Each tier says which it is, so the model is never told a call was refused when it ran; a refused tool becomes callable again once a `mutatingTools` call succeeds | `src/breaker.ts` |
 | Silent erosion of conduct across a session — failures and successes leave no trace the agent (or operator) can inspect | Karma tracking: every tool result becomes a `Being.experience()` (unpleasant, scaled by that tool's consecutive-failure streak, on failure; pleasant on success), and a turn that closes with no tool failure plants a wholesome `act()` | `src/karma.ts` |
 | Ungrounded step-by-step execution with no per-step self-observation | Layer A citta-vīthi: a pure-passthrough `agent/pre-step` listener records step/turn identity (shared with the breaker and karma tracking) and one `Being.cognize()` runs per step — observation only, never a loop replacement | `src/vithi.ts`, `src/step-records.ts` |
 | Undifferentiated subagent roles — a "planning" delegate quietly writing files, or an "audit" delegate fixing instead of verifying | Six-realm subagent personas on a `buddha-realms` provider: `deva` (architect) gets a read-only tool allowlist, `asura` (adversarial auditor) gets read tools plus `bash` but never `write`/`edit`, `human` (implementer) keeps full access; each child spawns as a fresh realm-typed `Being` seeded from the parent's karmic balance, and the run's outcome is planted back into the parent as vipāka on completion | `src/realms.ts` |
@@ -968,7 +968,7 @@ See `dsh/cordis.dev.yml` for the full template (the plugin path is machine-speci
 | `stateDir` | `''` (resolves to `<os.homedir()>/.buddha/dsh`) | Where `Being` state is persisted |
 | `breaker.enabled` | `true` | Whether the Poison Arrow circuit breaker mounts at all |
 | `breaker.threshold` | `3` | Failure **pressure** at which the breaker attaches its informational cessation protocol to the failing tool's result. Pressure is a weight, not a call count: a retry with identical arguments adds 2, a varied one adds 1, and every failure within a single step adds 1 between them |
-| `breaker.blockMultiplier` | `1.5` | Pressure at which the breaker **blocks** the call, as a multiple of `threshold`. At the defaults that is 4.5: identical retries run pressure 1 → 3 (informational) → 5 (blocked), so an agent gets two retries before enforcement. Set `2` for the older, laxer boundary (three retries). Which value is right is model-dependent — see [what we measured](#what-we-measured-about-the-advisory-tier) |
+| `breaker.blockMultiplier` | `1.5` | Pressure at which the breaker **enforces**, as a multiple of `threshold`. At the defaults that is 4.5: identical retries run pressure 1 → 3 (advised) → 5 (output withheld), and every retry after that is denied at `tools/pre-execute` without being dispatched. So an agent gets two retries before enforcement. Set `2` for the older, laxer boundary (three retries). Which value is right is model-dependent — see [what we measured](#what-we-measured-about-the-advisory-tier) |
 | `breaker.mutatingTools` | `['write', 'edit', 'str_replace_editor']` | Tool names whose successful call counts as intervening progress, resetting every streak |
 | `loop` | `'off'` (or `'citta-vithi'`) | `'citta-vithi'` opts into the **experimental** Layer B agent loop (`src/loop.ts`), which replaces DSH's stock loop with an `AgentFactory` that structures each step as explicit citta-vīthi phases; it is not feature-complete with the stock loop and requires an overlay that also disables the stock `agent-loop` plugin (`ctx.agents.setFactory()` throws if a factory is already registered). See [`dsh/README.md`'s Experimental section](dsh/README.md#experimental-the-citta-vīthi-agent-loop-loop-citta-vithi) for the known gaps. Layer A citta-vīthi observation (see the table above) mounts unconditionally regardless of this setting |
 
@@ -998,15 +998,21 @@ The last one is worth sitting with: the framing this whole library is built
 from is itself read as evidence of an attack. A model right to be suspicious
 of unattributed instructions is right to be suspicious of ours.
 
-**Each tier says which it is.** Once both tiers arrived as tool-result
-content they became indistinguishable, and a live model duly reported an
-advisory call as "refused/blocked before the read ran" when that call had in
-fact executed. So the informational tier now opens "ADVISORY, not a refusal:
-this call RAN and FAILED ... the harness is not blocking you yet" and the
-enforcement tier opens "BLOCKED, not advice: the harness has cut this call
-off." Neither claims more than is true: the breaker listens on
-`tools/post-execute`, so a blocked call has already been dispatched and its
-result discarded rather than prevented.
+**Each tier says which it is.** Once both post-execute tiers arrived as
+tool-result content they became indistinguishable, and a live model duly
+reported an advisory call as "refused/blocked before the read ran" when that
+call had in fact executed. So the advise tier opens "ADVISORY, not a refusal:
+this call RAN and FAILED ... the harness is not blocking you yet", the
+withhold tier opens "BLOCKED, not advice: the harness has cut this call off",
+and a refused call carries a terse refusal instead of either — no cessation
+walk, just the tool, the pressure, the boundary and what clears it. None of
+the three claims more than is true, which is also why refusal needed its own
+tier: a call blocked at `tools/post-execute` has already been dispatched, so
+only the `tools/pre-execute` deny can honestly say nothing was attempted.
+
+**Refusal is what makes enforcement real for side-effecting tools.** Hiding
+the output of a `write`, `edit` or `bash` that already ran is not stopping it.
+The third tier is the one that does.
 
 **What produced compliance was the block.** In the run where pressure crossed
 the block boundary, the same model described the harness as having "issued a

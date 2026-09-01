@@ -2,11 +2,15 @@ import z from '@deepseek-ai/schemastery'
 
 /**
  * Poison Arrow circuit breaker config (implemented in `src/breaker.ts`):
- * when `enabled`, a per-agent, per-tool consecutive-failure streak attaches
- * the informational cessation protocol to the failing tool's own result at
- * `threshold`, and BLOCKS the call at `threshold * blockMultiplier`. A
+ * when `enabled`, a per-agent, per-tool consecutive-failure streak escalates
+ * through three tiers: at `threshold` the informational cessation protocol is
+ * attached to the failing tool's own result; the call that CROSSES
+ * `threshold * blockMultiplier` is blocked at `tools/post-execute` (it ran,
+ * its output is withheld); and every call made while the streak is already
+ * past that boundary is denied at `tools/pre-execute` — never dispatched,
+ * which is the only tier that actually spares a side-effecting tool. A
  * successful call to any tool named in `mutatingTools` counts as intervening
- * progress and resets every streak.
+ * progress and resets every streak, so a refused tool becomes callable again.
  *
  * `blockMultiplier` exists because we measured which tier actually changes
  * behaviour. Three live DeepSeek runs read the advisory notice, reasoned

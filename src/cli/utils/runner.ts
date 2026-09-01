@@ -15,6 +15,7 @@
  */
 import { Being } from '../../simulation/Being';
 import { KoanGenerator } from '../../koan/KoanGenerator';
+import { PoisonArrow } from '../../simulation/PoisonArrow';
 import { KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot } from '../../utils/types';
 import { StateManager } from './state';
 
@@ -46,6 +47,40 @@ export function loadSettledBeing(
       fromRealm: settled.fromRealm,
       toRealm: settled.toRealm,
       incarnation: settled.incarnation,
+    },
+  };
+}
+
+// -------------------------------------------------------------------- sit
+
+export interface SitOpts {
+  situation?: string;
+}
+
+/**
+ * Walk the Poison Arrow cessation to completion and report every stage.
+ * Stateless: no being is loaded and nothing is saved.
+ */
+export function runSit(_sm: StateManager, _beingName: string, opts: SitOpts) {
+  const suffering = opts.situation || 'unspecified suffering';
+  const sim = new PoisonArrow(suffering);
+  const steps = [];
+  while (!sim.isComplete()) {
+    const step = sim.step();
+    steps.push({
+      stage: step.stage,
+      truth: step.truth,
+      insight: step.insight,
+      guidance: step.guidance,
+    });
+  }
+
+  return {
+    command: 'sit' as const,
+    result: {
+      suffering,
+      steps,
+      summary: sim.getSummary(),
     },
   };
 }

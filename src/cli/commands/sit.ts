@@ -1,33 +1,16 @@
 import { Command } from 'commander';
 import { input } from '@inquirer/prompts';
 import { PoisonArrow } from '../../simulation/PoisonArrow';
-import { getGlobalOpts } from '../utils/state';
+import { getGlobalOpts, getStateManager } from '../utils/state';
+import { SitOpts, runSit } from '../utils/runner';
 import { header, stage, insight, divider, success } from '../utils/format';
 
-export async function sit(localOpts: { situation?: string }, cmd: Command): Promise<void> {
+export async function sit(localOpts: SitOpts, cmd: Command): Promise<void> {
   const globalOpts = getGlobalOpts(cmd);
 
   if (globalOpts.json) {
-    const suffering = localOpts.situation || 'unspecified suffering';
-    const sim = new PoisonArrow(suffering);
-    const steps = [];
-    while (!sim.isComplete()) {
-      const step = sim.step();
-      steps.push({
-        stage: step.stage,
-        truth: step.truth,
-        insight: step.insight,
-        guidance: step.guidance,
-      });
-    }
-    console.log(JSON.stringify({
-      command: 'sit',
-      result: {
-        suffering,
-        steps,
-        summary: sim.getSummary(),
-      },
-    }, null, 2));
+    const mgr = getStateManager(globalOpts);
+    console.log(JSON.stringify(runSit(mgr, globalOpts.being, localOpts), null, 2));
     return;
   }
 

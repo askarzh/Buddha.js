@@ -8,6 +8,7 @@ import {
   runStatus,
   runMeditate,
   runKoan,
+  runSit,
   isKarmaError,
   KarmaResult,
 } from '../../src/cli/utils/runner';
@@ -141,6 +142,27 @@ describe('CLI command bodies', () => {
     it('reports a missing hint as null rather than undefined', () => {
       const { result } = runKoan(sm, 'tester', {});
       expect(result.hint === null || typeof result.hint === 'string').toBe(true);
+    });
+  });
+
+  describe('sit', () => {
+    it('walks the four stages of cessation', () => {
+      const { result } = runSit(sm, 'tester', { situation: 'a missed deadline' });
+      expect(result.steps).toHaveLength(4);
+      expect(result.steps.every(s => s.stage && s.truth && s.insight && s.guidance)).toBe(true);
+    });
+
+    it('echoes the situation it was given', () => {
+      expect(runSit(sm, 'tester', { situation: 'a missed deadline' }).result.suffering)
+        .toBe('a missed deadline');
+    });
+
+    it('falls back to unspecified suffering', () => {
+      expect(runSit(sm, 'tester', {}).result.suffering).toBe('unspecified suffering');
+    });
+
+    it('summarises the completed walk', () => {
+      expect(runSit(sm, 'tester', {}).result.summary).toBeTruthy();
     });
   });
 });

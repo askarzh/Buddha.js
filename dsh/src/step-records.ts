@@ -16,7 +16,7 @@ export interface StepRecord {
  * `agent/pre-step`. This is the single source of truth other sub-plugins
  * read from instead of maintaining their own step-tracking scaffolding —
  * in particular `breaker.ts`'s `currentStepId()`, which used to run a
- * temporary per-agent monotonic counter (see the former TODO(Task 4) there)
+ * temporary per-agent monotonic counter that this module replaced
  * until the real citta-vīthi step annotations (`applyVithi`) existed to
  * populate this table for real.
  *

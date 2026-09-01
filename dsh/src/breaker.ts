@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ToolExecution, ToolExecutionResult, PostToolDecision } from '@deepseek-ai/dsh-tools'
@@ -99,9 +99,22 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value)
 }
 
-/** Stable JSON stringify + sha1, so identical arguments always hash identically. */
+/**
+ * Stable JSON stringify + sha1, so identical arguments always hash identically.
+ *
+ * `stableStringify` recurses without a cycle guard. Arguments arrive as parsed
+ * JSON and so cannot contain cycles, but this hash runs inside the
+ * `tools/post-execute` waterfall: if another plugin ever hands over a mutated,
+ * self-referencing object, a RangeError here would take down tool dispatch for
+ * a bookkeeping detail. Fall back to a hash that never groups two calls
+ * together rather than throwing.
+ */
 function hashArguments(args: unknown): string {
-  return createHash('sha1').update(stableStringify(args)).digest('hex')
+  try {
+    return createHash('sha1').update(stableStringify(args)).digest('hex')
+  } catch {
+    return `unhashable-${randomUUID()}`
+  }
 }
 
 /**

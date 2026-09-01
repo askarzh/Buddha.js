@@ -77,4 +77,44 @@ describe('KarmicStore', () => {
       }
     });
   });
+
+  // Regression: `timeScale` is documented as "speed up/slow down time
+  // (1 = realtime)", and every deferred timing divides by it. The immediate
+  // branch multiplied instead, so raising timeScale to make a simulation run
+  // faster made immediate seeds ripen LATER by the same factor.
+  describe('timeScale direction', () => {
+    it('makes immediate seeds ripen sooner as timeScale rises, not later', () => {
+      vi.useFakeTimers();
+      try {
+        const delays: number[] = [];
+        const spy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+          _fn: () => void,
+          ms?: number
+        ) => {
+          delays.push(ms ?? 0);
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout);
+
+        for (const timeScale of [1, 10]) {
+          const store = new KarmicStore({ enableAutoRipening: true, timeScale });
+          store.plantSeed({
+            description: 'immediate deed',
+            quality: 'wholesome',
+            intensity: 5,
+            root: 'non-greed',
+            ripeningTiming: 'immediate',
+            minDelay: 1000,
+          });
+        }
+
+        spy.mockRestore();
+
+        const [atScale1, atScale10] = delays;
+        expect(atScale10).toBeLessThan(atScale1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
 });

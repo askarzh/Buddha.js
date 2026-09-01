@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { Being } from 'buddha-js'
@@ -70,7 +71,10 @@ export class BeingRegistry {
   save(sessionId: string, being: Being): void {
     fs.mkdirSync(this.beingsDir(), { recursive: true })
     const filePath = this.filePath(sessionId)
-    const tmpPath = `${filePath}.tmp`
+    // Unique per write: within one process these writes are synchronous and
+    // cannot interleave, but two processes sharing a stateDir and a session
+    // id would otherwise clobber each other's temp file mid-rename.
+    const tmpPath = `${filePath}.${randomUUID()}.tmp`
     try {
       fs.writeFileSync(tmpPath, JSON.stringify(being.toJSON(), null, 2))
       fs.renameSync(tmpPath, filePath)
@@ -123,7 +127,15 @@ export class BeingRegistry {
     return path.join(this.stateDir, 'beings')
   }
 
+  /**
+   * `<stateDir>/beings/<sessionId>.json`, with the session id reduced to
+   * filename-safe characters first. DSH session ids are UUIDs, so this never
+   * fires in practice; it is here so that a future id format containing `/`
+   * or `..` cannot write outside the state directory. `src/cli/utils/state.ts`
+   * validates being names the same way.
+   */
   private filePath(sessionId: string): string {
-    return path.join(this.beingsDir(), `${sessionId}.json`)
+    const safe = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')
+    return path.join(this.beingsDir(), `${safe}.json`)
   }
 }

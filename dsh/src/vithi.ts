@@ -21,7 +21,7 @@ export interface VithiHandle {
 /**
  * Layer A citta-vīthi: pure observation of the sanctioned `agent/pre-step`
  * waterfall plus a `Being.cognize()` call per step — never a loop
- * replacement (that is Layer B, opt-in, a later task).
+ * replacement (that is Layer B, opt-in via `loop: 'citta-vithi'`).
  *
  * - `agent/pre-step`: delegates to `next()` FIRST and returns that decision
  *   unchanged (pure passthrough — this listener never rejects a step or

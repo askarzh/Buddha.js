@@ -398,7 +398,11 @@ export class KarmicStore implements Serializable<KarmicStoreData> {
   private scheduleRipening(seed: KarmicSeed): void {
     // Immediate karma ripens right away
     if (seed.ripeningTiming === 'immediate') {
-      setTimeout(() => this.attemptRipening(seed.id), seed.minDelay * this.config.timeScale);
+      // Divide, like every other timing below: timeScale > 1 means time
+      // runs FASTER, so delays get shorter. This multiplied until 0.6.1,
+      // which slowed immediate seeds by exactly the factor meant to speed
+      // them up.
+      setTimeout(() => this.attemptRipening(seed.id), seed.minDelay / this.config.timeScale);
       return;
     }
 

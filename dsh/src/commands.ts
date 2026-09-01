@@ -99,9 +99,9 @@ function renderStatus(registry: BeingRegistry, vithi: VithiHandle, invocation: C
     being.getSummary(),
     '',
     `REALM: ${being.realm} (incarnation ${being.incarnation})`,
-    // Named for their store: the summary above reports the older Karma
-    // stream, and the two counts are different mechanisms, not one number
-    // disagreeing with itself.
+    // Named for their store so the numbers are traceable: `getSummary()`
+    // above counts ACTIVE seeds, these count seeds by every state, so the two
+    // legitimately differ.
     `KARMIC SEEDS (store): ${JSON.stringify(seedStats.byState)}`,
     `KARMIC BALANCE (store, potency-weighted): ${JSON.stringify(seedStats.balance)}`,
   ]

@@ -26,7 +26,7 @@ export async function meditate(localOpts: MeditateLocalOpts, cmd: Command): Prom
     return;
   }
 
-  const duration = 5;
+  const duration = localOpts.duration ? parseInt(localOpts.duration, 10) : 5;
   const intervalBell = localOpts.interval ? parseInt(localOpts.interval, 10) : 60;
 
   console.log(header('Meditation Timer'));

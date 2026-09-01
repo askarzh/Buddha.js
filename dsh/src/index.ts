@@ -51,7 +51,7 @@ export function apply(ctx: Context, config?: Config) {
 
   // Layer A citta-vīthi: pure observation of `agent/pre-step` (step/turn
   // records other sub-plugins read from) + one `being.cognize()` per step.
-  // Never a loop replacement — that is Layer B, opt-in, a later task.
+  // Never a loop replacement — that is Layer B, opt-in below.
   // Its handle is captured (not discarded) — `/status` below reads
   // `getLastVithi()` from it.
   const vithi = applyVithi(ctx, { registry })

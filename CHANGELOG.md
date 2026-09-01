@@ -41,8 +41,6 @@ model rather than a mock.
 
 ### Fixed
 
-### Fixed
-
 - **`/sit` no longer walks the protocol against nothing.** A bare `/sit`
   rendered the four steps for the placeholder "unnamed suffering", printing it
   four times — ceremony, when naming the suffering *is* the first step. It now

@@ -35052,7 +35052,7 @@ var KarmicStore = class _KarmicStore {
    */
   scheduleRipening(seed) {
     if (seed.ripeningTiming === "immediate") {
-      setTimeout(() => this.attemptRipening(seed.id), seed.minDelay * this.config.timeScale);
+      setTimeout(() => this.attemptRipening(seed.id), seed.minDelay / this.config.timeScale);
       return;
     }
     const baseDelay = seed.minDelay + Math.random() * (seed.maxDelay - seed.minDelay);

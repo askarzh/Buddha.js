@@ -10,8 +10,8 @@ npm run test:run      # Run tests once
 npm run typecheck     # TypeScript type checking
 npm run build         # Build for distribution (CJS + ESM + types)
 npm run dev           # Build in watch mode
-npm run test:coverage # Run tests with coverage report
-npm run lint          # ESLint (note: no .eslintrc config yet)
+npm run test:coverage # Run tests once with a coverage report
+npm run lint          # ESLint (flat config: eslint.config.mjs)
 npm run build:cli     # Build CLI to dist/cli.mjs
 npm run build:mcp     # Build MCP server to dist/mcp.mjs
 npm run build:plugin   # Rebuild bundled plugin server (run after any src/mcp change)
@@ -87,7 +87,9 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 
 Built with Commander.js, @inquirer/prompts, and chalk v5. Separate build config in `tsup.cli.ts` (tsup doesn't support `--banner`/`--outExtension` as CLI flags). Output uses `.mjs` extension since project lacks `"type": "module"`.
 
-**Persistence:** Beings are saved as JSON in `~/.buddha/beings/<name>.json` (override with `BUDDHA_STATE_DIR` env or `--state-dir` flag). Commands `inquiry`, `status`, `karma` load/save the persistent being. Use `--being <name>` for named profiles.
+**Persistence:** Beings are saved as JSON in `~/.buddha/beings/<name>.json` (override with `BUDDHA_STATE_DIR` env or `--state-dir` flag).
+
+**`BUDDHA_INCARNATION_GAP_MS`:** wall-clock gap, in milliseconds, after which loading a saved being flags a *pending* rebirth (default `21600000`, six hours). Loading never enacts the rebirth — observation does not rebirth; the next mutating handler settles it. Set it to `0` to make every load settle one, which is how the rebirth path is exercised in tests. Commands `inquiry`, `status`, `karma` load/save the persistent being. Use `--being <name>` for named profiles.
 
 **JSON output:** All commands support `--json` for machine-readable output. Interactive commands accept flags for non-interactive use (e.g., `karma --json --quality wholesome --description "..." --intensity 7 --root non-greed`).
 

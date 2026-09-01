@@ -1044,4 +1044,36 @@ Two user units (`systemctl --user`), `Restart=on-failure`, `After=network-online
 
 **Type consistency check:** `SaveScheduler.mark/flush/flushAll` (Task 2) is the only new cross-task interface and is used verbatim in Task 2's own step 5. `pickShapingSeed`'s `reason` union gains `'proximate'` in Task 6, and Task 6 step 3 names every downstream consumer to recheck. `practiceTo` (Task 7) is consumed only in Task 7. `runX` functions (Task 8) are consumed in Task 9.
 
+## Corrections
+
+This plan is a historical record of the review that produced it, not a living
+spec — the tasks above are left as originally written even where they have
+since drifted from the code. Corrections discovered while executing Task 10
+are recorded here instead of edited into the tasks themselves.
+
+- **Task 8's account of the `meditate --duration` bug was already stale when
+  this plan was committed.** The "Why" section describes `--duration` as
+  "parsed in `--json` mode and ignored in interactive mode." That bug was
+  real, but it was fixed in commit `4176817` ("fix: debt sweep — six real
+  bugs, four stale claims, one unenforced invariant") at 06:41:59 UTC on
+  2026-09-01 — nine minutes before this plan document was committed
+  (`c3a7206`, 06:50:44 UTC the same day). By the time this plan existed,
+  `meditate.ts`'s interactive path already sized the timer from
+  `localOpts.duration` and saved only from the real session the timer
+  measured, not from the flags. Task 8's step 1 test (`meditate honours
+  --duration`) and its regression framing are still worth having; the bug
+  narrative in the "Why" section is not accurate history for anyone reading
+  it after the fact.
+
+- **Task 8 step 5 (and Task 9 by cross-reference) listed `inquiry` among the
+  commands disconnected from the named being.** Step 5 says `diagnose`,
+  `chain`, and `inquiry` "return their analysis for the NAMED being. That
+  last group will fail — see Task 9." But Task 9's own title and file list
+  name only `diagnose`, `chain`, and `meditate` — never `inquiry` — and the
+  current `runInquiry` (`src/cli/utils/runner.ts`) already calls
+  `loadSettledBeing`, runs `being.investigateSelf()` on the real loaded
+  being, and saves via `sm.saveBeing`. `inquiry` was already being-aware
+  when this plan was written; it should not have been named in that failing
+  group.
+
 **Ordering:** Tasks 1–4 are independent of 5–7. Task 9 depends on Task 8's `runner.ts`. Task 13 must come last — it touches every file that Tasks 5–7 modify.

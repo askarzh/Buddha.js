@@ -429,6 +429,13 @@ export class Being implements Serializable<BeingData> {
       description,
       intentionStrength: intensity,
       ...(root ? { root } : {}),
+      // intensity is 1-10, so potency tops out at 70 — below the 80-potency
+      // 'weighty' (garuka) threshold in createKarmicSeed's strength mapping
+      // (KarmicEventSystem.ts). This is deliberate, not an oversight: garuka
+      // kamma should not be reachable through ordinary intentional action —
+      // no one commits a weighty deed just by acting at intensity 10. The
+      // only path to a weighty seed is planting one directly through
+      // karmicStore.plantSeed (see weightyKarma() / README's Karma section).
       potency: intensity * 7,
       ripeningTiming: 'deferred',
       minDelay: 0,

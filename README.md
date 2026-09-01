@@ -296,6 +296,14 @@ chain.getArisingFormula();   // Avidya → Samskara → Vijnana → ...
 chain.getCessationFormula(); // cessation of Jaramarana → cessation of Jati → ...
 ```
 
+**Nothing in the library drives this chain from what a being does.**
+`Being.dependentOrigination` is constructed once and only ever read — no
+`Being` method (`act`, `experience`, `meditate`, ...) writes to it or
+advances any nidana's `hasArisen` past its default. `being.chain` (CLI) and
+`buddha_chain` (MCP) print the same 12 links for every being regardless of
+that being's history; treat this section, and those commands, as a reference
+model of the chain itself, not a record of a particular being's causal past.
+
 ---
 
 ## Five Aggregates
@@ -461,6 +469,16 @@ store.plantSeed(weightyKarma({
   description: 'Serious harm'
 }));
 ```
+
+**`Being.act()` can never produce weighty (garuka) karma.** `act()` plants a
+seed with `potency = intensity * 7`; since `intensity` is capped at 10, the
+maximum potency it can produce is 70 — below the 80-potency threshold that
+`createKarmicSeed` classifies as `'weighty'`. This is deliberate, not an
+arithmetic accident to be "fixed": garuka-kamma (a weighty deed, traditionally
+things like matricide or a schism in the sangha) should not be reachable
+through ordinary intentional action just by acting at maximum intensity. The
+only way to plant a weighty seed is directly, via `store.plantSeed()` /
+`weightyKarma()` as shown above — never through `being.act(...)`.
 
 ---
 

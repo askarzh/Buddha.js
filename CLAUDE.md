@@ -33,6 +33,22 @@ npm run build:dsh    # cd dsh && pnpm install --frozen-lockfile && pnpm build
 npm run test:dsh     # cd dsh && pnpm test (runs dsh's own typecheck first, via pretest)
 ```
 
+**The rule cuts both ways: never run `pnpm` from the REPO ROOT.** The root
+project uses npm, never pnpm — running `pnpm` there makes pnpm start
+installing the root project into a pnpm layout, leaving `pnpm-lock.yaml`,
+`pnpm-workspace.yaml` and a `.pnpm` store in root `node_modules`, and
+breaking the npm install so that `npm run test:run` fails with a missing
+vitest binary. If that happens, recover with:
+
+```bash
+rm -f pnpm-lock.yaml pnpm-workspace.yaml && rm -rf node_modules && npm ci
+```
+
+Because the shell's working directory resets between commands, `cd dsh`
+must be in the SAME command as the pnpm call it precedes (e.g.
+`cd dsh && pnpm test`) — a bare `cd dsh` in one command followed by `pnpm`
+in the next runs pnpm at the repo root instead.
+
 ## Architecture
 
 Buddha.js models Buddhist concepts as an object-oriented TypeScript library. All concepts are built on a foundational type system.

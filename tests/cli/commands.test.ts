@@ -4,6 +4,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { Command } from 'commander';
 import { StateManager } from '../../src/cli/utils/state';
+import { Being } from '../../src/simulation/Being';
+import type { BeingData } from '../../src/utils/types';
 import { status } from '../../src/cli/commands/status';
 import { karma } from '../../src/cli/commands/karma';
 import { inquiry } from '../../src/cli/commands/inquiry';
@@ -298,6 +300,27 @@ describe('CLI command bodies', () => {
       expect(result.cause.cravingsPresent).toContain('sensory');
     });
 
+    it('takes the parsed arrays the interactive checkboxes hold', () => {
+      const viaArrays = runDiagnose(sm, 'tester', {
+        dukkhaTypes: ['dukkha-dukkha', 'viparinama-dukkha'],
+        cravingTypes: ['becoming'],
+      });
+      const viaFlags = runDiagnose(sm, 'tester', {
+        dukkhaTypes: 'dukkha-dukkha,viparinama-dukkha',
+        cravingTypes: 'becoming',
+      });
+      expect(viaArrays).toEqual(viaFlags);
+    });
+
+    // The reason the arrays go through unjoined: rendering them as a string
+    // first turns an empty selection into the defaults, silently.
+    it('an empty array selects nothing rather than falling back to the defaults', () => {
+      const { result } = runDiagnose(sm, 'tester', { dukkhaTypes: [], cravingTypes: [] });
+      expect(result.suffering.totalTypes).toBe(0);
+      expect(result.suffering.obviousSuffering).toBe(false);
+      expect(result.cause.cravingsPresent).toEqual([]);
+    });
+
     it('reads the comma-separated types it is given', () => {
       const { result } = runDiagnose(sm, 'tester', {
         dukkhaTypes: 'dukkha-dukkha,viparinama-dukkha,sankhara-dukkha',
@@ -322,6 +345,109 @@ describe('CLI command bodies', () => {
       runDiagnose(sm, 'tester', {});
       expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(false);
     });
+  });
+});
+
+describe('settling a rebirth that came due on disk', () => {
+  // BUDDHA_INCARNATION_GAP_MS is the knob that decides when a load flags a
+  // rebirth as due. At 0, any reload of a saved being flags one — which is
+  // the state every mutating command has to cope with, and the branch of
+  // loadSettledBeing that nothing else in the repo covers.
+  const GAP = 'BUDDHA_INCARNATION_GAP_MS';
+  let dir: string;
+  let sm: StateManager;
+  let previousGap: string | undefined;
+
+  /** Save a being, then make any reload of it due for rebirth. */
+  function saveThenAge(name: string): void {
+    const being = new Being();
+    being.act('a deed that follows the continuum across', 5, 'greed');
+    sm.saveBeing(name, being);
+    process.env[GAP] = '0';
+  }
+
+  function persisted(name: string): BeingData {
+    return JSON.parse(fs.readFileSync(path.join(dir, 'beings', `${name}.json`), 'utf-8'));
+  }
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'buddha-cli-'));
+    sm = new StateManager(dir);
+    previousGap = process.env[GAP];
+  });
+  afterEach(() => {
+    if (previousGap === undefined) delete process.env[GAP];
+    else process.env[GAP] = previousGap;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('karma reports the rebirth in its result document', () => {
+    saveThenAge('tester');
+    const before = persisted('tester');
+
+    const payload = karmaOf(runKarma(sm, 'tester', {}));
+
+    expect(payload.rebirth).toBeDefined();
+    expect(payload.rebirth!.fromRealm).toBeTruthy();
+    expect(payload.rebirth!.toRealm).toBeTruthy();
+    expect(payload.rebirth!.incarnation).toBe((before.incarnation ?? 1) + 1);
+  });
+
+  it('karma persists the newly-transmigrated being, not the one it loaded', () => {
+    saveThenAge('tester');
+    const before = persisted('tester');
+
+    const payload = karmaOf(runKarma(sm, 'tester', {}));
+    const after = persisted('tester');
+
+    expect(after.incarnation).toBe((before.incarnation ?? 1) + 1);
+    expect(after.realm).toBe(payload.rebirth!.toRealm);
+    expect(payload.rebirth!.fromRealm).toBe(before.realm ?? 'human');
+  });
+
+  it('the karmic continuum survives the rebirth', () => {
+    saveThenAge('tester');
+    const payload = karmaOf(runKarma(sm, 'tester', {}));
+    expect(payload.result.karmicSeeds.some(s => s.description.includes('follows the continuum'))).toBe(true);
+  });
+
+  it('settling once is enough — the next call reports no rebirth', () => {
+    saveThenAge('tester');
+    runKarma(sm, 'tester', {});
+    const settledIncarnation = persisted('tester').incarnation;
+
+    // The gap knob is still 0, so the freshly-saved being is due again; what
+    // must not happen is the SAME rebirth being settled twice.
+    const second = karmaOf(runKarma(sm, 'tester', {}));
+    expect(second.rebirth!.incarnation).toBe((settledIncarnation ?? 1) + 1);
+  });
+
+  it('inquiry settles too, and says so', () => {
+    saveThenAge('tester');
+    const before = persisted('tester');
+
+    const payload = runInquiry(sm, 'tester');
+
+    expect(payload.rebirth).toBeDefined();
+    expect(payload.rebirth!.incarnation).toBe((before.incarnation ?? 1) + 1);
+    expect(persisted('tester').incarnation).toBe(payload.rebirth!.incarnation);
+  });
+
+  it('status does not settle: observation does not rebirth', () => {
+    saveThenAge('tester');
+    const before = fs.readFileSync(path.join(dir, 'beings', 'tester.json'));
+
+    const payload = runStatus(sm, 'tester');
+
+    expect(payload).not.toHaveProperty('rebirth');
+    expect(fs.readFileSync(path.join(dir, 'beings', 'tester.json'))).toEqual(before);
+  });
+
+  it('a command run inside the gap reports no rebirth at all', () => {
+    const being = new Being();
+    sm.saveBeing('tester', being);
+    // No aging: the default gap has not elapsed.
+    expect(karmaOf(runKarma(sm, 'tester', {})).rebirth).toBeUndefined();
   });
 });
 

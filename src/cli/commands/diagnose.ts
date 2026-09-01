@@ -40,9 +40,10 @@ export async function diagnose(localOpts: DiagnoseOpts, cmd: Command): Promise<v
     required: true,
   });
 
+  // The checkbox answers go straight through — no join/split round trip.
   const diagnosis = runDiagnose(mgr, globalOpts.being, {
-    dukkhaTypes: suffering.join(','),
-    cravingTypes: cravings.join(','),
+    dukkhaTypes: suffering,
+    cravingTypes: cravings,
   }).result;
 
   console.log();

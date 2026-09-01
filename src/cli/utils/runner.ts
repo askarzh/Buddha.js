@@ -42,6 +42,17 @@ export interface RebirthInfo {
  * Handlers that save must settle first — so when one fires here, the
  * newly-transmigrated being is persisted immediately and returned in place of
  * the loaded one.
+ *
+ * That immediate save is a deliberate change from the pre-extraction code,
+ * which settled here but wrote once at the end of the command. The two differ
+ * only when the work in between throws: the old code would then leave the
+ * pre-rebirth being on disk, so the same rebirth would be rediscovered and
+ * settled again on the next load — possibly into a different realm, since
+ * the selector is not deterministic. A settled rebirth is a fact about the
+ * karmic continuum, not a side effect of whatever command happened to observe
+ * it; observation does not *cause* a rebirth, but once one has been enacted it
+ * is durable. So it is persisted the moment it fires, and a later failure
+ * cannot un-transmigrate the being.
  */
 export function loadSettledBeing(
   sm: StateManager,
@@ -63,9 +74,30 @@ export function loadSettledBeing(
 
 // --------------------------------------------------------------- diagnose
 
+/**
+ * The types may arrive either way: Commander hands over the raw
+ * comma-separated `--dukkha-types` string, while the interactive checkboxes
+ * already hold the parsed values.
+ */
 export interface DiagnoseOpts {
-  dukkhaTypes?: string;
-  cravingTypes?: string;
+  dukkhaTypes?: string | DukkhaType[];
+  cravingTypes?: string | CravingType[];
+}
+
+export const DEFAULT_DUKKHA_TYPES: DukkhaType[] = ['dukkha-dukkha'];
+export const DEFAULT_CRAVING_TYPES: CravingType[] = ['sensory'];
+
+/**
+ * Take a list of types as it was given.
+ *
+ * An array is used exactly as passed — an empty selection stays empty rather
+ * than silently becoming the default, which is the trap a caller falls into
+ * when it has to render its list as a string first. Only a missing or empty
+ * *string* falls back, as the flag always has.
+ */
+function typeList<T extends string>(value: string | T[] | undefined, fallback: T[]): T[] {
+  if (Array.isArray(value)) return value;
+  return value ? value.split(',') as T[] : fallback;
 }
 
 /**
@@ -76,12 +108,8 @@ export interface DiagnoseOpts {
  * named being's own path progress has no effect on the diagnosis today.
  */
 export function runDiagnose(_sm: StateManager, _beingName: string, opts: DiagnoseOpts) {
-  const suffering = opts.dukkhaTypes
-    ? opts.dukkhaTypes.split(',') as DukkhaType[]
-    : ['dukkha-dukkha' as DukkhaType];
-  const cravings = opts.cravingTypes
-    ? opts.cravingTypes.split(',') as CravingType[]
-    : ['sensory' as CravingType];
+  const suffering = typeList(opts.dukkhaTypes, DEFAULT_DUKKHA_TYPES);
+  const cravings = typeList(opts.cravingTypes, DEFAULT_CRAVING_TYPES);
 
   const path = new EightfoldPath();
   const truths = new FourNobleTruths(path);

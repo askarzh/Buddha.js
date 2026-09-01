@@ -49,6 +49,35 @@ export function loadSettledBeing(
   };
 }
 
+// ----------------------------------------------------------------- status
+
+/**
+ * Report a being's current state. Read-only: `status` neither settles a
+ * pending rebirth nor saves — observation does not rebirth.
+ */
+export function runStatus(sm: StateManager, beingName: string) {
+  const being = sm.loadBeing(beingName);
+  const state = being.getState();
+
+  return {
+    command: 'status' as const,
+    being: beingName,
+    result: {
+      pathProgress: state.pathProgress,
+      mindfulnessLevel: state.mindfulnessLevel,
+      pendingKarma: state.pendingKarma,
+      experienceCount: state.experienceCount,
+      mindState: {
+        isCalm: state.mindState.isCalm,
+        isFocused: state.mindState.isFocused,
+        dominantFactors: state.mindState.dominantFactors,
+      },
+    },
+    state: { mindfulness: state.mindfulnessLevel, karmicActions: state.pendingKarma },
+    seeds: being.getSeedStats(),
+  };
+}
+
 // ------------------------------------------------------------------ karma
 
 export interface KarmaOpts {

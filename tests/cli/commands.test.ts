@@ -3,7 +3,12 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { StateManager } from '../../src/cli/utils/state';
-import { runKarma, isKarmaError, KarmaResult } from '../../src/cli/utils/runner';
+import {
+  runKarma,
+  runStatus,
+  isKarmaError,
+  KarmaResult,
+} from '../../src/cli/utils/runner';
 
 /** Narrow away the error branch so a test can read the result. */
 function karmaOf(result: ReturnType<typeof runKarma>): KarmaResult {
@@ -63,6 +68,34 @@ describe('CLI command bodies', () => {
     it('plants nothing when the action fields are incomplete', () => {
       const result = karmaOf(runKarma(sm, 'tester', { description: 'partial' }));
       expect(result.result.totalActions).toBe(0);
+    });
+  });
+
+  describe('status', () => {
+    it('reports the being it was asked about', () => {
+      const result = runStatus(sm, 'tester');
+      expect(result.command).toBe('status');
+      expect(result.being).toBe('tester');
+      expect(typeof result.result.mindfulnessLevel).toBe('number');
+      expect(result.result.mindState).toHaveProperty('isCalm');
+    });
+
+    it('sees the karma another command planted', () => {
+      runKarma(sm, 'tester', { description: 'a deed', intensity: '5', root: 'greed' });
+      expect(runStatus(sm, 'tester').result.pendingKarma).toBeGreaterThan(0);
+    });
+
+    it('never writes to disk', () => {
+      runKarma(sm, 'tester', { description: 'a deed', intensity: '5', root: 'greed' });
+      const file = path.join(dir, 'beings', 'tester.json');
+      const before = fs.readFileSync(file);
+      runStatus(sm, 'tester');
+      expect(fs.readFileSync(file)).toEqual(before);
+    });
+
+    it('creates no file for a being that does not exist', () => {
+      runStatus(sm, 'nobody');
+      expect(fs.existsSync(path.join(dir, 'beings', 'nobody.json'))).toBe(false);
     });
   });
 });

@@ -43,7 +43,7 @@ fixed canon.
   wisdom-cap computation in `Being.meditate()` had been open-coded; a factor
   can now be walked toward a target without a call site doing the arithmetic.
 - **First tests for the CLI.** Command logic moved into a testable
-  `src/cli/runner.ts` (100% line coverage) behind unchanged wrappers;
+  `src/cli/utils/runner.ts` (100% line coverage) behind unchanged wrappers;
   behaviour preservation was proven byte-for-byte across 26 invocations of the
   built `dist/cli.mjs`.
 - `scripts/check-versions.sh`, run first in CI: all five version surfaces
@@ -72,7 +72,9 @@ fixed canon.
   with `--being`; interactive `meditate` persists the real session, with
   effort derived from the timer's measured mindfulness ratio.
 - The DSH plugin no longer bundles DSH's own runtime: `lib/index.js` is
-  34.85 KB against a 181.51 KB baseline.
+  47.15 KB at this release against a 181.51 KB baseline. (34.85 KB was the
+  snapshot right after that change, before the three-tier breaker, the koan
+  sessions and the error tracing were added on top of it.)
 - Swallowed faults in `dsh/src` are traced to stderr by name rather than
   vanishing.
 

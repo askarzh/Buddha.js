@@ -9,6 +9,41 @@ Claude Code plugin manifest, and the MCPB manifest had drifted out of sync
 independently across releases. From 0.4.0 on, all four are unified and bumped
 together on every release.
 
+## [Unreleased]
+
+Fixes found by running the plugin against a live model rather than a mock.
+
+### Fixed
+
+- **`/sit` no longer walks the protocol against nothing.** A bare `/sit`
+  rendered the four steps for the placeholder "unnamed suffering", printing it
+  four times — ceremony, when naming the suffering *is* the first step. It now
+  sits with the session's most recent unwholesome seed (saying that it inferred
+  it), and when the session has had no trouble at all it asks for a name
+  instead of inventing one.
+- **`/status`'s two karma counts no longer read as a contradiction.** The state
+  summary reports the `Karma` stream while the seed block reports the
+  `KarmicStore`; shown together as "Pending karmic seeds: 4" beside
+  "KARMIC SEEDS: {active: 19}" they looked like one number disagreeing with
+  itself. The summary line is now "Unripened karma in the stream", and the seed
+  lines name their store.
+- **`buddha-realms` says so when a delegation falls back to the human realm.**
+  `dsh-tool-subagent` takes its persona from the tool entry's config, never
+  from the model's arguments, so mounting the provider without pinning one
+  silently produced `human` children — full tool access, the opposite of what a
+  realm allowlist is for. Warned once per process, and the wiring is now
+  documented (one tool entry per realm).
+- **The Poison Arrow notice describes its number honestly.** It claimed a tool
+  "has failed N times in a row" when N is a weighted pressure (an identical
+  retry adds 2), and a live model spent a third of its report arguing the
+  counter was broken.
+
+### Changed
+
+- Claude Code plugin manifest to **0.5.1** — `plugin/dist/mcp.mjs` is rebuilt
+  from the changed `Being.getSummary()` text, and `/plugin update` skips
+  re-extraction when the version string is unchanged.
+
 ## [0.5.0]
 
 DeepSeek Harness (Cordis) plugin: `dsh/`.

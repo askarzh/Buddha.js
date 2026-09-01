@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import { KoanGenerator, PoisonArrow } from 'buddha-js'
+import type { Being } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
 import type { VithiHandle } from './vithi.js'
 
@@ -23,14 +24,48 @@ function sessionIdOf(invocation: CommandInvocation): string {
   return invocation.agent.id
 }
 
-/** Render the four-step Poison Arrow cessation protocol for `/sit`. */
-function renderSit(rawInput: string): string {
-  const suffering = rawInput.trim() || 'unnamed suffering'
+/**
+ * Render the four-step Poison Arrow cessation protocol for `/sit`.
+ *
+ * A bare `/sit` used to walk the whole protocol against the placeholder
+ * "unnamed suffering", printing it four times. The protocol's first step is
+ * to NAME the suffering, so an unnamed one is a contradiction: it reads as
+ * ceremony, and there is nothing to investigate at step two. Instead, fall
+ * back to what this session actually struggled with — the most recent
+ * unwholesome seed, which is what the breaker plants on a blind retry — and
+ * when the session has no such trouble, ask for a name instead of inventing
+ * one.
+ */
+function renderSit(rawInput: string, being: Being): CommandResult {
+  const named = rawInput.trim()
+  const suffering = named || mostRecentStruggle(being)
+  if (!suffering) {
+    return {
+      kind: 'success',
+      text:
+        'Nothing in this session has gone wrong yet, so there is nothing to name.\n' +
+        'Name it yourself to sit with it: /sit <what hurts>  (e.g. /sit the migration keeps failing)',
+    }
+  }
+
   const arrow = new PoisonArrow(suffering)
   for (let i = 0; i < 4; i++) {
     arrow.step()
   }
-  return arrow.getSummary()
+  const inferred = named ? '' : `(no suffering named — sitting with this session's most recent one)\n\n`
+  return { kind: 'success', text: inferred + arrow.getSummary() }
+}
+
+/**
+ * The description of this being's most recent unwholesome seed, or undefined
+ * when it has none. Read-only, like everything `/sit` and `/status` do.
+ */
+function mostRecentStruggle(being: Being): string | undefined {
+  const unwholesome = being.karmicStore
+    .getSeeds()
+    .filter((seed) => seed.quality === 'unwholesome')
+    .sort((a, b) => a.createdAt - b.createdAt)
+  return unwholesome.at(-1)?.description
 }
 
 /** Present a koan by id (or a random one), or report the known ids on a bad id. */
@@ -64,8 +99,11 @@ function renderStatus(registry: BeingRegistry, vithi: VithiHandle, invocation: C
     being.getSummary(),
     '',
     `REALM: ${being.realm} (incarnation ${being.incarnation})`,
-    `KARMIC SEEDS: ${JSON.stringify(seedStats.byState)}`,
-    `KARMIC BALANCE: ${JSON.stringify(seedStats.balance)}`,
+    // Named for their store: the summary above reports the older Karma
+    // stream, and the two counts are different mechanisms, not one number
+    // disagreeing with itself.
+    `KARMIC SEEDS (store): ${JSON.stringify(seedStats.byState)}`,
+    `KARMIC BALANCE (store, potency-weighted): ${JSON.stringify(seedStats.balance)}`,
   ]
   if (lastVithi) {
     lines.push(
@@ -114,7 +152,7 @@ function registerDefinitions(ctx: Context, registry: BeingRegistry, vithi: Vithi
     name: 'sit',
     description: 'Quick relief: walk the four-step Poison Arrow cessation protocol for a named suffering.',
     handler(invocation: CommandInvocation): CommandResult {
-      return { kind: 'success', text: renderSit(invocation.rawInput) }
+      return renderSit(invocation.rawInput, registry.peek(sessionIdOf(invocation)))
     },
   })
 

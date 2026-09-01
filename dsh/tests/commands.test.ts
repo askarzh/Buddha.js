@@ -106,11 +106,33 @@ describe('/sit /koan /status /rebirth commands', () => {
       expect(text).toContain('practice')
     })
 
-    it('falls back to "unnamed suffering" when rawInput is blank', async () => {
+    // A bare /sit used to walk the protocol against the placeholder "unnamed
+    // suffering" — ceremony with nothing to investigate, since naming the
+    // suffering IS the first step.
+    it('asks for a name when rawInput is blank and the session has no trouble to point at', async () => {
       const result = await definition('sit').handler(fakeInvocation(fakeAgent(), '   '))
 
       expect(result.kind).toBe('success')
-      expect((result as { text?: string }).text).toContain('unnamed suffering')
+      const text = (result as { text?: string }).text ?? ''
+      expect(text).toContain('/sit <what hurts>')
+      expect(text).not.toContain('unnamed suffering')
+      expect(text).not.toContain('recognize') // no hollow protocol walk
+    })
+
+    it("sits with the session's most recent unwholesome seed when rawInput is blank", async () => {
+      const agent = fakeAgent()
+      const being = registry.peek(agent.id)
+      being.act('an older stumble', 5, 'aversion')
+      being.act('blind retry of read', 6, 'aversion')
+      registry.save(agent.id, being)
+
+      const result = await definition('sit').handler(fakeInvocation(agent, ''))
+
+      const text = (result as { text?: string }).text ?? ''
+      expect(text).toContain('blind retry of read') // the most recent one, not the older
+      expect(text).not.toContain('an older stumble')
+      expect(text).toContain('no suffering named') // says it inferred rather than pretending
+      expect(text).toContain('recognize')
     })
   })
 

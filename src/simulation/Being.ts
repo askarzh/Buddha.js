@@ -1233,7 +1233,7 @@ PATH DEVELOPMENT:
   ${this.path.isBalanced() ? 'Path is balanced' : 'Path needs balancing'}
 
 KARMA:
-  Pending karmic seeds: ${state.pendingKarma}
+  Unripened karma in the stream: ${state.pendingKarma}
   Total experiences: ${state.experienceCount}
 
 MIND:

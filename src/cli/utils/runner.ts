@@ -8,17 +8,16 @@
  * returns exactly the object the `--json` branch prints. The command files are
  * thin wrappers that print the result (JSON) or format it (interactive).
  *
- * Some functions take `sm`/`beingName` without using them: `meditate` never
- * persists, and `diagnose`/`chain` are standalone demonstrations that ignore
- * the named being. The signature is uniform so that making those being-aware
- * is a change of body, not of call sites.
+ * `sit`, `koan` and `beings` take `sm`/`beingName` without using them —
+ * they are genuinely stateless or (for `beings`) about the whole state
+ * directory rather than one profile. `diagnose`, `chain` and `meditate` used
+ * to be in that category too (standalone demonstrations, or a session that
+ * never persisted); Task 9 made all three being-aware, per each function's
+ * own doc comment for what "being-aware" means for it.
  */
 import { Being } from '../../simulation/Being';
 import { KoanGenerator } from '../../koan/KoanGenerator';
 import { PoisonArrow } from '../../simulation/PoisonArrow';
-import { DependentOrigination } from '../../dependent-origination/DependentOrigination';
-import { EightfoldPath } from '../../eightfold-path/EightfoldPath';
-import { FourNobleTruths } from '../../four-noble-truths/FourNobleTruths';
 import {
   KarmaQuality,
   Intensity,
@@ -101,19 +100,23 @@ function typeList<T extends string>(value: string | T[] | undefined, fallback: T
 }
 
 /**
- * Run the Four Noble Truths diagnosis over the given suffering and cravings.
+ * Run the Four Noble Truths diagnosis over the given suffering and cravings,
+ * using the named being's own `fourNobleTruths` (wired to its own `path` at
+ * construction) rather than a fresh, throwaway one.
  *
- * NOTE: like `chain`, this is a standalone demonstration — it builds a fresh
- * EightfoldPath and FourNobleTruths and ignores `sm`/`beingName`, so the
- * named being's own path progress has no effect on the diagnosis today.
+ * Read-only: `Dukkha.analyze()` does mutate `firstTruth.recognizedTypes` as a
+ * side effect, but that field is never part of `BeingData` — it is discarded
+ * with the in-memory being when the process moves on — so there is nothing
+ * for this command to persist. Like `status`, it neither settles a pending
+ * rebirth nor saves — observation does not rebirth, and a diagnosis is an
+ * observation.
  */
-export function runDiagnose(_sm: StateManager, _beingName: string, opts: DiagnoseOpts) {
+export function runDiagnose(sm: StateManager, beingName: string, opts: DiagnoseOpts) {
   const suffering = typeList(opts.dukkhaTypes, DEFAULT_DUKKHA_TYPES);
   const cravings = typeList(opts.cravingTypes, DEFAULT_CRAVING_TYPES);
 
-  const path = new EightfoldPath();
-  const truths = new FourNobleTruths(path);
-  const diagnosis = truths.diagnose({ suffering, cravings });
+  const being = sm.loadBeing(beingName);
+  const diagnosis = being.fourNobleTruths.diagnose({ suffering, cravings });
 
   return {
     command: 'diagnose' as const,
@@ -129,14 +132,17 @@ export function runDiagnose(_sm: StateManager, _beingName: string, opts: Diagnos
 // ------------------------------------------------------------------ chain
 
 /**
- * List the 12 nidanas and the point on the chain where practice can break it.
+ * List the 12 nidanas and the point on the chain where practice can break it,
+ * reading them off the named being's own `dependentOrigination` — the same
+ * instance `BeingData` serializes and restores — rather than a fresh one.
  *
- * NOTE: this is a standalone demonstration — it builds a fresh
- * DependentOrigination and ignores `sm`/`beingName` entirely, so `--being`
- * has no effect on the output today.
+ * Read-only, like `status` and the MCP `chain` tool: nothing in this repo
+ * ever advances a link's `hasArisen` past its constructor default, so no
+ * being's chain differs from another's today, but the being that is read is
+ * now the real one. No settle, no save — observation does not rebirth.
  */
-export function runChain(_sm: StateManager, _beingName: string) {
-  const do_ = new DependentOrigination();
+export function runChain(sm: StateManager, beingName: string) {
+  const do_ = sm.loadBeing(beingName).dependentOrigination;
 
   return {
     command: 'chain' as const,
@@ -287,32 +293,44 @@ export function runKoan(_sm: StateManager, _beingName: string, opts: KoanOpts) {
 export interface MeditateOpts {
   interval?: string;
   duration?: string;
+  effort?: string;
 }
 
 export const DEFAULT_MEDITATION_MINUTES = 5;
+export const DEFAULT_MEDITATION_EFFORT: Intensity = 5;
 
 /**
- * Resolve a meditation session's parameters.
- *
- * NOTE: this does not run a session and does not persist anything — the
- * `--json` path has always been a description of the session the interactive
- * path would run. `sm` and `beingName` are unused for that reason.
+ * Run a meditation session for the named being and save it — practicing is
+ * an act, so a pending rebirth is settled first, per the MCP `buddha_meditate`
+ * tool this mirrors. `being.meditate()` takes duration in seconds; the
+ * `--duration` flag is in minutes, as it has always been for this command.
  */
 export function runMeditate(
-  _sm: StateManager,
-  _beingName: string,
+  sm: StateManager,
+  beingName: string,
   opts: MeditateOpts,
 ) {
   const durationMinutes = opts.duration
     ? parseInt(opts.duration, 10)
     : DEFAULT_MEDITATION_MINUTES;
+  const effort = (opts.effort ? Number(opts.effort) : DEFAULT_MEDITATION_EFFORT) as Intensity;
+
+  const { being, rebirth } = loadSettledBeing(sm, beingName);
+  const session = being.meditate(durationMinutes * 60, effort);
+  sm.saveBeing(beingName, being);
 
   return {
     command: 'meditate' as const,
+    being: beingName,
     result: {
       durationMinutes,
       message: `Meditation session: ${durationMinutes} minutes. Use interactive mode for real-time practice.`,
+      mindfulnessLevel: session.mindfulnessLevel,
+      concentrationLevel: session.concentrationLevel,
+      insight: session.insight,
+      pathProgress: session.pathProgress,
     },
+    ...(rebirth ? { rebirth } : {}),
   };
 }
 

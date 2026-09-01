@@ -136,11 +136,17 @@ describe('CLI command bodies', () => {
       expect(runMeditate(sm, 'tester', { duration: '20' }).result.message).toContain('20 minutes');
     });
 
-    // Current behaviour, deliberately pinned: meditate persists nothing, so a
-    // session leaves no trace on the named being. Task 9 changes this.
-    it('persists nothing today', () => {
+    // Task 9: meditate now practices on, and saves, the named being — a
+    // session leaves a trace, like the MCP `buddha_meditate` tool it mirrors.
+    it('persists the practiced mindfulness', () => {
       runMeditate(sm, 'tester', { duration: '15' });
-      expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(false);
+      expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(true);
+      expect(runStatus(sm, 'tester').result.mindfulnessLevel).toBeGreaterThan(0);
+    });
+
+    it('does not affect a being it was not given', () => {
+      runMeditate(sm, 'tester', { duration: '15' });
+      expect(fs.existsSync(path.join(dir, 'beings', 'someone-else.json'))).toBe(false);
     });
   });
 
@@ -271,12 +277,17 @@ describe('CLI command bodies', () => {
       expect(result.liberationPoint).toBeTruthy();
     });
 
-    // Current behaviour, deliberately pinned: chain is a standalone
-    // demonstration that ignores --being. Task 9 makes it being-aware, and
-    // this assertion is the one that flips.
-    it('ignores the named being today', () => {
-      runKarma(sm, 'alice', { description: 'a deed', intensity: '9', root: 'greed' });
-      expect(runChain(sm, 'alice')).toEqual(runChain(sm, 'nobody'));
+    // Task 9: chain now loads the named being (its `dependentOrigination`,
+    // rather than a fresh throwaway one). Nothing in this repo ever advances
+    // a link's `hasArisen` past its constructor default, so no being's chain
+    // actually differs from another's today — planting karma on alice
+    // doesn't touch her dependent-origination chain, so this can't be shown
+    // via alice-vs-nobody output equality the way `diagnose`'s twin test can
+    // no longer be shown that way either. What changed is observable instead
+    // through the being name now being used to load: an invalid one is
+    // rejected, where it was silently ignored before.
+    it('reads the named being off disk, rejecting an invalid name', () => {
+      expect(() => runChain(sm, '../../../etc/passwd')).toThrow('Invalid being name');
     });
 
     it('reads no being from disk', () => {
@@ -332,13 +343,15 @@ describe('CLI command bodies', () => {
       expect(result.cause.cravingsPresent.sort()).toEqual(['becoming', 'non-becoming']);
     });
 
-    // Current behaviour, deliberately pinned: diagnose builds a fresh
-    // EightfoldPath and ignores --being, so a being's own path progress
-    // cannot change the diagnosis. Task 9 makes it being-aware, and this
-    // assertion is the one that flips.
-    it('ignores the named being today', () => {
-      runKarma(sm, 'alice', { description: 'a deed', intensity: '9', root: 'greed' });
-      expect(runDiagnose(sm, 'alice', {})).toEqual(runDiagnose(sm, 'nobody', {}));
+    // Task 9: diagnose now reads the named being's own `fourNobleTruths`
+    // instead of building a fresh, throwaway one. Magga's prescription
+    // doesn't actually consult path state today, so — like `chain` — no
+    // being's diagnosis differs from another's yet; planting karma on alice
+    // doesn't change what she's prescribed. What changed is observable
+    // through the being name now being used to load: an invalid one is
+    // rejected, where it was silently ignored before.
+    it('reads the named being off disk, rejecting an invalid name', () => {
+      expect(() => runDiagnose(sm, '../../../etc/passwd', {})).toThrow('Invalid being name');
     });
 
     it('reads no being from disk', () => {

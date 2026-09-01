@@ -68,6 +68,7 @@ program
   .description('Start a meditation session with mindful check-ins')
   .option('--interval <seconds>', 'Seconds between interval bells', '60')
   .option('--duration <minutes>', 'Duration in minutes (for --json, runs silently)')
+  .option('--effort <level>', 'Meditation effort 0-10 (for --json)', '5')
   .action(meditate);
 
 const beingsCmd = program

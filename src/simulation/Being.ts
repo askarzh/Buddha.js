@@ -13,7 +13,6 @@ import { DependentOrigination } from '../dependent-origination/DependentOriginat
 import { FourNobleTruths, Diagnosis } from '../four-noble-truths/FourNobleTruths';
 import { Karma } from '../karma/Karma';
 import { Intention } from '../karma/Intention';
-import { KarmicResult } from '../karma/KarmicResult';
 import { KarmicStore, KarmicVipaka, RipeningCondition, KarmicSeed, RipeningTiming } from '../karma/KarmicEventSystem';
 import { Sunyata, EmptinessInsight } from '../emptiness/Sunyata';
 import { Mind } from '../mind/Mind';
@@ -42,12 +41,15 @@ export interface SelfInvestigationResult {
 }
 
 /**
- * Report produced by receiveKarmicResults(): legacy karmic-stream results,
- * any karmic-store seeds that ripened, and an explanation of why the
- * remaining active seeds did not ripen this pass.
+ * Report produced by receiveKarmicResults(): the karmic-store seeds that
+ * ripened, and an explanation of why the remaining active seeds did not ripen
+ * this pass.
+ *
+ * The `results` field (the legacy `Karma` stream's unconditional
+ * manifestations) is gone as of 0.6.0 — see the CHANGELOG. One act now leaves
+ * one record.
  */
 export interface KarmicResultsReport {
-  results: KarmicResult[];
   seedVipakas: KarmicVipaka[];
   whyNot: Array<{ seedId: string; description: string; unmet: string[] }>;
 }
@@ -147,7 +149,6 @@ export class Being implements Serializable<BeingData> {
   readonly karmicStore: KarmicStore;
 
   /** Stream of karma */
-  private karmicStream: Karma[] = [];
 
   /** History of experiences */
   private experienceHistory: ProcessedExperience[] = [];
@@ -400,14 +401,12 @@ export class Being implements Serializable<BeingData> {
     const intention = new Intention(description, intensity, root);
     const karma = new Karma(intention, intensity);
     karma.complete();
-    this.karmicStream.push(karma);
     this.plantSeedFromAct(description, intensity, root);
     return karma;
   }
 
   /**
-   * Dual-write path: alongside the legacy karmicStream entry, plant a
-   * karmic seed in the KarmicStore. Quality is derived from the root
+   * Plant the karmic seed for an act. Quality is derived from the root
    * (never caller-supplied) using the same rule as Intention.determineQuality:
    * greed/aversion/delusion -> unwholesome, other roots -> wholesome,
    * no root -> neutral.
@@ -676,25 +675,6 @@ export class Being implements Serializable<BeingData> {
    * afterward are explained in `whyNot`.
    */
   receiveKarmicResults(force = false): KarmicResultsReport {
-    const results: KarmicResult[] = [];
-
-    for (const karma of this.karmicStream) {
-      if (karma.isPotential()) {
-        const result = karma.manifest();
-        if (result) {
-          results.push(result);
-
-          // Experience the result through the aggregates
-          this.experience({
-            senseBase: 'mind',
-            object: result.description,
-            intensity: result.intensity,
-            valence: result.experienceQuality
-          });
-        }
-      }
-    }
-
     const seedVipakas: KarmicVipaka[] = [];
     const candidateSeeds = this.karmicStore.getSeeds({ state: 'active' });
 
@@ -747,7 +727,7 @@ export class Being implements Serializable<BeingData> {
       }
     }
 
-    return { results, seedVipakas, whyNot };
+    return { seedVipakas, whyNot };
   }
 
   /**
@@ -930,7 +910,6 @@ export class Being implements Serializable<BeingData> {
     const next = new REALM_CLASSES[toRealm]();
     next._restoreState({
       mindfulnessLevel: 0,
-      karmicStream: [],
       experienceHistory: [],
       karmicStore: inheritedStore,
       incarnation: inheritedIncarnation,
@@ -1125,7 +1104,7 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
       aggregatesSnapshot: this.aggregates.getSnapshot(),
       pathProgress: this.path.getOverallDevelopment(),
       mindfulnessLevel: this._mindfulnessLevel,
-      pendingKarma: this.karmicStream.filter(k => k.isPotential()).length,
+      pendingKarma: this.karmicStore.getSeeds({ state: 'active' }).length,
       experienceCount: this.experienceHistory.length,
       mindState: this.mind.getState()
     };
@@ -1136,13 +1115,6 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
    */
   getExperienceHistory(count = 10): ProcessedExperience[] {
     return this.experienceHistory.slice(-count);
-  }
-
-  /**
-   * Get karmic stream
-   */
-  getKarmicStream(): Karma[] {
-    return [...this.karmicStream];
   }
 
   /**
@@ -1173,7 +1145,6 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
    */
   _restoreState(state: {
     mindfulnessLevel: Intensity;
-    karmicStream: Karma[];
     experienceHistory: ProcessedExperience[];
     karmicStore?: KarmicStore;
     incarnation?: number;
@@ -1181,7 +1152,6 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
     pendingRebirth?: boolean;
   }): void {
     this._mindfulnessLevel = state.mindfulnessLevel;
-    this.karmicStream = state.karmicStream;
     this.experienceHistory = state.experienceHistory;
     this._incarnation = state.incarnation ?? 1;
     this._pendingRebirth = state.pendingRebirth ?? false;
@@ -1233,7 +1203,7 @@ PATH DEVELOPMENT:
   ${this.path.isBalanced() ? 'Path is balanced' : 'Path needs balancing'}
 
 KARMA:
-  Unripened karma in the stream: ${state.pendingKarma}
+  Unripened karmic seeds: ${state.pendingKarma}
   Total experiences: ${state.experienceCount}
 
 MIND:

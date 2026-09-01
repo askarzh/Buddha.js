@@ -125,8 +125,8 @@ describe('real-composition headless boot (Poison Arrow reaches the model)', () =
     expect(files.length).toBeGreaterThan(0)
 
     const being = JSON.parse(fs.readFileSync(path.join(beingsDir, files[0]!), 'utf-8'))
-    const karmicStream: Array<{ description: string }> = being.karmicStream ?? []
-    expect(karmicStream.some((entry) => entry.description.includes('blind retry of read'))).toBe(true)
+    const seeds: Array<{ description: string }> = being.karmicStore?.seeds ?? []
+    expect(seeds.some((seed) => seed.description.includes('blind retry of read'))).toBe(true)
   }, 120_000)
 
   it('RED: without the breaker, the mock model never sees the protocol (proves this is a real signal, not a tautology)', () => {

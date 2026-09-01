@@ -9,7 +9,7 @@ describe('BeingSerializer', () => {
       const data = serializeBeing(being);
 
       expect(data.mindfulnessLevel).toBe(0);
-      expect(data.karmicStream).toEqual([]);
+      expect(data.karmicStream).toBeUndefined(); // removed in 0.6.0, no longer written
       expect(data.experienceHistory).toEqual([]);
       expect(data.path.factors).toHaveLength(8);
       expect(data.mind).toBeDefined();
@@ -51,7 +51,7 @@ describe('BeingSerializer', () => {
       const restored = deserializeBeing(data);
 
       expect(restored.mindfulnessLevel).toBe(being.mindfulnessLevel);
-      expect(restored.getKarmicStream()).toHaveLength(1);
+      expect(restored.karmicStore.getSeeds()).toHaveLength(1);
     });
 
     it('should produce same result as Being.fromJSON()', () => {
@@ -64,7 +64,7 @@ describe('BeingSerializer', () => {
       const fromSerializer = deserializeBeing(data);
 
       expect(fromSerializer.mindfulnessLevel).toBe(fromMethod.mindfulnessLevel);
-      expect(fromSerializer.getKarmicStream()).toHaveLength(fromMethod.getKarmicStream().length);
+      expect(fromSerializer.karmicStore.getSeeds()).toHaveLength(fromMethod.karmicStore.getSeeds().length);
       expect(fromSerializer.path.getOverallDevelopment()).toBeCloseTo(fromMethod.path.getOverallDevelopment(), 1);
     });
 

@@ -8,7 +8,7 @@ describe('Being Persistence', () => {
       const data = being.toJSON();
 
       expect(data.mindfulnessLevel).toBe(0);
-      expect(data.karmicStream).toEqual([]);
+      expect(data.karmicStream).toBeUndefined(); // removed in 0.6.0, no longer written
       expect(data.experienceHistory).toEqual([]);
       expect(data.path).toBeDefined();
       expect(data.path.factors).toHaveLength(8);
@@ -32,9 +32,37 @@ describe('Being Persistence', () => {
       being.act('helping', 5, 'non-greed');
 
       const data = being.toJSON();
-      expect(data.karmicStream).toHaveLength(1);
-      expect(data.karmicStream[0].quality).toBe('wholesome');
-      expect(data.karmicStream[0].isCompleted).toBe(true);
+      expect(data.karmicStore.seeds).toHaveLength(1);
+      expect(data.karmicStore.seeds[0].quality).toBe('wholesome');
+      expect(data.karmicStore.seeds[0].description).toBe('helping');
+    });
+
+    // A save written before 0.6.0 still carries `karmicStream`. It must load,
+    // and its acts must not come back twice -- the seeds in `karmicStore` are
+    // already the record of those same acts.
+    it('ignores a pre-0.6.0 karmicStream instead of restoring duplicates', () => {
+      const being = new Being();
+      being.act('helping', 5, 'non-greed');
+
+      const legacy = {
+        ...being.toJSON(),
+        karmicStream: [
+          {
+            id: 'legacy-1',
+            description: 'helping',
+            quality: 'wholesome' as const,
+            intensity: 5 as const,
+            root: 'non-greed' as const,
+            isCompleted: true,
+            hasManifested: false,
+          },
+        ],
+      };
+
+      const restored = Being.fromJSON(legacy);
+
+      expect(restored.karmicStore.getSeeds()).toHaveLength(1);
+      expect(restored.toJSON().karmicStream).toBeUndefined();
     });
 
     it('should serialize after experiencing', () => {
@@ -62,7 +90,7 @@ describe('Being Persistence', () => {
       const restored = Being.fromJSON(data);
 
       expect(restored.mindfulnessLevel).toBe(0);
-      expect(restored.getKarmicStream()).toHaveLength(0);
+      expect(restored.karmicStore.getSeeds()).toHaveLength(0);
       expect(restored.getExperienceHistory()).toHaveLength(0);
     });
 
@@ -109,7 +137,7 @@ describe('Being Persistence', () => {
       const data = being.toJSON();
       const restored = Being.fromJSON(data);
 
-      expect(restored.getKarmicStream()).toHaveLength(2);
+      expect(restored.karmicStore.getSeeds()).toHaveLength(2);
     });
 
     it('should survive full round-trip via JSON.stringify', () => {
@@ -123,7 +151,7 @@ describe('Being Persistence', () => {
       const restored = Being.fromJSON(parsed);
 
       expect(restored.mindfulnessLevel).toBe(being.mindfulnessLevel);
-      expect(restored.getKarmicStream()).toHaveLength(1);
+      expect(restored.karmicStore.getSeeds()).toHaveLength(1);
       expect(restored.getExperienceHistory(100)).toHaveLength(being.getExperienceHistory(100).length);
     });
 

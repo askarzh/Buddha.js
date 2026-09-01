@@ -55,12 +55,11 @@ describe('Being', () => {
       expect(being.act('walk', 5).quality).toBe('neutral');
     });
 
-    it('should track karma in stream', () => {
+    it('should record each act as one seed', () => {
       being.act('action 1', 5, 'non-greed');
       being.act('action 2', 3, 'greed');
 
-      const stream = being.getKarmicStream();
-      expect(stream).toHaveLength(2);
+      expect(being.karmicStore.getSeeds()).toHaveLength(2);
     });
 
     it('should have pending karma', () => {
@@ -73,13 +72,27 @@ describe('Being', () => {
     it('should receive karmic results', () => {
       being.act('give', 5, 'non-greed');
 
-      const report = being.receiveKarmicResults();
-      expect(report.results.length).toBeGreaterThan(0);
+      const report = being.receiveKarmicResults(true);
+      expect(report.seedVipakas.length).toBeGreaterThan(0);
+    });
+
+    // Regression: act() used to write to BOTH the legacy Karma stream and the
+    // seed store, so a single deed manifested twice on ripening -- one result
+    // from the stream, one vipaka from its seed, and two experiences in the
+    // aggregates. One act, one fruit.
+    it('ripens one act exactly once', () => {
+      being.act('one single deed', 5, 'aversion');
+      const before = being.getExperienceHistory(Infinity).length;
+
+      const report = being.receiveKarmicResults(true);
+
+      expect(report.seedVipakas).toHaveLength(1);
+      expect(being.getExperienceHistory(Infinity).length - before).toBe(1);
     });
 
     it('experiences unwholesome karmic results as unpleasant', () => {
       being.act('harsh speech', 7, 'aversion');
-      being.receiveKarmicResults();
+      being.receiveKarmicResults(true);
       const last = being.getExperienceHistory(1)[0];
       expect(last.feelingTone).toBe('unpleasant');
     });
@@ -233,7 +246,6 @@ describe('Being', () => {
       expect(seeds).toHaveLength(1);
       expect(seeds[0].quality).toBe('wholesome');
       expect(seeds[0].strength).toBe('moderate');
-      expect(being.getKarmicStream()).toHaveLength(1); // legacy contract intact
     });
 
     it('maps intensity to seed strength boundaries', () => {

@@ -304,7 +304,13 @@ export interface KarmaData {
 /** Serialized Being */
 export interface BeingData {
   mindfulnessLevel: Intensity;
-  karmicStream: KarmaData[];
+  /**
+   * @deprecated Removed in 0.6.0 and no longer written. Still declared so
+   * that saves made before 0.6.0 type-check when read back; the loader
+   * ignores it — restoring it would re-create the duplicate record of every
+   * act that the field was removed for.
+   */
+  karmicStream?: KarmaData[];
   experienceHistory: Array<{
     input: { senseBase: string; object: unknown; intensity: number; valence?: FeelingTone };
     label: string;

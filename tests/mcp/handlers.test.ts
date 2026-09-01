@@ -96,7 +96,7 @@ describe('MCP handlers — stateful actions', () => {
   test('ripenKarma returns a karmic results report', () => {
     act(sm, 'actor', 'small kind act', 3);
     const report = ripenKarma(sm, 'actor');
-    expect(Array.isArray(report.results)).toBe(true);
+    expect(Array.isArray(report.seedVipakas)).toBe(true);
     expect(Array.isArray(report.seedVipakas)).toBe(true);
     expect(Array.isArray(report.whyNot)).toBe(true);
   });

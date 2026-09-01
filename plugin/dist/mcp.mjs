@@ -36433,20 +36433,10 @@ function serializeBeing(being) {
       isBroken: l.isBroken
     }))
   };
-  const karmicStreamData = being.getKarmicStream().map((k) => ({
-    id: k.id,
-    description: k.intention.description,
-    quality: k.quality,
-    intensity: k.intensity,
-    root: k.intention.root,
-    isCompleted: k.isCompleted,
-    hasManifested: k.hasManifested
-  }));
   const snapshot = being.aggregates.getSnapshot();
   const allExperiences = being.getExperienceHistory(Infinity);
   return {
     mindfulnessLevel: being.mindfulnessLevel,
-    karmicStream: karmicStreamData,
     experienceHistory: allExperiences.map((e) => ({
       input: {
         senseBase: e.input.senseBase,
@@ -36528,17 +36518,6 @@ function deserializeBeing(data) {
       if (ld.isBroken) link._isBroken = true;
     }
   }
-  const karmicStream = data.karmicStream.map((kd) => {
-    const intention = new Intention(
-      kd.description,
-      kd.intensity,
-      kd.root === "neutral" ? void 0 : kd.root
-    );
-    const karma = new Karma(intention, kd.intensity);
-    if (kd.isCompleted) karma.complete();
-    if (kd.hasManifested) karma.manifest();
-    return karma;
-  });
   const experienceHistory = data.experienceHistory.map((e) => ({
     input: {
       senseBase: e.input.senseBase,
@@ -36568,7 +36547,6 @@ function deserializeBeing(data) {
   }
   being._restoreState({
     mindfulnessLevel: data.mindfulnessLevel,
-    karmicStream,
     experienceHistory,
     karmicStore,
     incarnation,
@@ -36604,7 +36582,6 @@ var Being = class _Being {
    */
   karmicStore;
   /** Stream of karma */
-  karmicStream = [];
   /** History of experiences */
   experienceHistory = [];
   /** Current mindfulness level */
@@ -36799,13 +36776,11 @@ var Being = class _Being {
     const intention = new Intention(description, intensity, root);
     const karma = new Karma(intention, intensity);
     karma.complete();
-    this.karmicStream.push(karma);
     this.plantSeedFromAct(description, intensity, root);
     return karma;
   }
   /**
-   * Dual-write path: alongside the legacy karmicStream entry, plant a
-   * karmic seed in the KarmicStore. Quality is derived from the root
+   * Plant the karmic seed for an act. Quality is derived from the root
    * (never caller-supplied) using the same rule as Intention.determineQuality:
    * greed/aversion/delusion -> unwholesome, other roots -> wholesome,
    * no root -> neutral.
@@ -37033,21 +37008,6 @@ var Being = class _Being {
    * afterward are explained in `whyNot`.
    */
   receiveKarmicResults(force = false) {
-    const results = [];
-    for (const karma of this.karmicStream) {
-      if (karma.isPotential()) {
-        const result = karma.manifest();
-        if (result) {
-          results.push(result);
-          this.experience({
-            senseBase: "mind",
-            object: result.description,
-            intensity: result.intensity,
-            valence: result.experienceQuality
-          });
-        }
-      }
-    }
     const seedVipakas = [];
     const candidateSeeds = this.karmicStore.getSeeds({ state: "active" });
     const windowNotes = /* @__PURE__ */ new Map();
@@ -37087,7 +37047,7 @@ var Being = class _Being {
         });
       }
     }
-    return { results, seedVipakas, whyNot };
+    return { seedVipakas, whyNot };
   }
   /**
    * Evaluate a seed's incarnation-window eligibility for ripening.
@@ -37240,7 +37200,6 @@ var Being = class _Being {
     const next = new REALM_CLASSES[toRealm]();
     next._restoreState({
       mindfulnessLevel: 0,
-      karmicStream: [],
       experienceHistory: [],
       karmicStore: inheritedStore,
       incarnation: inheritedIncarnation
@@ -37398,7 +37357,7 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
       aggregatesSnapshot: this.aggregates.getSnapshot(),
       pathProgress: this.path.getOverallDevelopment(),
       mindfulnessLevel: this._mindfulnessLevel,
-      pendingKarma: this.karmicStream.filter((k) => k.isPotential()).length,
+      pendingKarma: this.karmicStore.getSeeds({ state: "active" }).length,
       experienceCount: this.experienceHistory.length,
       mindState: this.mind.getState()
     };
@@ -37408,12 +37367,6 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
    */
   getExperienceHistory(count = 10) {
     return this.experienceHistory.slice(-count);
-  }
-  /**
-   * Get karmic stream
-   */
-  getKarmicStream() {
-    return [...this.karmicStream];
   }
   /**
    * Karmic seed statistics — balance, seed counts by state and ripening
@@ -37436,7 +37389,6 @@ Liberation point: ${this.dependentOrigination.practiceAtLiberationPoint()}`;
    */
   _restoreState(state) {
     this._mindfulnessLevel = state.mindfulnessLevel;
-    this.karmicStream = state.karmicStream;
     this.experienceHistory = state.experienceHistory;
     this._incarnation = state.incarnation ?? 1;
     this._pendingRebirth = state.pendingRebirth ?? false;
@@ -37478,7 +37430,7 @@ PATH DEVELOPMENT:
   ${this.path.isBalanced() ? "Path is balanced" : "Path needs balancing"}
 
 KARMA:
-  Unripened karma in the stream: ${state.pendingKarma}
+  Unripened karmic seeds: ${state.pendingKarma}
   Total experiences: ${state.experienceCount}
 
 MIND:
@@ -38025,7 +37977,7 @@ var stateDir = process.env.BUDDHA_STATE_DIR || path2.join(os.homedir(), ".buddha
 var sm = new StateManager(stateDir);
 var server = new McpServer({
   name: "buddha-js",
-  version: "0.5.0"
+  version: "0.6.0"
 });
 var nameSchema = {
   name: external_exports3.string().regex(/^[a-zA-Z0-9_-]+$/).describe("Being name (letters, numbers, hyphens, underscores)")

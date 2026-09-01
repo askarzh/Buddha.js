@@ -9,9 +9,37 @@ Claude Code plugin manifest, and the MCPB manifest had drifted out of sync
 independently across releases. From 0.4.0 on, all four are unified and bumped
 together on every release.
 
-## [Unreleased]
+## [0.6.0]
 
-Fixes found by running the plugin against a live model rather than a mock.
+One act, one record. Plus fixes found by running the plugin against a live
+model rather than a mock.
+
+### Removed (breaking)
+
+- **The legacy `Karma` stream is gone.** Since 0.2.0, `Being.act()` wrote the
+  deed twice — once as a `Karma` in `karmicStream`, once as a seed in
+  `karmicStore` — and `receiveKarmicResults()` ripened both. A single
+  `act('one deed', 5, 'aversion')` therefore produced two fruits and two
+  entries in the experience history. One intention does not bear two fruits
+  because the bookkeeping was written twice.
+
+  The seed store is strictly richer — it has ripening conditions, timing
+  windows, potency, ahosi expiry and the shaping of the next realm — so the
+  stream was removed rather than the store:
+
+  - `Being.getKarmicStream()` — removed. Use `being.karmicStore.getSeeds()`.
+  - `KarmicResultsReport.results` — removed. Use `seedVipakas`, which the
+    report already carried.
+  - `BeingData.karmicStream` — no longer written. Saves made before 0.6.0 still
+    load: the field is now optional and deliberately **ignored**, since
+    restoring it would re-create the duplication. It disappears on the next
+    save.
+  - `BeingState.pendingKarma` now counts active seeds (it counted unmanifested
+    stream entries), and the state summary line reads "Unripened karmic seeds".
+  - The CLI's `karma --json` reports `karmicSeeds` where it reported
+    `karmicStream`; `buddha_karma_ripen` (MCP) no longer returns `results`.
+
+### Fixed
 
 ### Fixed
 
@@ -40,9 +68,8 @@ Fixes found by running the plugin against a live model rather than a mock.
 
 ### Changed
 
-- Claude Code plugin manifest to **0.5.1** — `plugin/dist/mcp.mjs` is rebuilt
-  from the changed `Being.getSummary()` text, and `/plugin update` skips
-  re-extraction when the version string is unchanged.
+- All five version surfaces to **0.6.0**, including `dsh/package.json` — which
+  had been deliberately held at 0.5.1 and now rejoins the unified line.
 
 ## [0.5.0]
 

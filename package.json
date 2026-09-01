@@ -1,6 +1,6 @@
 {
   "name": "buddha-js",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A TypeScript library that programmatically models Buddhist concepts",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

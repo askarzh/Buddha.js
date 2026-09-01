@@ -7,8 +7,6 @@
 
 import { Being } from './Being';
 import { REALM_CLASSES } from './realms';
-import { Karma } from '../karma/Karma';
-import { Intention } from '../karma/Intention';
 import { KarmicStore } from '../karma/KarmicEventSystem';
 import { ProcessedExperience } from '../five-aggregates/FiveAggregates';
 import {
@@ -16,9 +14,6 @@ import {
   PathData,
   MindData,
   NidanaChainData,
-  KarmaData,
-  UnwholesomeRoot,
-  WholesomeRoot,
   SenseBase,
 } from '../utils/types';
 
@@ -74,16 +69,6 @@ export function serializeBeing(being: Being): BeingData {
     })),
   };
 
-  const karmicStreamData: KarmaData[] = being.getKarmicStream().map(k => ({
-    id: k.id,
-    description: k.intention.description,
-    quality: k.quality,
-    intensity: k.intensity,
-    root: k.intention.root,
-    isCompleted: k.isCompleted,
-    hasManifested: k.hasManifested,
-  }));
-
   const snapshot = being.aggregates.getSnapshot();
 
   // Use Infinity to get ALL experiences (slice(-Infinity) returns the full array)
@@ -91,7 +76,6 @@ export function serializeBeing(being: Being): BeingData {
 
   return {
     mindfulnessLevel: being.mindfulnessLevel,
-    karmicStream: karmicStreamData,
     experienceHistory: allExperiences.map(e => ({
       input: {
         senseBase: e.input.senseBase,
@@ -188,18 +172,12 @@ export function deserializeBeing(data: BeingData): Being {
     }
   }
 
-  // Restore karmic stream
-  const karmicStream: Karma[] = data.karmicStream.map(kd => {
-    const intention = new Intention(
-      kd.description,
-      kd.intensity,
-      kd.root === 'neutral' ? undefined : kd.root as UnwholesomeRoot | WholesomeRoot
-    );
-    const karma = new Karma(intention, kd.intensity);
-    if (kd.isCompleted) karma.complete();
-    if (kd.hasManifested) karma.manifest();
-    return karma;
-  });
+  // `data.karmicStream` (pre-0.6.0 saves) is deliberately ignored rather than
+  // restored: the stream was removed because every act was recorded twice and
+  // ripened twice, once from the stream and once from its seed. The seeds in
+  // `data.karmicStore` are the surviving record of those same acts, so
+  // reading the stream back would restore the duplication. Old files load
+  // fine; the field is simply dropped on the next save.
 
   // Restore experience history
   const experienceHistory: ProcessedExperience[] = data.experienceHistory.map(e => ({
@@ -258,7 +236,6 @@ export function deserializeBeing(data: BeingData): Being {
   // Use _restoreState to set private fields
   being._restoreState({
     mindfulnessLevel: data.mindfulnessLevel,
-    karmicStream,
     experienceHistory,
     karmicStore,
     incarnation,

@@ -78,20 +78,23 @@ async function jsonMode(
     mgr.saveBeing(globalOpts.being, being);
   }
 
-  const stream = being.getKarmicStream();
+  const seeds = being.karmicStore.getSeeds();
   const state = being.getState();
 
   console.log(JSON.stringify({
     command: 'karma',
     being: globalOpts.being,
     result: {
-      karmicStream: stream.map(k => ({
-        quality: k.quality,
-        intensity: k.intensity,
-        description: k.intention.description,
-        status: k.isPotential() ? 'potential' : 'manifested',
+      // `karmicStream` until 0.6.0, when the duplicate stream record of every
+      // act was removed; these are the seeds those acts planted.
+      karmicSeeds: seeds.map(seed => ({
+        quality: seed.quality,
+        intensity: seed.intentionStrength,
+        description: seed.description,
+        state: seed.state,
+        potency: seed.potency,
       })),
-      totalActions: stream.length,
+      totalActions: seeds.length,
     },
     state: { mindfulness: state.mindfulnessLevel, karmicActions: state.pendingKarma },
     ...(rebirth ? { rebirth } : {}),
@@ -153,15 +156,15 @@ async function interactiveMode(being: Being): Promise<void> {
 
       case 'receive': {
         const report = being.receiveKarmicResults();
-        if (report.results.length === 0) {
+        if (report.seedVipakas.length === 0) {
           console.log(subtle('\n  No karma has ripened yet.\n'));
         } else {
           console.log(label('\n  Karmic Results:'));
-          for (const r of report.results) {
-            const color = r.experienceQuality === 'pleasant' ? chalk.green
-              : r.experienceQuality === 'unpleasant' ? chalk.red
+          for (const v of report.seedVipakas) {
+            const color = v.quality === 'pleasant' ? chalk.green
+              : v.quality === 'unpleasant' ? chalk.red
               : chalk.gray;
-            console.log(`    ${color('•')} ${r.description} (${r.experienceQuality})`);
+            console.log(`    ${color('•')} ${v.description} (${v.quality})`);
           }
           console.log();
         }
@@ -176,14 +179,16 @@ async function interactiveMode(being: Being): Promise<void> {
       }
 
       case 'view': {
-        const stream = being.getKarmicStream();
-        if (stream.length === 0) {
+        const seeds = being.karmicStore.getSeeds();
+        if (seeds.length === 0) {
           console.log(subtle('\n  No actions taken yet.\n'));
         } else {
-          console.log(label('\n  Karmic Stream:'));
-          for (const k of stream) {
-            const symbol = k.quality === 'wholesome' ? chalk.green('●') : chalk.red('●');
-            console.log(`    ${symbol} ${k.intention.description} (${k.quality}, intensity ${k.intensity})`);
+          console.log(label('\n  Karmic Seeds:'));
+          for (const seed of seeds) {
+            const symbol = seed.quality === 'wholesome' ? chalk.green('●') : chalk.red('●');
+            console.log(
+              `    ${symbol} ${seed.description} (${seed.quality}, intensity ${seed.intentionStrength}, ${seed.state})`
+            );
           }
           console.log();
         }

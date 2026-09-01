@@ -18,8 +18,13 @@ describe('built bundle', () => {
     expect(source).not.toMatch(/class HarnessError/)
   })
 
-  it('still inlines buddha-js, which the host does not provide', () => {
+  it('imports buddha-js rather than inlining it', () => {
     const source = fs.readFileSync(lib, 'utf-8')
-    expect(source).not.toMatch(/from ["']buddha-js["']/)
+    // buddha-js is a declared "dependencies" entry, not something the DSH
+    // host provides — but it doesn't need to: the package manager resolves
+    // it on install like any other dependency. tsup already externalises
+    // "dependencies" entries by default, so forcing it inline (noExternal)
+    // only bloated the bundle ~7x for nothing.
+    expect(source).toMatch(/from ["']buddha-js["']/)
   })
 })

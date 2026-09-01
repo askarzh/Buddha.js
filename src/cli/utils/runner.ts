@@ -17,7 +17,16 @@ import { Being } from '../../simulation/Being';
 import { KoanGenerator } from '../../koan/KoanGenerator';
 import { PoisonArrow } from '../../simulation/PoisonArrow';
 import { DependentOrigination } from '../../dependent-origination/DependentOrigination';
-import { KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot } from '../../utils/types';
+import { EightfoldPath } from '../../eightfold-path/EightfoldPath';
+import { FourNobleTruths } from '../../four-noble-truths/FourNobleTruths';
+import {
+  KarmaQuality,
+  Intensity,
+  UnwholesomeRoot,
+  WholesomeRoot,
+  DukkhaType,
+  CravingType,
+} from '../../utils/types';
 import { StateManager } from './state';
 
 export interface RebirthInfo {
@@ -48,6 +57,43 @@ export function loadSettledBeing(
       fromRealm: settled.fromRealm,
       toRealm: settled.toRealm,
       incarnation: settled.incarnation,
+    },
+  };
+}
+
+// --------------------------------------------------------------- diagnose
+
+export interface DiagnoseOpts {
+  dukkhaTypes?: string;
+  cravingTypes?: string;
+}
+
+/**
+ * Run the Four Noble Truths diagnosis over the given suffering and cravings.
+ *
+ * NOTE: like `chain`, this is a standalone demonstration — it builds a fresh
+ * EightfoldPath and FourNobleTruths and ignores `sm`/`beingName`, so the
+ * named being's own path progress has no effect on the diagnosis today.
+ */
+export function runDiagnose(_sm: StateManager, _beingName: string, opts: DiagnoseOpts) {
+  const suffering = opts.dukkhaTypes
+    ? opts.dukkhaTypes.split(',') as DukkhaType[]
+    : ['dukkha-dukkha' as DukkhaType];
+  const cravings = opts.cravingTypes
+    ? opts.cravingTypes.split(',') as CravingType[]
+    : ['sensory' as CravingType];
+
+  const path = new EightfoldPath();
+  const truths = new FourNobleTruths(path);
+  const diagnosis = truths.diagnose({ suffering, cravings });
+
+  return {
+    command: 'diagnose' as const,
+    result: {
+      suffering: diagnosis.suffering,
+      cause: diagnosis.cause,
+      cessation: diagnosis.cessationPossible,
+      path: diagnosis.path,
     },
   };
 }

@@ -14,6 +14,7 @@ import {
   runReset,
   runInquiry,
   runChain,
+  runDiagnose,
   isKarmaError,
   KarmaResult,
 } from '../../src/cli/utils/runner';
@@ -267,6 +268,47 @@ describe('CLI command bodies', () => {
 
     it('reads no being from disk', () => {
       runChain(sm, 'tester');
+      expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(false);
+    });
+  });
+
+  describe('diagnose', () => {
+    it('returns all four truths of the diagnosis', () => {
+      const { result } = runDiagnose(sm, 'tester', {});
+      expect(result.suffering).toBeTruthy();
+      expect(result.cause).toBeTruthy();
+      expect(result.cessation).toBeTruthy();
+      expect(result.path.practices.length).toBeGreaterThan(0);
+    });
+
+    it('defaults to dukkha-dukkha and sensory craving', () => {
+      const { result } = runDiagnose(sm, 'tester', {});
+      expect(result.suffering.obviousSuffering).toBe(true);
+      expect(result.cause.cravingsPresent).toContain('sensory');
+    });
+
+    it('reads the comma-separated types it is given', () => {
+      const { result } = runDiagnose(sm, 'tester', {
+        dukkhaTypes: 'dukkha-dukkha,viparinama-dukkha,sankhara-dukkha',
+        cravingTypes: 'becoming,non-becoming',
+      });
+      expect(result.suffering.totalTypes).toBe(3);
+      expect(result.suffering.sufferingOfChange).toBe(true);
+      expect(result.suffering.existentialUnsatisfactoriness).toBe(true);
+      expect(result.cause.cravingsPresent.sort()).toEqual(['becoming', 'non-becoming']);
+    });
+
+    // Current behaviour, deliberately pinned: diagnose builds a fresh
+    // EightfoldPath and ignores --being, so a being's own path progress
+    // cannot change the diagnosis. Task 9 makes it being-aware, and this
+    // assertion is the one that flips.
+    it('ignores the named being today', () => {
+      runKarma(sm, 'alice', { description: 'a deed', intensity: '9', root: 'greed' });
+      expect(runDiagnose(sm, 'alice', {})).toEqual(runDiagnose(sm, 'nobody', {}));
+    });
+
+    it('reads no being from disk', () => {
+      runDiagnose(sm, 'tester', {});
       expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(false);
     });
   });

@@ -1,15 +1,9 @@
 import { Command } from 'commander';
 import { checkbox } from '@inquirer/prompts';
-import { EightfoldPath } from '../../eightfold-path/EightfoldPath';
-import { FourNobleTruths } from '../../four-noble-truths/FourNobleTruths';
 import { DukkhaType, CravingType } from '../../utils/types';
-import { getGlobalOpts } from '../utils/state';
+import { getGlobalOpts, getStateManager } from '../utils/state';
+import { DiagnoseOpts, runDiagnose } from '../utils/runner';
 import { header, label, insight, divider } from '../utils/format';
-
-interface DiagnoseLocalOpts {
-  dukkhaTypes?: string;
-  cravingTypes?: string;
-}
 
 const SUFFERING_CHOICES = [
   { name: 'Obvious suffering (pain, illness, loss)', value: 'dukkha-dukkha' as DukkhaType },
@@ -23,30 +17,12 @@ const CRAVING_CHOICES = [
   { name: 'Craving for non-existence', value: 'non-becoming' as CravingType },
 ];
 
-export async function diagnose(localOpts: DiagnoseLocalOpts, cmd: Command): Promise<void> {
+export async function diagnose(localOpts: DiagnoseOpts, cmd: Command): Promise<void> {
   const globalOpts = getGlobalOpts(cmd);
+  const mgr = getStateManager(globalOpts);
 
   if (globalOpts.json) {
-    const suffering = localOpts.dukkhaTypes
-      ? localOpts.dukkhaTypes.split(',') as DukkhaType[]
-      : ['dukkha-dukkha' as DukkhaType];
-    const cravings = localOpts.cravingTypes
-      ? localOpts.cravingTypes.split(',') as CravingType[]
-      : ['sensory' as CravingType];
-
-    const path = new EightfoldPath();
-    const truths = new FourNobleTruths(path);
-    const diagnosis = truths.diagnose({ suffering, cravings });
-
-    console.log(JSON.stringify({
-      command: 'diagnose',
-      result: {
-        suffering: diagnosis.suffering,
-        cause: diagnosis.cause,
-        cessation: diagnosis.cessationPossible,
-        path: diagnosis.path,
-      },
-    }, null, 2));
+    console.log(JSON.stringify(runDiagnose(mgr, globalOpts.being, localOpts), null, 2));
     return;
   }
 
@@ -64,13 +40,10 @@ export async function diagnose(localOpts: DiagnoseLocalOpts, cmd: Command): Prom
     required: true,
   });
 
-  const path = new EightfoldPath();
-  const truths = new FourNobleTruths(path);
-
-  const diagnosis = truths.diagnose({
-    suffering,
-    cravings,
-  });
+  const diagnosis = runDiagnose(mgr, globalOpts.being, {
+    dukkhaTypes: suffering.join(','),
+    cravingTypes: cravings.join(','),
+  }).result;
 
   console.log();
   console.log(label('Suffering:'));
@@ -90,10 +63,10 @@ export async function diagnose(localOpts: DiagnoseLocalOpts, cmd: Command): Prom
 
   console.log();
   console.log(label('Cessation:'));
-  console.log(`  Possible: ${diagnosis.cessationPossible.isPossible}`);
-  console.log(`  Progress level: ${diagnosis.cessationPossible.progressLevel}/10`);
-  console.log(`  Obstacles: ${diagnosis.cessationPossible.obstacles.join('; ')}`);
-  console.log(`  Path forward: ${diagnosis.cessationPossible.pathForward}`);
+  console.log(`  Possible: ${diagnosis.cessation.isPossible}`);
+  console.log(`  Progress level: ${diagnosis.cessation.progressLevel}/10`);
+  console.log(`  Obstacles: ${diagnosis.cessation.obstacles.join('; ')}`);
+  console.log(`  Path forward: ${diagnosis.cessation.pathForward}`);
 
   console.log();
   console.log(label('Path Forward:'));

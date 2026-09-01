@@ -37808,7 +37808,13 @@ var KoanGenerator = class {
   }
   /**
    * The trap appearing in the most journal entries, or undefined when no
-   * trap has appeared at least twice. Ties go to the trap seen first.
+   * trap has appeared at least twice.
+   *
+   * Ties are broken DELIBERATELY and arbitrarily: the trap encountered
+   * earliest in the journal wins, and the others are not reported. Two traps
+   * at the same count means the habit has no single shape yet, and naming
+   * one of them is already more than the data supports — callers wanting the
+   * whole distribution should count `getTrapJournal()` themselves.
    */
   getRecurringTrap() {
     const counts = /* @__PURE__ */ new Map();
@@ -37845,6 +37851,13 @@ var KoanGenerator = class {
   /**
    * Contemplate a koan by submitting a response. Returns an analysis
    * of dualistic thinking traps detected in the response.
+   *
+   * NOTE: this resolves `koanId` through `present()`, so it only accepts ids
+   * from the built-in collection — a koan composed at call time was never
+   * added to the collection and cannot be looked up again, so contemplating
+   * one throws "Koan not found". Record a response to a composed koan with
+   * `recordResponse()` instead (which needs no lookup), or compose and
+   * respond in a single call, as the MCP `buddha_koan` tool does.
    */
   contemplate(koanId, response) {
     const koan = this.present(koanId);

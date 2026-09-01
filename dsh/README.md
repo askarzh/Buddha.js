@@ -15,6 +15,7 @@ and mounts five sub-plugins on top of it:
 | Layer A citta-vīthi step observer | `src/vithi.ts`, `src/step-records.ts` | `agent/pre-step`, `tools/result` |
 | Six-realm subagent personas | `src/realms.ts` | `ctx.subagents` (`buddha-realms` provider) |
 | Slash commands (`/sit` `/koan` `/status` `/rebirth`) | `src/commands.ts` | `ctx.commands` |
+| Per-session koan trap journal | `src/koans.ts` | (in memory; dropped on `agent/disposed`) |
 | Layer B citta-vīthi loop (**experimental, opt-in**) | `src/loop.ts` | `ctx.agents.setFactory()` |
 
 See the root [README's DeepSeek Harness Plugin

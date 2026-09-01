@@ -1,9 +1,10 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
-import { KoanGenerator, PoisonArrow } from 'buddha-js'
+import { PoisonArrow } from 'buddha-js'
 import type { Being } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
 import { reportSwallowed } from './errors.js'
+import type { KoanSessions } from './koans.js'
 import type { VithiHandle } from './vithi.js'
 
 /**
@@ -80,16 +81,13 @@ function formatKoan(koan: { id: string; title: string; case: string; source: str
  * hand rather than drawn from the canon. Composed koans are presented and
  * then let go; they never join the collection, and they have no answer.
  */
-function renderComposedKoan(argument: string): CommandResult {
+function renderComposedKoan(argument: string, sessionId: string, koans: KoanSessions): CommandResult {
   const [title, ...rest] = argument.split('|')
   const body = rest.join('|').trim()
   if (body === '' || title.trim() === '') {
-    return {
-      kind: 'error',
-      text: 'Usage: /koan compose <title> | <case>',
-    }
+    return { kind: 'error', text: 'Usage: /koan compose <title> | <case>' }
   }
-  const generator = new KoanGenerator()
+  const generator = koans.forSession(sessionId)
   try {
     const koan = generator.present({
       id: 'composed',
@@ -97,6 +95,7 @@ function renderComposedKoan(argument: string): CommandResult {
       case: body,
       source: 'composed by the harness',
     })
+    koans.rememberPresented(sessionId, koan.id)
     return { kind: 'success', text: formatKoan(koan) }
   } catch (error) {
     reportSwallowed('commands: /koan compose', error)
@@ -104,16 +103,77 @@ function renderComposedKoan(argument: string): CommandResult {
   }
 }
 
-/** Present a koan by id (or a random one), or report the known ids on a bad id. */
-function renderKoan(rawInput: string): CommandResult {
-  const requested = rawInput.trim()
-  if (requested === 'compose' || requested.startsWith('compose ')) {
-    return renderComposedKoan(requested.slice('compose'.length).trim())
+/**
+ * `/koan respond <text>` — record a response to the koan this session was
+ * last shown. Recorded, never graded: the journal names the trap the words
+ * fell into and nothing else. There is no right answer to report back.
+ */
+function renderKoanResponse(argument: string, sessionId: string, koans: KoanSessions): CommandResult {
+  const response = argument.trim()
+  if (response === '') {
+    return { kind: 'error', text: 'Usage: /koan respond <your response>' }
   }
-  const id = requested === '' ? undefined : requested
-  const generator = new KoanGenerator()
+  const koanId = koans.lastPresented(sessionId)
+  if (koanId === undefined) {
+    return { kind: 'error', text: 'No koan has been presented in this session yet. Try /koan first.' }
+  }
+  const generator = koans.forSession(sessionId)
   try {
-    return { kind: 'success', text: formatKoan(generator.present(id)) }
+    const entry = generator.recordResponse(koanId, response)
+    const traps = entry.traps.length > 0 ? entry.traps.join(', ') : 'none detected'
+    const recurring = generator.getRecurringTrap()
+    const returning = recurring ? `\nThe shape you keep returning to: ${recurring}.` : ''
+    return {
+      kind: 'success',
+      text:
+        `Recorded against [${koanId}]. Traps in these words: ${traps}.${returning}\n` +
+        '(A trap is not a verdict. The koan has no answer to be right about.)',
+    }
+  } catch (error) {
+    reportSwallowed('commands: /koan respond', error)
+    return { kind: 'error', text: `Could not record that response: ${(error as Error).message}` }
+  }
+}
+
+/** `/koan journal` — this session's recorded traps, and the one that recurs. */
+function renderKoanJournal(sessionId: string, koans: KoanSessions): CommandResult {
+  const generator = koans.forSession(sessionId)
+  const entries = generator.getTrapJournal()
+  if (entries.length === 0) {
+    return {
+      kind: 'success',
+      text: 'No responses recorded in this session yet. Record one with /koan respond <text>.',
+    }
+  }
+  const lines = entries.map(
+    (entry) => `[${entry.koanId}] ${entry.traps.length > 0 ? entry.traps.join(', ') : 'no trap detected'}`,
+  )
+  const recurring = generator.getRecurringTrap()
+  lines.push('', recurring ? `Recurring trap: ${recurring}` : 'No trap has recurred yet.')
+  return { kind: 'success', text: lines.join('\n') }
+}
+
+/** Present a koan by id (or a random one), or report the known ids on a bad id. */
+function renderKoan(rawInput: string, sessionId: string, koans: KoanSessions): CommandResult {
+  const requested = rawInput.trim()
+  for (const [word, render] of [
+    ['compose', renderComposedKoan],
+    ['respond', renderKoanResponse],
+  ] as const) {
+    if (requested === word || requested.startsWith(`${word} `)) {
+      return render(requested.slice(word.length).trim(), sessionId, koans)
+    }
+  }
+  if (requested === 'journal') {
+    return renderKoanJournal(sessionId, koans)
+  }
+
+  const id = requested === '' ? undefined : requested
+  const generator = koans.forSession(sessionId)
+  try {
+    const koan = generator.present(id)
+    koans.rememberPresented(sessionId, koan.id)
+    return { kind: 'success', text: formatKoan(koan) }
   } catch (error) {
     // The common case is a bad/unknown id, so the user-facing message stays
     // exactly that. But a fault here could also be the generator itself
@@ -178,15 +238,23 @@ function renderStatus(registry: BeingRegistry, vithi: VithiHandle, invocation: C
  * before asserting on what got registered; `index.ts`'s real call site
  * ignores the return value.
  */
-export function applyCommands(ctx: Context, deps: { registry: BeingRegistry; vithi: VithiHandle }) {
-  const { registry, vithi } = deps
+export function applyCommands(
+  ctx: Context,
+  deps: { registry: BeingRegistry; vithi: VithiHandle; koans: KoanSessions },
+) {
+  const { registry, vithi, koans } = deps
 
   return ctx.inject(['commands'], (ctx) => {
-    registerDefinitions(ctx, registry, vithi)
+    registerDefinitions(ctx, registry, vithi, koans)
   })
 }
 
-function registerDefinitions(ctx: Context, registry: BeingRegistry, vithi: VithiHandle): void {
+function registerDefinitions(
+  ctx: Context,
+  registry: BeingRegistry,
+  vithi: VithiHandle,
+  koans: KoanSessions,
+): void {
   ctx.commands.register({
     name: 'sit',
     description: 'Quick relief: walk the four-step Poison Arrow cessation protocol for a named suffering.',
@@ -197,9 +265,12 @@ function registerDefinitions(ctx: Context, registry: BeingRegistry, vithi: Vithi
 
   ctx.commands.register({
     name: 'koan',
-    description: 'Present a Zen koan for contemplation, optionally by id, or compose one: /koan compose <title> | <case>.',
+    description:
+      'Present a Zen koan (optionally by id), compose one for the situation at hand ' +
+      '(/koan compose <title> | <case>), record a response (/koan respond <text>), ' +
+      "or read this session's trap journal (/koan journal).",
     handler(invocation: CommandInvocation): CommandResult {
-      return renderKoan(invocation.rawInput)
+      return renderKoan(invocation.rawInput, sessionIdOf(invocation), koans)
     },
   })
 

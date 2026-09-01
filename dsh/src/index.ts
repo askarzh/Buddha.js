@@ -9,6 +9,7 @@ import { applyBreaker } from './breaker.js'
 import { applyKarma } from './karma.js'
 import { applyVithi } from './vithi.js'
 import { applyCommands } from './commands.js'
+import { KoanSessions } from './koans.js'
 import { applyRealms } from './realms.js'
 import { applyLoop } from './loop.js'
 
@@ -46,6 +47,13 @@ export function apply(ctx: Context, config?: Config) {
   // `mark()` and the turn's single write happens at the boundaries below.
   const scheduler = new SaveScheduler(registry)
 
+  // ONE koan-journal holder, hoisted for the same reason as the two above:
+  // `/koan`'s trap journal only answers "which trap does this continuum keep
+  // falling into" if it accumulates across invocations, which a generator
+  // constructed per call never could. Keyed by session id (see koans.ts for
+  // why per-session rather than per-instance) and never written to disk.
+  const koans = new KoanSessions()
+
   // Session end. `agent/disposed` is verified against the installed
   // @deepseek-ai/dsh-agent (lib/index.js `emitDisposed`, typed in
   // lib/types/runtime-types.d.ts): AgentRegistry emits it for EVERY announced
@@ -59,6 +67,10 @@ export function apply(ctx: Context, config?: Config) {
     const sessionId = String(agent.id)
     scheduler.flush(sessionId)
     registry.dispose(sessionId)
+    // The journal is in-memory and session-scoped; without this the map
+    // would grow for the life of the process. Fires for main agents and
+    // ephemeral realm children alike, so it also covers `discard()`.
+    koans.forget(sessionId)
   })
 
   // Plugin teardown / process shutdown. Cordis v4 has no public 'dispose'
@@ -91,7 +103,7 @@ export function apply(ctx: Context, config?: Config) {
 
   // The four human slash commands: `/sit`, `/koan`, `/status`, `/rebirth`.
   // Dispatch straight to a handler, no model round trip.
-  applyCommands(ctx, { registry, vithi })
+  applyCommands(ctx, { registry, vithi, koans })
 
   // Six-realm subagent personas: a `buddha-realms` provider on
   // `ctx.subagents` mapping persona -> realm, delegating actual execution

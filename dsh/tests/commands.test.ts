@@ -9,6 +9,7 @@ import { BeingRegistry } from '../src/being-registry.js'
 import { SaveScheduler } from '../src/persistence.js'
 import { applyVithi } from '../src/vithi.js'
 import { applyCommands } from '../src/commands.js'
+import { KoanSessions } from '../src/koans.js'
 
 /**
  * The four human slash commands (`/sit`, `/koan`, `/status`, `/rebirth`).
@@ -40,7 +41,9 @@ import { applyCommands } from '../src/commands.js'
  * `applyCommands` returns the `ctx.inject` fiber (also a `PromiseLike`) for
  * exactly this reason — `await`ing it settles once registration has run.
  */
-async function mountCommands(registry: BeingRegistry): Promise<Map<string, CommandDefinition>> {
+async function mountCommands(
+  registry: BeingRegistry,
+): Promise<{ defs: Map<string, CommandDefinition>; koans: KoanSessions }> {
   const ctx = new Context()
   const vithi = applyVithi(ctx, { registry, scheduler: new SaveScheduler(registry) })
   const defs = new Map<string, CommandDefinition>()
@@ -51,19 +54,25 @@ async function mountCommands(registry: BeingRegistry): Promise<Map<string, Comma
     },
   }
   ctx.provide('commands', fakeCommandsService as never)
-  await applyCommands(ctx, { registry, vithi })
-  return defs
+  // The koan journal is threaded in exactly as `index.ts` hoists it, so a
+  // test can read the very object the commands accumulate into.
+  const koans = new KoanSessions()
+  await applyCommands(ctx, { registry, vithi, koans })
+  return { defs, koans }
 }
 
 describe('/sit /koan /status /rebirth commands', () => {
   let stateDir: string
   let registry: BeingRegistry
   let defs: Map<string, CommandDefinition>
+  let koans: KoanSessions
 
   beforeEach(async () => {
     stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-commands-'))
     registry = new BeingRegistry(stateDir)
-    defs = await mountCommands(registry)
+    const mounted = await mountCommands(registry)
+    defs = mounted.defs
+    koans = mounted.koans
   })
 
   afterEach(() => {
@@ -170,6 +179,75 @@ describe('/sit /koan /status /rebirth commands', () => {
       const text = (result as { text: string }).text
       expect(text).toContain('Usage: /koan compose')
       expect(text).not.toContain('Unknown koan id')
+    })
+
+    it('accumulates the trap journal across separate invocations of the command', async () => {
+      const agent = fakeAgent('session-journal')
+      // Two SEPARATE /koan invocations, each presenting and then responding.
+      // Against a generator constructed per call this cannot pass: each
+      // journal would hold one entry and no trap could ever recur.
+      for (const id of ['mu', 'one-hand']) {
+        await definition('koan').handler(fakeInvocation(agent, id))
+        await definition('koan').handler(
+          fakeInvocation(agent, 'respond The answer is clearly this one.'),
+        )
+      }
+
+      const generator = koans.forSession('session-journal')
+      expect(generator.getTrapJournal()).toHaveLength(2)
+      expect(generator.getTrapJournal().map((entry) => entry.koanId)).toEqual(['mu', 'one-hand'])
+      expect(generator.getRecurringTrap()).toBe('grasping')
+
+      const journal = await definition('koan').handler(fakeInvocation(agent, 'journal'))
+      expect((journal as { text: string }).text).toContain('Recurring trap: grasping')
+    })
+
+    it('keeps one journal per session, not one per plugin', async () => {
+      await definition('koan').handler(fakeInvocation(fakeAgent('session-one'), 'mu'))
+      await definition('koan').handler(
+        fakeInvocation(fakeAgent('session-one'), 'respond The answer is this.'),
+      )
+      await definition('koan').handler(fakeInvocation(fakeAgent('session-two'), 'mu'))
+
+      expect(koans.forSession('session-one').getTrapJournal()).toHaveLength(1)
+      expect(koans.forSession('session-two').getTrapJournal()).toHaveLength(0)
+    })
+
+    it('records nothing and says so when no koan has been presented yet', async () => {
+      const result = await definition('koan').handler(
+        fakeInvocation(fakeAgent('session-empty'), 'respond anything'),
+      )
+
+      expect(result.kind).toBe('error')
+      expect((result as { text: string }).text).toContain('No koan has been presented')
+      expect(koans.forSession('session-empty').getTrapJournal()).toHaveLength(0)
+    })
+
+    it('records a response to a composed koan too', async () => {
+      const agent = fakeAgent('session-composed')
+      await definition('koan').handler(
+        fakeInvocation(agent, 'compose The Unread File | You read a file that is not there. What did you read?'),
+      )
+      const result = await definition('koan').handler(
+        fakeInvocation(agent, 'respond The answer is the cache.'),
+      )
+
+      expect(result.kind).toBe('success')
+      const text = (result as { text: string }).text
+      expect(text).toContain('grasping')
+      // A trap is named; no verdict on the response is ever reported.
+      expect(text).not.toMatch(/score|correct|wrong/i)
+      expect(koans.forSession('session-composed').getTrapJournal()[0].koanId).toBe('composed')
+    })
+
+    it('forgets a session journal when its agent is disposed', () => {
+      koans.forSession('session-gone').recordResponse('mu', 'The answer is this.')
+      expect(koans.size).toBe(1)
+
+      koans.forget('session-gone')
+
+      expect(koans.size).toBe(0)
+      expect(koans.forSession('session-gone').getTrapJournal()).toHaveLength(0)
     })
 
     it('returns kind: error with text listing known ids for an unknown id', async () => {
@@ -283,7 +361,7 @@ describe('/sit /koan /status /rebirth commands', () => {
         // any settlement has actually happened.
         const incarnationAtLoad = peeked.incarnation
 
-        const reloadedDefs = await mountCommands(reloadedRegistry)
+        const reloadedDefs = (await mountCommands(reloadedRegistry)).defs
         const rebirthDef = reloadedDefs.get('rebirth')
         if (!rebirthDef) throw new Error('rebirth command was not registered')
         const result = await rebirthDef.handler(fakeInvocation(fakeAgent(sessionId), ''))

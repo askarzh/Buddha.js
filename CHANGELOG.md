@@ -32,9 +32,13 @@ fixed canon.
 - `buddha_koan` (MCP) gains `title`/`case`/`source`/`hint` to compose a koan,
   `response` to record one, and `journal: true` to read the journal and the
   recurring trap. Still 16 tools.
-- `/koan compose <title> | <case>` in the DSH plugin. A malformed compose
-  reports usage rather than the "unknown koan id" message, which stays exactly
-  as it was for the common case of a bad id.
+- `/koan compose <title> | <case>`, `/koan respond <text>` and `/koan journal`
+  in the DSH plugin, backed by one `KoanSessions` holder hoisted in `apply()`
+  beside the registry and scheduler. The journal is **per session** — a trap
+  journal belongs to a continuum, and the plugin keys everything else by
+  session id — kept in memory and dropped on `agent/disposed`. A malformed
+  compose reports usage rather than the "unknown koan id" message, which stays
+  exactly as it was for the common case of a bad id.
 - **`PathFactor.practice(effort, max?)` and `practiceTo(target)`** — the
   wisdom-cap computation in `Being.meditate()` had been open-coded; a factor
   can now be walked toward a target without a call site doing the arithmetic.

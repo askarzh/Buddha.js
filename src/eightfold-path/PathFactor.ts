@@ -31,9 +31,13 @@ export abstract class PathFactor extends Phenomenon {
    * Develop this path factor through practice
    *
    * @param effort - Intensity of practice (0-10)
+   * @param max - Optional ceiling this call must not push the level past
+   *   (e.g. a realm's wisdom cap). Defaults to this class's own maximum (10).
+   *   Lets a caller bound gradual, effort-scaled growth without knowing or
+   *   reconstructing the step-size formula below.
    * @returns New development level
    */
-  practice(effort: Intensity): Intensity {
+  practice(effort: Intensity, max?: Intensity): Intensity {
     if (!this._isActive) {
       this.activate();
     }
@@ -41,10 +45,11 @@ export abstract class PathFactor extends Phenomenon {
     // Development is gradual and requires consistent effort
     // Higher effort leads to faster development, but with diminishing returns
     const currentLevel = this._developmentLevel;
-    const roomToGrow = 10 - currentLevel;
+    const ceiling = max === undefined ? 10 : (Math.min(10, max) as Intensity);
+    const roomToGrow = Math.max(0, ceiling - currentLevel);
     const increment = Math.min(effort * 0.15, roomToGrow);
 
-    this._developmentLevel = Math.min(10, currentLevel + increment) as Intensity;
+    this._developmentLevel = Math.min(ceiling, currentLevel + increment) as Intensity;
 
     this.onPractice(effort);
     return this._developmentLevel;

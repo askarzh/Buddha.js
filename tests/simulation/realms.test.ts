@@ -53,6 +53,24 @@ describe('Realm classes', () => {
     expect(animal.path.rightView.developmentLevel).toBeLessThanOrEqual(4);
   });
 
+  it('a single low-effort meditate() moves rightView by a step, not straight to the wisdom cap (regression pin)', () => {
+    // Round 1 of task 7 replaced the effort-scaled growth with
+    // rightView.practiceTo(cap), which jumped rightView to its cap on the
+    // very first meditate() call regardless of effort. This pins the fix:
+    // one low-effort call must produce gradual movement, well short of cap.
+    const animal = new AnimalBeing();
+    animal.meditate(30, 1);
+    const level = animal.path.rightView.developmentLevel;
+    expect(level).toBeGreaterThan(0);
+    expect(level).toBeLessThan(4);
+  });
+
+  it('repeated meditation converges rightView to the wisdom cap and stops there', () => {
+    const animal = new AnimalBeing();
+    for (let i = 0; i < 30; i++) animal.meditate(600, 10);
+    expect(animal.path.rightView.developmentLevel).toBe(4);
+  });
+
   it('human wisdom is not capped at 4 under the same practice', () => {
     const human = new HumanBeing();
     for (let i = 0; i < 30; i++) human.meditate(600, 10);

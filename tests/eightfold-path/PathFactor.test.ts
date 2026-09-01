@@ -66,3 +66,34 @@ describe('PathFactor.practiceTo', () => {
     expect(factor.practiceTo(10)).toBe(10);
   });
 });
+
+describe('PathFactor.practice with a max ceiling', () => {
+  it('a single low-effort call moves the level by a step, not straight to the ceiling', () => {
+    const factor = new RightView();
+    const level = factor.practice(1, 5);
+    expect(level).toBeGreaterThan(0);
+    expect(level).toBeLessThan(5);
+  });
+
+  it('growth stays gradual and effort-scaled right up to the ceiling, then stops', () => {
+    const factor = new RightView();
+    let level: Intensity = 0;
+    for (let i = 0; i < 50; i++) {
+      level = factor.practice(10, 4);
+    }
+    expect(level).toBe(4);
+    expect(factor.developmentLevel).toBe(4);
+    // One more call at the ceiling must not push past it.
+    expect(factor.practice(10, 4)).toBe(4);
+  });
+
+  it('omitting max behaves exactly like unbounded practice() (default ceiling is 10)', () => {
+    const withDefault = new RightView();
+    const withExplicitTen = new RightView();
+    for (let i = 0; i < 10; i++) {
+      withDefault.practice(7);
+      withExplicitTen.practice(7, 10);
+    }
+    expect(withDefault.developmentLevel).toBe(withExplicitTen.developmentLevel);
+  });
+});

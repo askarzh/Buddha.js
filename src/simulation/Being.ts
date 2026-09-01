@@ -370,19 +370,18 @@ export class Being implements Serializable<BeingData> {
 
   /**
    * Practice a path factor through Being, applying wisdomCap() as a ceiling
-   * on rightView specifically. Growth toward the cap is delegated to
-   * PathFactor.practiceTo(), which owns the step size internally — Being no
-   * longer reconstructs practice()'s `effort * 0.15` increment formula to
-   * pre-limit effort (see task-7-report.md; this replaces the coupling
-   * accepted in task-1-report.md).
+   * on rightView specifically. `PathFactor.practice()`'s optional `max`
+   * parameter takes the realm's cap directly, so growth stays gradual and
+   * effort-scaled right up to the ceiling — Being neither reconstructs the
+   * `effort * 0.15` step formula nor short-circuits to instant attainment
+   * (see task-7-report.md, round 2 — round 1 mistakenly did the latter via
+   * `practiceTo()`, which remains a legitimate public convenience for
+   * "walk this factor all the way to a target" but is the wrong tool for
+   * "bound one effort-scaled practice call").
    */
   private practicePathFactor(factor: PathFactor, effort: Intensity): Intensity {
     if (factor === this.path.rightView) {
-      const cap = this.wisdomCap();
-      if (factor.developmentLevel >= cap) {
-        return factor.developmentLevel;
-      }
-      return factor.practiceTo(cap);
+      return factor.practice(effort, this.wisdomCap());
     }
     return factor.practice(effort);
   }

@@ -49,6 +49,40 @@ export function loadSettledBeing(
   };
 }
 
+// --------------------------------------------------------------- meditate
+
+export interface MeditateOpts {
+  interval?: string;
+  duration?: string;
+}
+
+export const DEFAULT_MEDITATION_MINUTES = 5;
+
+/**
+ * Resolve a meditation session's parameters.
+ *
+ * NOTE: this does not run a session and does not persist anything — the
+ * `--json` path has always been a description of the session the interactive
+ * path would run. `sm` and `beingName` are unused for that reason.
+ */
+export function runMeditate(
+  _sm: StateManager,
+  _beingName: string,
+  opts: MeditateOpts,
+) {
+  const durationMinutes = opts.duration
+    ? parseInt(opts.duration, 10)
+    : DEFAULT_MEDITATION_MINUTES;
+
+  return {
+    command: 'meditate' as const,
+    result: {
+      durationMinutes,
+      message: `Meditation session: ${durationMinutes} minutes. Use interactive mode for real-time practice.`,
+    },
+  };
+}
+
 // ----------------------------------------------------------------- status
 
 /**

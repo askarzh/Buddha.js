@@ -6,6 +6,7 @@ import { StateManager } from '../../src/cli/utils/state';
 import {
   runKarma,
   runStatus,
+  runMeditate,
   isKarmaError,
   KarmaResult,
 } from '../../src/cli/utils/runner';
@@ -96,6 +97,29 @@ describe('CLI command bodies', () => {
     it('creates no file for a being that does not exist', () => {
       runStatus(sm, 'nobody');
       expect(fs.existsSync(path.join(dir, 'beings', 'nobody.json'))).toBe(false);
+    });
+  });
+
+  describe('meditate', () => {
+    // The regression that motivated this task: --duration reached the JSON
+    // path only, and nothing asserted it was read at all.
+    it('honours --duration', () => {
+      expect(runMeditate(sm, 'tester', { duration: '15' }).result.durationMinutes).toBe(15);
+    });
+
+    it('defaults to five minutes when no duration is given', () => {
+      expect(runMeditate(sm, 'tester', {}).result.durationMinutes).toBe(5);
+    });
+
+    it('names the duration in its message', () => {
+      expect(runMeditate(sm, 'tester', { duration: '20' }).result.message).toContain('20 minutes');
+    });
+
+    // Current behaviour, deliberately pinned: meditate persists nothing, so a
+    // session leaves no trace on the named being. Task 9 changes this.
+    it('persists nothing today', () => {
+      runMeditate(sm, 'tester', { duration: '15' });
+      expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(false);
     });
   });
 });

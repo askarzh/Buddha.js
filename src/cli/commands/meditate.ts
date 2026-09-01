@@ -2,32 +2,27 @@ import { Command } from 'commander';
 import * as readline from 'readline';
 import { MeditationTimer } from '../../meditation/MeditationTimer';
 import { MeditationQuality } from '../../utils/types';
-import { getGlobalOpts } from '../utils/state';
+import { getGlobalOpts, getStateManager } from '../utils/state';
+import { MeditateOpts, runMeditate } from '../utils/runner';
 import { header, label, insight, success, subtle, divider } from '../utils/format';
 import chalk from 'chalk';
 
-interface MeditateLocalOpts {
-  interval?: string;
-  duration?: string;
-}
+const DEFAULT_INTERVAL_BELL_SECONDS = 60;
 
-export async function meditate(localOpts: MeditateLocalOpts, cmd: Command): Promise<void> {
+export async function meditate(localOpts: MeditateOpts, cmd: Command): Promise<void> {
   const globalOpts = getGlobalOpts(cmd);
+  const mgr = getStateManager(globalOpts);
+  const session = runMeditate(mgr, globalOpts.being, localOpts);
 
   if (globalOpts.json) {
-    const durationMinutes = localOpts.duration ? parseInt(localOpts.duration, 10) : 5;
-    console.log(JSON.stringify({
-      command: 'meditate',
-      result: {
-        durationMinutes,
-        message: `Meditation session: ${durationMinutes} minutes. Use interactive mode for real-time practice.`,
-      },
-    }, null, 2));
+    console.log(JSON.stringify(session, null, 2));
     return;
   }
 
-  const duration = localOpts.duration ? parseInt(localOpts.duration, 10) : 5;
-  const intervalBell = localOpts.interval ? parseInt(localOpts.interval, 10) : 60;
+  const duration = session.result.durationMinutes;
+  const intervalBell = localOpts.interval
+    ? parseInt(localOpts.interval, 10)
+    : DEFAULT_INTERVAL_BELL_SECONDS;
 
   console.log(header('Meditation Timer'));
   console.log(`Duration: ${duration} minutes`);

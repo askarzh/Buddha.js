@@ -53,6 +53,7 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `plugin/` | Claude Code Plugin | Skills and `/buddha` command for Claude Code integration |
 | `simulation/` | `Being` | Integration class combining all concepts |
 | `utils/` | `types`, `aliases` | Shared type definitions, utilities, and English aliases for Sanskrit terms |
+| `dsh/` | `apply()` (Cordis plugin), `BeingRegistry`, `applyBreaker`, `applyKarma`, `applyVithi`, `applyRealms`, `applyCommands` | Standalone package (`dsh-plugin-buddha`, own `package.json`/tests, pnpm-only) — DeepSeek Harness (Cordis) plugin bringing the Poison Arrow circuit breaker, karma-as-telemetry, Layer A citta-vīthi step observation, six-realm subagent personas, and `/sit` `/koan` `/status` `/rebirth` slash commands to DSH agents; see [README's DeepSeek Harness Plugin section](README.md#deepseek-harness-plugin) |
 
 ### Key Patterns
 

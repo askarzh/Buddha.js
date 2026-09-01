@@ -87,7 +87,7 @@ export class StateManager {
 /**
  * Resolve the state directory from: --state-dir flag > BUDDHA_STATE_DIR env > ~/.buddha/
  */
-export function resolveStateDir(flagValue?: string): string {
+function resolveStateDir(flagValue?: string): string {
   if (flagValue) return flagValue;
   if (process.env.BUDDHA_STATE_DIR) return process.env.BUDDHA_STATE_DIR;
   return path.join(os.homedir(), '.buddha');

@@ -166,7 +166,11 @@ export function createKarmicSeed(options: CreateSeedOptions): KarmicSeed {
   // Calculate potency based on intention strength if not provided
   const calculatedPotency = potency ?? intentionStrength * 10;
 
-  // Determine strength category
+  // Determine strength category. Note: Being.act() plants seeds with
+  // potency = intensity * 7 (intensity capped at 10), so it can never reach
+  // this 80-potency 'weighty' floor — deliberately: garuka (weighty) kamma
+  // should only be reachable by planting a seed directly (see weightyKarma()
+  // below), not by ordinary intentional action at maximum intensity.
   const strength: KarmaStrength =
     calculatedPotency >= 80 ? 'weighty' :
     calculatedPotency >= 50 ? 'strong' :
@@ -1164,74 +1168,3 @@ export const RipeningConditions = {
   }
 };
 
-// =============================================================================
-// EXPLANATION
-// =============================================================================
-
-/**
- * Explain the karmic event system
- */
-export function explainKarmicEventSystem(): string {
-  return `
-KARMIC EVENT SYSTEM
-
-This system models karma as an event-driven architecture where:
-- Actions create "seeds" (potential consequences)
-- Seeds are stored in a "storehouse" (ālaya)
-- Seeds ripen when conditions are met
-- Ripening produces "results" (vipāka)
-
-LIFECYCLE OF A KARMIC SEED:
-
-  Action → [seed:planted] → Dormant
-                              ↓
-                           Active → [seed:strengthened] (repeated)
-                              ↓        [seed:weakened] (counter-action)
-                              ↓
-  Conditions Met → [seed:ripening] → Ripening
-                              ↓
-                   [seed:ripened] → Result Manifests
-                              ↓
-               [seed:exhausted] or continues (partial ripening)
-
-FACTORS AFFECTING RIPENING:
-
-1. POTENCY: Strength of the original intention
-2. CONDITIONS: External circumstances that allow ripening
-3. TIME: Minimum/maximum delay before ripening
-4. REPETITION: Repeated actions strengthen seeds
-
-TYPES OF TIMING:
-
-- Immediate: Ripens soon (within this session)
-- Deferred: Ripens later (after some delay)
-- Next-life: Would ripen in next existence
-- Distant-future: May take many cycles to ripen
-
-KEY PRINCIPLES:
-
-1. No karma is lost - seeds persist until ripened or purified
-2. Karma can be weakened through counter-actions
-3. Karma can be purified through wisdom/realization
-4. Results match the quality of the original action
-5. Collective karma affects groups who acted together
-
-EVENT-DRIVEN USAGE:
-
-  const store = new KarmicStore();
-
-  // Listen for ripening
-  store.on('seed:ripened', (event) => {
-    console.log(\`Karma ripened: \${event.vipaka?.description}\`);
-  });
-
-  // Plant a seed
-  const seed = store.plantSeed({
-    quality: 'wholesome',
-    description: 'Act of generosity'
-  });
-
-  // Wait for ripening
-  const result = await store.waitForRipening(seed.id);
-  `.trim();
-}

@@ -55,17 +55,3 @@ export interface TwoTruthsView {
   ultimate: UltimateTruth;
   reconciliation: string;
 }
-
-/**
- * Helper to create a Two Truths view
- */
-export function createTwoTruthsView(
-  conventional: ConventionalTruth,
-  ultimate: UltimateTruth
-): TwoTruthsView {
-  return {
-    conventional,
-    ultimate,
-    reconciliation: 'Both truths are valid perspectives on the same reality'
-  };
-}

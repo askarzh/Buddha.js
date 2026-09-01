@@ -76,7 +76,12 @@ const MAX_STEPS_PER_TURN = 64
  *
  * - every accepted fact (claimed inbox messages, the request header,
  *   the assistant message, tool results, breaker/karma-staged context) is
- *   appended to `session` before the loop acts on it;
+ *   appended to `session` before the loop acts on it — with one deliberate
+ *   divergence: context a tool call produces (`additionalContexts`) is
+ *   attached to that call's own tool result rather than spliced into the
+ *   next-step inbox as a free-standing `user/message`, because a model that
+ *   reads the cessation protocol in the user's voice is right to distrust it
+ *   (see the FRAMING note at the attachment site);
  * - every tool call is dispatched through `ctx.tools.execute()` — the
  *   guarded pre/around/post pipeline — never a tool's `execute` directly;
  * - the LLM request's message history is `session.deriveMessages()`,
@@ -325,6 +330,12 @@ class CittaVithiAgent implements Agent {
 
         for (const call of toolCalls) {
           let result: ToolExecutionResult
+          // Whether `result` came back from a real `ctx.tools.execute()`
+          // dispatch (and therefore has an owning, executed tool call that
+          // any `additionalContexts` on it belong to), as opposed to a
+          // failure this loop synthesized locally without ever entering the
+          // tool pipeline.
+          let dispatched = false
           if (controller.signal.aborted) {
             result = {
               isError: true,
@@ -357,10 +368,34 @@ class CittaVithiAgent implements Agent {
                 agent: this,
                 signal: controller.signal,
               })
+              dispatched = true
             }
           }
 
-          const toolResultMessage = createToolResultMessage({ callId: call.id, content: result.content, isError: result.isError })
+          // `additionalContexts` (e.g. the breaker's Poison Arrow notice) is
+          // carried on BOTH `ToolExecutionSuccess` and `ToolExecutionFailure`
+          // — a failed call is exactly when the breaker has something to
+          // say — so it is read unconditionally; only `concludesTurn` is
+          // success-only.
+          //
+          // FRAMING (the point of this branch): context produced BY a tool
+          // call rides back attached to that call's own tool result, inside
+          // the `tool-result` block's content, never as a standalone
+          // `user/message`. Detached, the Poison Arrow cessation protocol
+          // reads to a model like text of unknown provenance appearing in
+          // the user's voice — a live DeepSeek run under this loop called it
+          // "prompting-injection-style material masquerading as a
+          // system/cessation signal" and deliberately ignored it, while the
+          // same protocol delivered on the tool result was followed. A
+          // discipline the model correctly discounts is worse than none.
+          const owned = dispatched ? (result.additionalContexts ?? []) : []
+          const attachedBlocks: ContentBlock[] = owned.flatMap((message) => [...message.content])
+
+          const toolResultMessage = createToolResultMessage({
+            callId: call.id,
+            content: attachedBlocks.length > 0 ? [...result.content, ...attachedBlocks] : result.content,
+            isError: result.isError,
+          })
           this.session.append(
             'tool/result',
             {
@@ -371,12 +406,15 @@ class CittaVithiAgent implements Agent {
             },
             { surfaceOp: 'append' },
           )
-          // `additionalContexts` (e.g. the breaker's Poison Arrow notice) is
-          // carried on BOTH `ToolExecutionSuccess` and `ToolExecutionFailure`
-          // — a failed call is exactly when the breaker has something to
-          // say — so it is read unconditionally; only `concludesTurn` is
-          // success-only.
-          if (result.additionalContexts) staged.push(...result.additionalContexts)
+          // The surviving `staged` path: context with NO owning executed tool
+          // call. Not every `additionalContexts` producer is the breaker —
+          // a result this loop synthesized itself (aborted before dispatch,
+          // unparseable arguments) never entered `tools/post-execute`, so
+          // any context on it was not produced by this call and has no tool
+          // result of its own to ride; it is appended as its own message
+          // rather than silently dropped or falsely attributed to a tool the
+          // harness never actually ran.
+          if (!dispatched && result.additionalContexts) staged.push(...result.additionalContexts)
           if (!result.isError && result.concludesTurn) concludesTurn = true
         }
 

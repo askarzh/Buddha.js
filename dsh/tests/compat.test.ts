@@ -73,4 +73,39 @@ describe('dsh compatibility tripwire', () => {
     expect(acceptValue.kind).toBe('accept')
     expect(block.kind).toBe('block')
   })
+
+  it('createToolResultMessage nests EVERY given block inside one tool-result block (spec: the citta-vithi loop attaches breaker context to its owning tool result)', async () => {
+    // `src/loop.ts` delivers a tool call's `additionalContexts` — the Poison
+    // Arrow cessation protocol above all — by appending their content blocks
+    // to the `content` of the SAME tool result, so the model reads them in
+    // the tool channel that produced them instead of as a loose user turn it
+    // is right to distrust (see the framing note in `loop.ts`, and
+    // `tests/e2e/loop-breaker.test.ts`).
+    //
+    // That depends on three things staying true, all pinned here: `content`
+    // is an ARRAY of arbitrary content blocks (not a single block, and not
+    // narrowed to one element); every element survives into the produced
+    // message; and they land nested inside the single `tool-result` block,
+    // correlated to `toolCallId`, rather than as sibling top-level blocks.
+    const { createToolResultMessage, CallId } = await import('@deepseek-ai/dsh-llm')
+    const message = createToolResultMessage({
+      callId: CallId('compat-call'),
+      content: [
+        { type: 'text', text: 'tool output' },
+        { type: 'text', text: 'attached context' },
+      ],
+      isError: true,
+    })
+    expect(message.role).toBe('user')
+    expect(message.content).toHaveLength(1)
+    const block = message.content[0]
+    expect(block.type).toBe('tool-result')
+    if (block.type !== 'tool-result') throw new Error('unreachable: asserted above')
+    expect(block.toolCallId).toBe('compat-call')
+    expect(block.isError).toBe(true)
+    expect(block.content).toEqual([
+      { type: 'text', text: 'tool output' },
+      { type: 'text', text: 'attached context' },
+    ])
+  })
 })

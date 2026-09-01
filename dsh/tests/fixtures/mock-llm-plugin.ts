@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { CallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 
 /**
  * Mock LLM adapter fixture for `tests/e2e/headless.test.ts`.
@@ -21,12 +21,17 @@ import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
  *   reported, not errored" per its own renderResult() comment — so it would
  *   never trip the breaker.)
  * - Request 4 (after three failures, the breaker's default `threshold`):
- *   scan `options.messages` for a plugin-sourced message (`source.kind ===
- *   'plugin'`, stamped by `pluginUserMessage()` in `src/messages.ts`) whose
- *   text contains "recognize" — the first word of Poison Arrow's
- *   "recognize" cessation stage rendered by `renderPoisonArrow()` in
- *   `src/breaker.ts`. Emit `PROTOCOL SEEN` if found, `PROTOCOL MISSING`
- *   otherwise, then finish with `reason: { kind: 'stop' }` so the headless
+ *   scan `options.messages` for the text "recognize" — the first word of
+ *   Poison Arrow's "recognize" cessation stage rendered by
+ *   `renderPoisonArrow()` in `src/breaker.ts` — carried EITHER by a
+ *   plugin-sourced message (`source.kind === 'plugin'`, stamped by
+ *   `pluginUserMessage()` in `src/messages.ts`; how the stock `agent-loop`
+ *   delivers tool `additionalContexts`) OR inside a `tool-result` block of
+ *   a tool-sourced message (how `src/loop.ts`'s citta-vīthi loop delivers
+ *   them, attached to the call that produced them). This fixture is
+ *   deliberately indifferent between the two — `mock-llm-breaker-plugin.ts`
+ *   is the one that pins the framing. Emit `PROTOCOL SEEN` if found,
+ *   `PROTOCOL MISSING` otherwise, then finish with `reason: { kind: 'stop' }` so the headless
  *   runner treats the turn as complete and prints this text to stdout.
  */
 export const name = 'mock-llm-plugin'
@@ -66,10 +71,21 @@ class MockAdapter extends LlmAdapter {
   }
 
   private async *protocolCheckTurn(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    // Two legitimate deliveries, both counted as SEEN — this fixture asks
+    // only whether the protocol reached the model, never how it was framed
+    // (that is `mock-llm-breaker-plugin.ts`'s question):
+    // - a standalone plugin-sourced `user/message` (the stock `agent-loop`,
+    //   which splices tool `additionalContexts` into its next-step inbox);
+    // - text inside a `tool-result` block, attached to the failing call that
+    //   produced it (the citta-vīthi loop — see `src/loop.ts`).
+    const carries = (blocks: readonly ContentBlock[]): boolean =>
+      blocks.some((block) => {
+        if (block.type === 'text') return block.text.includes('recognize')
+        if (block.type === 'tool-result') return carries(block.content)
+        return false
+      })
     const sawProtocol = options.messages.some(
-      (message) =>
-        message.source.kind === 'plugin' &&
-        message.content.some((block) => block.type === 'text' && block.text.includes('recognize')),
+      (message) => (message.source.kind === 'plugin' || message.source.kind === 'tool') && carries(message.content),
     )
     const text = sawProtocol ? 'PROTOCOL SEEN' : 'PROTOCOL MISSING'
 

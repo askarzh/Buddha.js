@@ -84,9 +84,31 @@ export class BreakerState {
     return this.streaks.get(tool)?.count ?? 0
   }
 
-  /** A successful call resets that tool's streak — the loop broke. */
-  recordSuccess(tool: string): void {
+  /**
+   * A successful call to `tool` — the loop broke for it, so its own streak is
+   * gone — AND intervening progress for every OTHER tool, whose pressure is
+   * relieved down to `relieveOthersTo` rather than cleared.
+   *
+   * The weaker, cross-tool half exists because the stronger reset cannot be
+   * reached by every agent. `mutatingTools` defaults to write/edit/
+   * str_replace_editor, and a realm persona like `deva` or `asura`
+   * (`realms.ts`) is allowlisted to read/glob/grep — it can NEVER call a
+   * mutating tool, so `recordMutatingCall()` is unreachable for it by
+   * construction. Without this, a deva that failed `read` past the block
+   * boundary could never call `read` again for the life of the agent: a
+   * permanent trap, with the rest of its work dead. For a read-only agent a
+   * successful `glob` genuinely is progress, so it counts as some.
+   *
+   * Relief, not a reset, keeps the two meanings distinct: a mutating success
+   * wipes the slate, while any other success only drops the pressure back
+   * below the block boundary, so a tool that immediately resumes failing
+   * re-earns enforcement faster than one starting from zero.
+   */
+  recordSuccess(tool: string, relieveOthersTo: number): void {
     this.streaks.delete(tool)
+    for (const streak of this.streaks.values()) {
+      if (streak.count > relieveOthersTo) streak.count = relieveOthersTo
+    }
   }
 
   /** A mutating call (e.g. an edit) is intervening progress: reset every streak. */
@@ -164,8 +186,20 @@ function sessionIdOf(agent: Agent): string {
   return agent.id
 }
 
-/** Which tier of the breaker is speaking. The two say categorically different things about what just happened to the call. */
-export type BreakerTier = 'advisory' | 'block'
+/**
+ * Which tier of the breaker is speaking — derived from what actually happens
+ * to THIS call, never from pressure alone. Pressure says how loud the breaker
+ * is; only the outgoing decision says what became of the call, and a
+ * downstream listener can have blocked it, or replaced its content,
+ * underneath us.
+ */
+export type BreakerTier =
+  /** Appended directly after the tool's own error, which the model can still read. */
+  | 'advisory'
+  /** Advisory, but the blocks above are NOT the tool's real error (another listener replaced them), or the notice travels separately. */
+  | 'advisory-replaced'
+  /** The call's output is withheld — by us, or by a listener that blocked it first. */
+  | 'block'
 
 /**
  * The opening clause that tells the model WHICH tier this is.
@@ -190,9 +224,17 @@ export type BreakerTier = 'advisory' | 'block'
  * streak is already past the boundary; see the Task 4d report.
  */
 function tierClause(tier: BreakerTier): string {
-  return tier === 'advisory'
-    ? 'ADVISORY, not a refusal: this call RAN and FAILED — its real error is above this notice — and the harness is not blocking you yet.'
-    : 'BLOCKED, not advice: the harness has cut this call off. Its output is withheld and replaced by this notice, and further retries of it will be cut off the same way.'
+  switch (tier) {
+    case 'advisory':
+      return 'ADVISORY, not a refusal: this call RAN and FAILED — its real error is above this notice — and the harness is not blocking you yet.'
+    case 'advisory-replaced':
+      // The same tier, minus the one claim that would be false: what sits
+      // above is another listener's substituted content, not the tool's own
+      // error.
+      return 'ADVISORY, not a refusal: this call RAN and FAILED, and the harness is not blocking you yet.'
+    case 'block':
+      return 'BLOCKED, not advice: the harness has cut this call off. Its output is withheld and replaced by this notice, and further retries of it will be cut off the same way.'
+  }
 }
 
 /**
@@ -241,10 +283,17 @@ function renderPoisonArrow(
  * could ever reach (its own success is unreachable by construction).
  */
 function denyReason(tool: string, streak: number, boundary: number, mutatingTools: string[]): string {
+  // Named from the LIVE config, and never a promise the agent cannot keep: a
+  // read-only realm persona has no mutating tool to call, so the escape it is
+  // told about has to be one it can actually reach. An empty `mutatingTools`
+  // must not render as an empty parenthesis either — that would be both
+  // malformed and false.
+  const mutating =
+    mutatingTools.length > 0 ? ` A successful ${mutatingTools.join(', ')} clears every streak outright.` : ''
   return (
     `Poison Arrow circuit breaker: "${tool}" was REFUSED before dispatch — this call did not run, and nothing was attempted. ` +
     `Failure pressure ${streak} is past the block boundary of ${boundary}, so retries of this tool keep being refused. ` +
-    `This clears when a mutating tool (${mutatingTools.join(', ')}) succeeds — actual progress, not another retry.`
+    `This clears as soon as any OTHER tool call succeeds — do something that works, then come back to "${tool}".${mutating}`
   )
 }
 
@@ -350,7 +399,10 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
       state.recordMutatingCall()
     }
     if (!result.isError) {
-      state.recordSuccess(exec.name)
+      // Relieve other tools to just under the advisory threshold: enough to
+      // lift any deny (the block boundary is always above it), not enough to
+      // pretend the streak never happened.
+      state.recordSuccess(exec.name, Math.max(0, config.threshold - 1))
       return decision
     }
 
@@ -365,7 +417,31 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
     scheduler.mark(sessionIdOf(agent), being)
 
     const enforcing = streak >= config.threshold * config.blockMultiplier
-    const protocol = renderPoisonArrow(exec, result, streak, config.threshold, being, enforcing ? 'block' : 'advisory')
+
+    // SHAPE FIRST, CLAUSE SECOND. What the notice claims about this call has
+    // to match what the returned decision does to it, and pressure alone
+    // cannot tell us: at advisory pressure a downstream listener may already
+    // have blocked the call (its output IS withheld, so "not blocking you
+    // yet" would be false), or replaced its content (so "its real error is
+    // above" would be false). Both were real defects before the tier was
+    // derived here.
+    const acceptedContent = decision.kind === 'accept' ? decision.content : undefined
+    const replacingValue = decision.kind === 'accept' && Object.hasOwn(decision, 'value')
+    const weBlock = enforcing && decision.kind === 'accept'
+    const tier: BreakerTier =
+      weBlock || decision.kind === 'block'
+        ? 'block'
+        : replacingValue || acceptedContent !== undefined
+          ? 'advisory-replaced'
+          : 'advisory'
+    const protocol = renderPoisonArrow(exec, result, streak, config.threshold, being, tier)
+    const protocolBlock: ContentBlock = { type: 'text', text: protocol }
+    // What the model would have read for this call had the breaker said
+    // nothing: a downstream replacement if there is one, else the tool's own
+    // blocks. The protocol is appended AFTER it, never instead of it — at
+    // BOTH tiers. A blocked model that cannot see what failed cannot change
+    // approach, which is the entire behaviour the block is asking for.
+    const base = acceptedContent ?? result.content
 
     // ENFORCEMENT TIER (streak >= threshold * blockMultiplier).
     //
@@ -381,11 +457,10 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
     // reads, so a second copy in `additionalContexts` would re-introduce
     // exactly the free-floating user-role message the advisory tier stopped
     // sending. One delivery, one provenance.
-    if (enforcing && decision.kind === 'accept') {
-      const feedback: ContentBlock[] = [{ type: 'text', text: protocol }]
+    if (weBlock) {
       const blocked: PostToolDecision = {
         kind: 'block',
-        feedback,
+        feedback: [...base, protocolBlock],
         ...(decision.additionalContexts === undefined ? {} : { additionalContexts: decision.additionalContexts }),
       }
       return blocked
@@ -428,8 +503,6 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
     // `result.content` when a downstream listener replaced it — that
     // replacement is what the model would otherwise have seen, and the
     // waterfall's earlier decision is not ours to discard.
-    const protocolBlock: ContentBlock = { type: 'text', text: protocol }
-
     if (decision.kind === 'block') {
       // A downstream listener already blocked this call. Its `feedback` IS
       // the model-facing result content, so the protocol rides there —
@@ -450,7 +523,6 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
       return { ...decision, additionalContexts: [...(decision.additionalContexts ?? []), noticeFor(protocol)] }
     }
 
-    const base = decision.content ?? result.content
     // Rebuilt field by field rather than spread: `PostToolDecision`'s two
     // accept arms make `content` and `value` mutually exclusive, and the
     // value arm is already returned above, but `Object.hasOwn` does not

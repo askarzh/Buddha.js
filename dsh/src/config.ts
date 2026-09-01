@@ -8,9 +8,14 @@ import z from '@deepseek-ai/schemastery'
  * `threshold * blockMultiplier` is blocked at `tools/post-execute` (it ran,
  * its output is withheld); and every call made while the streak is already
  * past that boundary is denied at `tools/pre-execute` — never dispatched,
- * which is the only tier that actually spares a side-effecting tool. A
- * successful call to any tool named in `mutatingTools` counts as intervening
- * progress and resets every streak, so a refused tool becomes callable again.
+ * which is the only tier that actually spares a side-effecting tool.
+ *
+ * No tier is a dead end. A successful call to any tool clears that tool's own
+ * streak and relieves every other tool's pressure back below the block
+ * boundary; a successful call to a tool named in `mutatingTools` is stronger
+ * still and clears every streak outright. The weaker, cross-tool rule is what
+ * keeps a refusal recoverable for an agent that cannot reach the stronger one
+ * — a read-only realm persona (`deva`, `asura`) has no mutating tool at all.
  *
  * `blockMultiplier` exists because we measured which tier actually changes
  * behaviour. Three live DeepSeek runs read the advisory notice, reasoned

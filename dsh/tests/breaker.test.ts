@@ -180,6 +180,8 @@ describe('Poison Arrow circuit breaker', () => {
     expect(blocks[0]).toEqual({ type: 'text', text: 'ENOENT: no such file' })
     expect(blocks).toHaveLength(2)
     expect(trippedOnResult(last!)).toBe(true)
+    // Nothing replaced the content, so the locative claim is true and made.
+    expect(resultText(last!)).toContain('its real error is above this notice')
   })
 
   it('(b) identical args reach the threshold on the second failure', async () => {
@@ -245,6 +247,30 @@ describe('Poison Arrow circuit breaker', () => {
     // One delivery: the block's `feedback` IS the tool result the model
     // reads, so no second free-floating copy is sent alongside it.
     expect(last.additionalContexts ?? []).toHaveLength(0)
+  })
+
+  it('(e3) the block keeps the tool\'s real error ahead of the protocol', async () => {
+    const agent = fakeAgent()
+    const errored: ToolExecutionResult = {
+      isError: true,
+      error: { message: 'ENOENT: no such file' },
+      content: [{ type: 'text', text: 'ENOENT: no such file' }],
+    }
+
+    let last: PostToolDecision | undefined
+    for (let i = 0; i < 5; i++) {
+      advanceStep(agent)
+      last = await dispatch(fakeExec(agent, 'bash', { i }), errored, async () => ({ kind: 'accept' }))
+    }
+
+    // Withholding the output must not mean hiding WHAT failed: a model that
+    // cannot see the error cannot change approach, which is the only thing
+    // the block is asking it to do.
+    expect(last!.kind).toBe('block')
+    const feedback = (last as { kind: 'block'; feedback: { type: string; text?: string }[] }).feedback
+    expect(feedback[0]).toEqual({ type: 'text', text: 'ENOENT: no such file' })
+    expect(feedback).toHaveLength(2)
+    expect(trippedOnResult(last!)).toBe(true)
   })
 
   it('(e2) identical retries reach enforcement one retry sooner at 1.5x than at 2x', async () => {
@@ -344,6 +370,29 @@ describe('Poison Arrow circuit breaker', () => {
     expect(trippedOnResult(last!)).toBe(true)
   })
 
+  it('(f3) a downstream CONTENT replacement drops the claim that the real error is above', async () => {
+    const agent = fakeAgent()
+
+    let last: PostToolDecision | undefined
+    for (let i = 0; i < 3; i++) {
+      advanceStep(agent)
+      const next =
+        i === 2
+          ? async (): Promise<PostToolDecision> => ({
+              kind: 'accept',
+              content: [{ type: 'text', text: 'downstream replacement' }],
+            })
+          : accept()
+      last = await dispatch(fakeExec(agent, 'bash', { i }), failure(), next)
+    }
+
+    const text = resultText(last!)
+    expect(text).toContain('this call RAN and FAILED')
+    expect(text).toContain('the harness is not blocking you yet')
+    // What sits above is the other listener's text, not the tool's error.
+    expect(text).not.toContain('its real error is above this notice')
+  })
+
   it('(f2) a downstream BLOCK is preserved: the protocol is appended to its feedback, not converted to an accept', async () => {
     const agent = fakeAgent()
 
@@ -362,6 +411,12 @@ describe('Poison Arrow circuit breaker', () => {
     expect(feedback[0]).toEqual({ type: 'text', text: 'downstream veto' })
     expect(trippedOnResult(last!)).toBe(true)
     expect(last!.additionalContexts ?? []).toHaveLength(0)
+    // ADVISORY pressure, but the call IS blocked — by the downstream
+    // listener. Claiming "the harness is not blocking you yet" here would be
+    // false, so the tier follows the outgoing shape, not the pressure.
+    const text = resultText(last!)
+    expect(text).toContain('BLOCKED, not advice')
+    expect(text).not.toContain('the harness is not blocking you yet')
   })
 
   it('(p1) a call whose streak is ALREADY past the boundary is denied before it runs', async () => {
@@ -379,6 +434,8 @@ describe('Poison Arrow circuit breaker', () => {
     expect(reason).toContain('this call did not run')
     expect(reason).toContain('Failure pressure 5')
     expect(reason).toContain('block boundary of 4.5')
+    // The escape it names must be one this agent can actually reach.
+    expect(reason).toContain('any OTHER tool call succeeds')
     expect(reason).toContain('write, edit, str_replace_editor')
     // The deny reason is not the place for the cessation liturgy.
     expect(reason).not.toContain('recognize')
@@ -451,6 +508,103 @@ describe('Poison Arrow circuit breaker', () => {
     advanceStep(agent)
     const next = await dispatch(fakeExec(agent, 'bash', { cmd: 'same' }), failure())
     expect(resultText(next)).toContain('Failure pressure is 7')
+  })
+
+  it('(p6) a READ-ONLY realm persona can recover: any other tool succeeding lifts the deny', async () => {
+    // `realms.ts` allowlists deva to read/glob/grep/read_image — none of the
+    // default `mutatingTools`. Before the cross-tool reset, a deva that
+    // failed `read` past the boundary was denied for the life of the agent
+    // and the rest of its work was dead. Reproduce that exact agent.
+    const agent = fakeAgent('deva-child')
+    await pressureUp(agent, 'read', 3)
+    expect((await preDispatch(fakeExec(agent, 'read', { file: 'x' }))).kind).toBe('deny')
+
+    // The only progress a read-only child can make: a different read tool
+    // that works.
+    advanceStep(agent)
+    await dispatch(fakeExec(agent, 'glob', { pattern: '*.ts' }), success())
+
+    expect((await preDispatch(fakeExec(agent, 'read', { file: 'x' }))).kind).toBe('allow')
+  })
+
+  it('(p7) relief is weaker than a mutating reset: the relieved tool re-earns enforcement sooner', async () => {
+    const agent = fakeAgent('relief')
+    await pressureUp(agent, 'read', 3) // pressure 5
+    advanceStep(agent)
+    await dispatch(fakeExec(agent, 'glob', {}), success()) // relieved to 2
+
+    // From 2, one more identical failure adds 2 -> 4 (advisory), the next
+    // reaches 6 (enforced). From a clean slate it would have taken 1 -> 3 -> 5.
+    advanceStep(agent)
+    const first = await dispatch(fakeExec(agent, 'read', { cmd: 'same' }), failure())
+    expect(first.kind).toBe('accept')
+    expect(resultText(first)).toContain('Failure pressure is 4')
+
+    advanceStep(agent)
+    const second = await dispatch(fakeExec(agent, 'read', { cmd: 'same' }), failure())
+    expect(second.kind).toBe('block')
+
+    // A mutating success, by contrast, wipes the slate.
+    advanceStep(agent)
+    await dispatch(fakeExec(agent, 'edit', {}), success())
+    advanceStep(agent)
+    const afterReset = await dispatch(fakeExec(agent, 'read', { cmd: 'same' }), failure())
+    expect(resultText(afterReset)).not.toContain('Poison Arrow circuit breaker')
+  })
+
+  it('(p8) an empty mutatingTools config still yields a true, well-formed refusal', async () => {
+    const emptyCtx = new Context()
+    const emptyRegistry = new BeingRegistry(stateDir)
+    const config = { ...breakerConfig, mutatingTools: [] }
+    applyBreaker(emptyCtx, { registry: emptyRegistry, scheduler: new SaveScheduler(emptyRegistry), config })
+
+    const agent = fakeAgent('empty-mutating')
+    for (let i = 0; i < 3; i++) {
+      advanceStep(agent)
+      await emptyCtx.waterfall('tools/post-execute', fakeExec(agent, 'bash', { cmd: 'same' }), failure(), accept())
+    }
+
+    const decision = await emptyCtx.waterfall('tools/pre-execute', fakeExec(agent, 'bash', { cmd: 'same' }), async () => ({
+      kind: 'allow',
+    }))
+    expect(decision.kind).toBe('deny')
+    const reason = (decision as { kind: 'deny'; reason: string }).reason
+    // No malformed empty list, and no promise about tools that do not exist.
+    expect(reason).not.toContain('()')
+    expect(reason).not.toContain('clears every streak outright')
+    expect(reason).toContain('any OTHER tool call succeeds')
+  })
+
+  it('(p9) enabled:false leaves the pre-execute decision untouched — the strongest tier is really off', async () => {
+    const disabledCtx = new Context()
+    const disabledRegistry = new BeingRegistry(stateDir)
+    applyBreaker(disabledCtx, {
+      registry: disabledRegistry,
+      scheduler: new SaveScheduler(disabledRegistry),
+      config: { ...breakerConfig, enabled: false },
+    })
+
+    const agent = fakeAgent('disabled-pre')
+    // Build pressure through the (also disabled) post-execute listener AND
+    // through an enabled one on the shared ctx, so the streak genuinely
+    // exists somewhere; the disabled instance must still never deny.
+    for (let i = 0; i < 4; i++) {
+      advanceStep(agent)
+      await disabledCtx.waterfall('tools/post-execute', fakeExec(agent, 'bash', { cmd: 'same' }), failure(), accept())
+      await dispatch(fakeExec(agent, 'bash', { cmd: 'same' }), failure())
+    }
+
+    const downstream: PreToolDecision = { kind: 'allow' }
+    const decision = await disabledCtx.waterfall(
+      'tools/pre-execute',
+      fakeExec(agent, 'bash', { cmd: 'same' }),
+      async () => downstream,
+    )
+    expect(decision).toBe(downstream)
+
+    // Control: the enabled breaker on the same agent DOES deny, so the
+    // assertion above is about `enabled: false` and not about the pressure.
+    expect((await preDispatch(fakeExec(agent, 'bash', { cmd: 'same' }))).kind).toBe('deny')
   })
 
   it('(g) sub-dispatch calls (rootCallId !== callId) never count toward the streak', async () => {

@@ -30,7 +30,7 @@ because we measured it against a live DeepSeek model rather than assuming.
 | Pressure | Tier | Where | What happens to the call |
 |---|---|---|---|
 | `>= breaker.threshold` (default 3) | Advise | `tools/post-execute` | It ran and failed. Its real error is kept, and the four-step cessation protocol is appended to it |
-| `>= threshold * breaker.blockMultiplier` (default 4.5), the call that CROSSES | Withhold | `tools/post-execute` | It ran. Its output is discarded and replaced by the protocol |
+| `>= threshold * breaker.blockMultiplier` (default 4.5), the call that CROSSES | Withhold | `tools/post-execute` | It ran, and is turned into an error: its own failure text is kept, with the protocol appended, but its result no longer counts as successful output |
 | already `>= threshold * blockMultiplier` | Refuse | `tools/pre-execute` | It is **never dispatched** |
 
 The crossing call has to run before anything can know it crossed — that is why
@@ -44,18 +44,26 @@ that arrived as tool-result content, reported a call as refused when it had
 actually executed. So: "ADVISORY, not a refusal: this call RAN and FAILED ...
 the harness is not blocking you yet"; "BLOCKED, not advice: the harness has
 cut this call off"; and, on a refused call, the whole message is a terse
-refusal naming the tool, the pressure, the boundary, and the one thing that
-clears it — a successful mutating tool (`breaker.mutatingTools`) resets every
-streak, so a refused tool becomes callable again after real progress. Deny
+refusal naming the tool, the pressure, the boundary and what clears it. Deny
 reasons get facts only; the cessation walk stays on the tiers that have a real
-tool result to ride.
+tool result to ride. The clause always follows what actually happened to the
+call, not just its pressure — if another plugin blocked it first, it is told
+so rather than told it is not being blocked yet.
+
+**Nothing is ever a dead end.** A successful call to any *other* tool relieves
+a tool's pressure back below the block boundary, so a refused tool is callable
+again after one thing that works; a successful `breaker.mutatingTools` call is
+stronger still and clears every streak outright. The weaker rule is what
+matters in practice: a read-only realm persona (`deva`, `asura`) has no
+mutating tool to call at all, and without it a deva that failed `read` past
+the boundary would have been denied for the life of the agent.
 
 Pressure is a weight, not a count of calls: a retry with identical arguments
 adds 2, a varied one adds 1, and every failure inside a single step adds 1
-between them. At the defaults, identical retries run 1 → 3 (informational) →
-5 (withheld, and every retry after it refused) — two retries before
-enforcement. Set `blockMultiplier: 2` for the older, laxer boundary (three
-retries).
+between them. At the defaults, an identical call runs 1 (first attempt) → 3
+(first retry, advised) → 5 (second retry, output withheld, and every retry
+after it refused): enforcement lands ON the second retry. Set
+`blockMultiplier: 2` and it lands on the third instead.
 
 **The informational tier does not discipline a model that reasons about
 provenance.** Three live runs, three deliveries: as an injected user-role

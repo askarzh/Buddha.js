@@ -75,7 +75,7 @@ describe('dsh compatibility tripwire', () => {
   })
 
   it('the accept arm can REPLACE the tool result content (spec: the breaker delivers the advisory cessation protocol on the failing tool result)', () => {
-    // Load-bearing since Task 4b: below `2 * threshold` the Poison Arrow
+    // Load-bearing since Task 4b: below `threshold * blockMultiplier` the Poison Arrow
     // breaker no longer ships the protocol as `additionalContexts` (a
     // free-floating user-role message live models discount as injected
     // content, under BOTH loops). It returns

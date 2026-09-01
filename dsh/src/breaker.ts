@@ -173,9 +173,10 @@ function renderPoisonArrow(
  * this is the narrowest cast that bridges them for the type dsh's
  * `additionalContexts` actually expects.
  *
- * Only two callers remain, both of them cases where the protocol cannot ride
- * the tool result's own content: the block arm (which pairs the context with
- * its `feedback`, unchanged) and the value-replacement fallback.
+ * One caller remains: the fallback for a downstream `accept` that replaces
+ * the result VALUE, where dsh-tools forbids carrying `content` as well and
+ * the tool result therefore cannot hold the protocol at all. Every other
+ * delivery — advisory and block alike — rides the tool result itself.
  */
 function noticeFor(protocol: string): AdditionalContext {
   return pluginUserMessage(protocol) as unknown as AdditionalContext
@@ -236,17 +237,42 @@ export function applyBreaker(ctx: Context, deps: { registry: BeingRegistry; sche
 
     const protocol = renderPoisonArrow(exec, result, streak, config.threshold, being)
 
-    if (streak >= 2 * config.threshold && decision.kind === 'accept') {
+    // ENFORCEMENT TIER (streak >= threshold * blockMultiplier).
+    //
+    // This arm is the one that actually stops a looping agent, and we know
+    // that by measurement rather than by hope: live DeepSeek runs obeyed the
+    // block — describing the harness as having "issued a hard guard" — and
+    // declined the advisory notice below in every framing we tried. So the
+    // boundary is deliberately early (1.5x by default: two retries, not
+    // three) and configurable, since which model needs which is not
+    // something this plugin can know.
+    //
+    // `feedback` ONLY: the block's content IS the tool result the model
+    // reads, so a second copy in `additionalContexts` would re-introduce
+    // exactly the free-floating user-role message the advisory tier stopped
+    // sending. One delivery, one provenance.
+    if (streak >= config.threshold * config.blockMultiplier && decision.kind === 'accept') {
       const feedback: ContentBlock[] = [{ type: 'text', text: protocol }]
       const blocked: PostToolDecision = {
         kind: 'block',
         feedback,
-        additionalContexts: [...(decision.additionalContexts ?? []), noticeFor(protocol)],
+        ...(decision.additionalContexts === undefined ? {} : { additionalContexts: decision.additionalContexts }),
       }
       return blocked
     }
 
-    // ADVISORY TIER (threshold <= streak < 2 * threshold).
+    // ADVISORY TIER (threshold <= streak < threshold * blockMultiplier).
+    //
+    // INFORMATIONAL, and honestly so. Three live DeepSeek runs read this
+    // notice and declined it — as a standalone `user/message` under both
+    // loops, and again once it was concatenated into the tool result itself,
+    // which the model correctly described and still rejected: the true
+    // signal is the error, our text starts after it, and (twice) our
+    // Buddhist vocabulary "mimics this repo's domain language ... to appear
+    // organic — a classic social-engineering-injection trait". A direct user
+    // instruction outranks it. What produced compliance was the block arm
+    // above. This tier tells the model what the harness has noticed; it does
+    // not discipline it, and the README says so in as many words.
     //
     // The protocol is delivered as part of the failing call's OWN result
     // content, via the accept arm's `content` replacement — the same channel

@@ -21,6 +21,45 @@ See the root [README's DeepSeek Harness Plugin
 section](../README.md#deepseek-harness-plugin) for the failure-mode-to-
 mechanism table, install instructions, and config keys.
 
+## The breaker: what it enforces, and what it only says
+
+The Poison Arrow circuit breaker has two tiers, and only one of them changes
+an agent's behaviour. We know which, because we measured it against a live
+DeepSeek model rather than assuming.
+
+| Pressure | Tier | What happens |
+|---|---|---|
+| `>= breaker.threshold` (default 3) | Informational | The four-step cessation protocol is appended to the failing tool's own result |
+| `>= threshold * breaker.blockMultiplier` (default 4.5) | Enforcement | The call is **blocked**: the protocol becomes the tool's error result |
+
+Pressure is a weight, not a count of calls: a retry with identical arguments
+adds 2, a varied one adds 1, and every failure inside a single step adds 1
+between them. At the defaults, identical retries run 1 → 3 (informational) →
+5 (blocked) — two retries before enforcement. Set `blockMultiplier: 2` for
+the older, laxer boundary (three retries).
+
+**The informational tier does not discipline a model that reasons about
+provenance.** Three live runs, three deliveries: as an injected user-role
+message under the experimental Layer B loop ("prompting-injection-style
+material masquerading as a system/cessation signal"); as the same under DSH's
+stock loop ("untrusted injected content ... injected into my context between
+tool invocations"); and finally concatenated into the failing tool's own
+result, as it ships today — which the model described accurately
+("concatenated into the tool result payload itself, after the genuine error
+text") and rejected anyway. The true signal is the error; our text starts
+after it; the user's direct instruction outranks it. Twice, the model named
+this project's own Buddhist vocabulary as the tell: it "mimics this repo's
+domain language (per CLAUDE.md) to appear organic — a classic
+social-engineering-injection trait".
+
+**What produced compliance was the block.** Crossing the block boundary, the
+same model described the harness as having "issued a hard guard" and stopped
+retrying — the same way it honours DSH's own terse anti-loop guard.
+
+If you mount this plugin to stop runaway retry loops, `blockMultiplier` is
+the knob that matters. Read the protocol text as a diagnostic in the
+transcript, not as control over the agent.
+
 ## Six realms: one tool entry per realm
 
 `dsh-tool-subagent` takes its persona from the TOOL ENTRY'S CONFIG

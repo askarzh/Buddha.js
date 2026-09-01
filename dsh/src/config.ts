@@ -2,14 +2,28 @@ import z from '@deepseek-ai/schemastery'
 
 /**
  * Poison Arrow circuit breaker config (implemented in `src/breaker.ts`):
- * when `enabled`, a per-agent, per-tool consecutive-failure streak trips the
- * cessation protocol at `threshold` and blocks the call at `2 * threshold`.
- * A successful call to any tool named in `mutatingTools` counts as
- * intervening progress and resets every streak.
+ * when `enabled`, a per-agent, per-tool consecutive-failure streak attaches
+ * the informational cessation protocol to the failing tool's own result at
+ * `threshold`, and BLOCKS the call at `threshold * blockMultiplier`. A
+ * successful call to any tool named in `mutatingTools` counts as intervening
+ * progress and resets every streak.
+ *
+ * `blockMultiplier` exists because we measured which tier actually changes
+ * behaviour. Three live DeepSeek runs read the advisory notice, reasoned
+ * about its provenance, and declined it — twice naming this project's own
+ * Buddhist vocabulary as evidence of social engineering — while obeying the
+ * block, which they described as the harness issuing a hard guard. So the
+ * advisory tier is informational and enforcement is the block arm, and how
+ * soon enforcement arrives is an operator's call: the answer is
+ * model-dependent, and an operator who trusts their model can set `2` to
+ * restore the old boundary. At the default `threshold: 3` and
+ * `blockMultiplier: 1.5`, identical retries run pressure 1 -> 3 (advisory)
+ * -> 5 (blocked): two retries before enforcement, where 2x allowed three.
  */
 export interface BreakerConfig {
   enabled: boolean
   threshold: number
+  blockMultiplier: number
   mutatingTools: string[]
 }
 
@@ -42,8 +56,9 @@ export const Config: z<Config> = z.object({
     .object({
       enabled: z.boolean().default(true),
       threshold: z.number().default(3),
+      blockMultiplier: z.number().default(1.5),
       mutatingTools: z.array(z.string()).default(['write', 'edit', 'str_replace_editor']),
     })
-    .default({ enabled: true, threshold: 3, mutatingTools: ['write', 'edit', 'str_replace_editor'] }),
+    .default({ enabled: true, threshold: 3, blockMultiplier: 1.5, mutatingTools: ['write', 'edit', 'str_replace_editor'] }),
   loop: z.union([z.const('off'), z.const('citta-vithi')]).default('off'),
 })

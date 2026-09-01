@@ -43,7 +43,7 @@ describe('Poison Arrow circuit breaker', () => {
     registry = new BeingRegistry(stateDir)
     scheduler = new SaveScheduler(registry)
     ctx = new Context()
-    breakerConfig = { enabled: true, threshold: 3, mutatingTools: ['write', 'edit', 'str_replace_editor'] }
+    breakerConfig = { enabled: true, threshold: 3, blockMultiplier: 1.5, mutatingTools: ['write', 'edit', 'str_replace_editor'] }
     applyBreaker(ctx, { registry, scheduler, config: breakerConfig })
     callCounter = 0
   })
@@ -201,21 +201,55 @@ describe('Poison Arrow circuit breaker', () => {
     expect(last!.additionalContexts ?? []).toHaveLength(0)
   })
 
-  it('(e) at 2x threshold the decision is block with feedback', async () => {
+  it('(e) at threshold * blockMultiplier the decision is block with feedback, and NOTHING is duplicated into additionalContexts', async () => {
     const agent = fakeAgent()
 
-    let last: PostToolDecision | undefined
-    for (let i = 0; i < 6; i++) {
+    // Varied arguments: +1 per failure. Default 3 * 1.5 = 4.5, so failure 5
+    // is the first to enforce; failures 3 and 4 are advisory.
+    const decisions: PostToolDecision[] = []
+    for (let i = 0; i < 5; i++) {
       advanceStep(agent)
-      last = await dispatch(fakeExec(agent, 'bash', { i }), failure())
+      decisions.push(await dispatch(fakeExec(agent, 'bash', { i }), failure()))
     }
 
-    expect(last!.kind).toBe('block')
+    expect(decisions[2]!.kind).toBe('accept')
+    expect(decisions[3]!.kind).toBe('accept')
+
+    const last = decisions[4]!
+    expect(last.kind).toBe('block')
     expect((last as { kind: 'block'; feedback: unknown[] }).feedback.length).toBeGreaterThan(0)
-    expect(trippedOnResult(last!)).toBe(true)
-    // The block arm is unchanged by the advisory-tier rework: it still pairs
-    // its `feedback` with the plugin-sourced context message.
-    expect(last!.additionalContexts).toHaveLength(1)
+    expect(trippedOnResult(last)).toBe(true)
+    // One delivery: the block's `feedback` IS the tool result the model
+    // reads, so no second free-floating copy is sent alongside it.
+    expect(last.additionalContexts ?? []).toHaveLength(0)
+  })
+
+  it('(e2) identical retries reach enforcement one retry sooner at 1.5x than at 2x', async () => {
+    // Identical arguments add +2, so pressure runs 1 -> 3 -> 5. At the
+    // default 1.5x (4.5) the third call is blocked; at 2x (6) it is not.
+    async function pressureRun(config: Config['breaker']): Promise<PostToolDecision[]> {
+      const runCtx = new Context()
+      const runRegistry = new BeingRegistry(stateDir)
+      applyBreaker(runCtx, { registry: runRegistry, scheduler: new SaveScheduler(runRegistry), config })
+      const agent = fakeAgent(`session-${config.blockMultiplier}`)
+      const out: PostToolDecision[] = []
+      for (let i = 0; i < 3; i++) {
+        advanceStep(agent)
+        out.push(
+          await runCtx.waterfall('tools/post-execute', fakeExec(agent, 'bash', { cmd: 'same' }), failure(), accept()),
+        )
+      }
+      return out
+    }
+
+    const atDefault = await pressureRun({ ...breakerConfig, blockMultiplier: 1.5 })
+    expect(atDefault[1]!.kind).toBe('accept') // pressure 3: advisory
+    expect(trippedOnResult(atDefault[1]!)).toBe(true)
+    expect(atDefault[2]!.kind).toBe('block') // pressure 5 >= 4.5: enforced
+
+    const atTwo = await pressureRun({ ...breakerConfig, blockMultiplier: 2 })
+    expect(atTwo[2]!.kind).toBe('accept') // pressure 5 < 6: still advisory
+    expect(trippedOnResult(atTwo[2]!)).toBe(true)
   })
 
   it('(f) the downstream decision is preserved: its additionalContexts and its replaced content both survive', async () => {

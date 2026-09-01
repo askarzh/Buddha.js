@@ -926,7 +926,7 @@ Each skill calls the corresponding `buddha_*` MCP tool from the bundled `buddha-
 
 | Failure mode | Mechanism | Where |
 |---|---|---|
-| Blind retry loops — repeatedly calling a failing tool the same or nearly the same way | Poison Arrow circuit breaker: a `tools/post-execute` waterfall listener counts a per-agent, per-tool failure streak (a call sharing the same step counts once; a call replaying the same arguments counts double), and once the streak reaches `breaker.threshold` injects the four-step cessation protocol (recognize → investigate → release → practice) as additional context; at `2 × threshold` it blocks the call outright | `src/breaker.ts` |
+| Blind retry loops — repeatedly calling a failing tool the same or nearly the same way | Poison Arrow circuit breaker: a `tools/post-execute` waterfall listener counts a per-agent, per-tool failure streak (a call sharing the same step counts once; a call replaying the same arguments counts double). At `breaker.threshold` it appends the four-step cessation protocol (recognize → investigate → release → practice) to the failing tool's own result — **informational only; see [what we measured](#what-we-measured-about-the-advisory-tier)**. At `threshold × blockMultiplier` it blocks the call outright, and that is the tier that actually stops the loop | `src/breaker.ts` |
 | Silent erosion of conduct across a session — failures and successes leave no trace the agent (or operator) can inspect | Karma tracking: every tool result becomes a `Being.experience()` (unpleasant, scaled by that tool's consecutive-failure streak, on failure; pleasant on success), and a turn that closes with no tool failure plants a wholesome `act()` | `src/karma.ts` |
 | Ungrounded step-by-step execution with no per-step self-observation | Layer A citta-vīthi: a pure-passthrough `agent/pre-step` listener records step/turn identity (shared with the breaker and karma tracking) and one `Being.cognize()` runs per step — observation only, never a loop replacement | `src/vithi.ts`, `src/step-records.ts` |
 | Undifferentiated subagent roles — a "planning" delegate quietly writing files, or an "audit" delegate fixing instead of verifying | Six-realm subagent personas on a `buddha-realms` provider: `deva` (architect) gets a read-only tool allowlist, `asura` (adversarial auditor) gets read tools plus `bash` but never `write`/`edit`, `human` (implementer) keeps full access; each child spawns as a fresh realm-typed `Being` seeded from the parent's karmic balance, and the run's outcome is planted back into the parent as vipāka on completion | `src/realms.ts` |
@@ -967,9 +967,47 @@ See `dsh/cordis.dev.yml` for the full template (the plugin path is machine-speci
 |---|---|---|
 | `stateDir` | `''` (resolves to `<os.homedir()>/.buddha/dsh`) | Where `Being` state is persisted |
 | `breaker.enabled` | `true` | Whether the Poison Arrow circuit breaker mounts at all |
-| `breaker.threshold` | `3` | Failure **pressure** that trips the breaker, blocking at `2 × threshold`. Pressure is a weight, not a call count: a retry with identical arguments adds 2, a varied one adds 1, and every failure within a single step adds 1 between them |
+| `breaker.threshold` | `3` | Failure **pressure** at which the breaker attaches its informational cessation protocol to the failing tool's result. Pressure is a weight, not a call count: a retry with identical arguments adds 2, a varied one adds 1, and every failure within a single step adds 1 between them |
+| `breaker.blockMultiplier` | `1.5` | Pressure at which the breaker **blocks** the call, as a multiple of `threshold`. At the defaults that is 4.5: identical retries run pressure 1 → 3 (informational) → 5 (blocked), so an agent gets two retries before enforcement. Set `2` for the older, laxer boundary (three retries). Which value is right is model-dependent — see [what we measured](#what-we-measured-about-the-advisory-tier) |
 | `breaker.mutatingTools` | `['write', 'edit', 'str_replace_editor']` | Tool names whose successful call counts as intervening progress, resetting every streak |
 | `loop` | `'off'` (or `'citta-vithi'`) | `'citta-vithi'` opts into the **experimental** Layer B agent loop (`src/loop.ts`), which replaces DSH's stock loop with an `AgentFactory` that structures each step as explicit citta-vīthi phases; it is not feature-complete with the stock loop and requires an overlay that also disables the stock `agent-loop` plugin (`ctx.agents.setFactory()` throws if a factory is already registered). See [`dsh/README.md`'s Experimental section](dsh/README.md#experimental-the-citta-vīthi-agent-loop-loop-citta-vithi) for the known gaps. Layer A citta-vīthi observation (see the table above) mounts unconditionally regardless of this setting |
+
+### What we measured about the advisory tier
+
+Be clear about what this plugin does and does not do to an agent, because we
+tested it rather than assuming.
+
+**The informational tier does not discipline a model that reasons about
+provenance.** We ran the cessation protocol against a live DeepSeek model
+three times, changing how it was delivered each time:
+
+1. as a standalone injected user-role message under the experimental Layer B
+   loop — the model called it "prompting-injection-style material
+   masquerading as a system/cessation signal" and completed every retry;
+2. the same, under DSH's stock loop — "injected into my context between tool
+   invocations", treated "as untrusted injected content";
+3. concatenated into the failing tool's own result, which is how it ships
+   today — the model described that provenance accurately ("concatenated into
+   the tool result payload itself, after the genuine error text") and rejected
+   it anyway: the true signal is the error, our text starts after it, the
+   user's direct instruction outranks it, and — twice — our Buddhist
+   vocabulary "mimics this repo's domain language (per CLAUDE.md) to appear
+   organic — a classic social-engineering-injection trait".
+
+The last one is worth sitting with: the framing this whole library is built
+from is itself read as evidence of an attack. A model right to be suspicious
+of unattributed instructions is right to be suspicious of ours.
+
+**What produced compliance was the block.** In the run where pressure crossed
+the block boundary, the same model described the harness as having "issued a
+hard guard" and stopped retrying. It also honours DSH's own anti-loop guard,
+which is terse and mechanical. Enforcement works; liturgy does not.
+
+So: the informational tier tells the model (and the operator reading the
+transcript) what the harness has noticed, and `breaker.blockMultiplier`
+decides how soon enforcement arrives. If you are mounting this plugin to stop
+runaway retry loops, the block arm is the feature; treat the protocol text as
+a diagnostic, not as control.
 
 ### Wiring the six realms
 

@@ -16,6 +16,7 @@
 import { Being } from '../../simulation/Being';
 import { KoanGenerator } from '../../koan/KoanGenerator';
 import { PoisonArrow } from '../../simulation/PoisonArrow';
+import { DependentOrigination } from '../../dependent-origination/DependentOrigination';
 import { KarmaQuality, Intensity, UnwholesomeRoot, WholesomeRoot } from '../../utils/types';
 import { StateManager } from './state';
 
@@ -47,6 +48,31 @@ export function loadSettledBeing(
       fromRealm: settled.fromRealm,
       toRealm: settled.toRealm,
       incarnation: settled.incarnation,
+    },
+  };
+}
+
+// ------------------------------------------------------------------ chain
+
+/**
+ * List the 12 nidanas and the point on the chain where practice can break it.
+ *
+ * NOTE: this is a standalone demonstration — it builds a fresh
+ * DependentOrigination and ignores `sm`/`beingName` entirely, so `--being`
+ * has no effect on the output today.
+ */
+export function runChain(_sm: StateManager, _beingName: string) {
+  const do_ = new DependentOrigination();
+
+  return {
+    command: 'chain' as const,
+    result: {
+      links: do_.links.map((link, i) => ({
+        position: i + 1,
+        name: link.name,
+        sanskritName: link.sanskritName,
+      })),
+      liberationPoint: do_.practiceAtLiberationPoint(),
     },
   };
 }

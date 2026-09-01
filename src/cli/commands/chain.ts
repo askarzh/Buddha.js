@@ -1,39 +1,29 @@
 import { Command } from 'commander';
-import { DependentOrigination } from '../../dependent-origination/DependentOrigination';
-import { getGlobalOpts } from '../utils/state';
+import { getGlobalOpts, getStateManager } from '../utils/state';
+import { runChain } from '../utils/runner';
 import { header, label, insight, subtle, divider } from '../utils/format';
 
 export function chain(_localOpts: Record<string, unknown>, cmd: Command): void {
   const globalOpts = getGlobalOpts(cmd);
-  const do_ = new DependentOrigination();
+  const mgr = getStateManager(globalOpts);
+  const payload = runChain(mgr, globalOpts.being);
 
   if (globalOpts.json) {
-    const links = do_.links.map((link, i) => ({
-      position: i + 1,
-      name: link.name,
-      sanskritName: link.sanskritName,
-    }));
-    console.log(JSON.stringify({
-      command: 'chain',
-      result: {
-        links,
-        liberationPoint: do_.practiceAtLiberationPoint(),
-      },
-    }, null, 2));
+    console.log(JSON.stringify(payload, null, 2));
     return;
   }
 
-  console.log(header('Dependent Origination \u2014 The 12 Links'));
+  console.log(header('Dependent Origination — The 12 Links'));
 
-  const links = do_.links;
+  const links = payload.result.links;
   for (let i = 0; i < links.length; i++) {
     const link = links[i];
-    const arrow = i < links.length - 1 ? ' \u2192' : '';
-    console.log(`  ${subtle(`${i + 1}.`)} ${label(link.name)} ${subtle(`(${link.sanskritName})`)}${arrow}`);
+    const arrow = i < links.length - 1 ? ' →' : '';
+    console.log(`  ${subtle(`${link.position}.`)} ${label(link.name)} ${subtle(`(${link.sanskritName})`)}${arrow}`);
   }
 
   console.log();
   console.log(divider());
   console.log(label('Liberation Point:'));
-  console.log(insight(do_.practiceAtLiberationPoint()));
+  console.log(insight(payload.result.liberationPoint));
 }

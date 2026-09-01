@@ -13,6 +13,7 @@ import {
   runBeingsDelete,
   runReset,
   runInquiry,
+  runChain,
   isKarmaError,
   KarmaResult,
 } from '../../src/cli/utils/runner';
@@ -244,6 +245,29 @@ describe('CLI command bodies', () => {
       // The karma alice carries is visible in the state the inquiry reports.
       expect(payload.state.karmicActions).toBeGreaterThan(0);
       expect(runInquiry(sm, 'bob').state.karmicActions).toBe(0);
+    });
+  });
+
+  describe('chain', () => {
+    it('returns the twelve links in order, with a liberation point', () => {
+      const { result } = runChain(sm, 'tester');
+      expect(result.links).toHaveLength(12);
+      expect(result.links.map(l => l.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      expect(result.links.every(l => l.name && l.sanskritName)).toBe(true);
+      expect(result.liberationPoint).toBeTruthy();
+    });
+
+    // Current behaviour, deliberately pinned: chain is a standalone
+    // demonstration that ignores --being. Task 9 makes it being-aware, and
+    // this assertion is the one that flips.
+    it('ignores the named being today', () => {
+      runKarma(sm, 'alice', { description: 'a deed', intensity: '9', root: 'greed' });
+      expect(runChain(sm, 'alice')).toEqual(runChain(sm, 'nobody'));
+    });
+
+    it('reads no being from disk', () => {
+      runChain(sm, 'tester');
+      expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(false);
     });
   });
 });

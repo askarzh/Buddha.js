@@ -51,6 +51,21 @@ export function loadSettledBeing(
   };
 }
 
+// ------------------------------------------------------------------ reset
+
+/**
+ * Overwrite the named being with a fresh one. No pending rebirth is settled:
+ * whatever was there is discarded, not transmigrated.
+ */
+export function runReset(sm: StateManager, beingName: string) {
+  sm.saveBeing(beingName, new Being());
+  return {
+    command: 'reset' as const,
+    being: beingName,
+    result: { reset: true },
+  };
+}
+
 // ----------------------------------------------------------------- beings
 
 /**

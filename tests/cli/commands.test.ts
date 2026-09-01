@@ -11,6 +11,7 @@ import {
   runSit,
   runBeings,
   runBeingsDelete,
+  runReset,
   isKarmaError,
   KarmaResult,
 } from '../../src/cli/utils/runner';
@@ -192,6 +193,31 @@ describe('CLI command bodies', () => {
 
     it('delete of an unknown being is not an error', () => {
       expect(() => runBeingsDelete(sm, 'nobody')).not.toThrow();
+    });
+  });
+
+  describe('reset', () => {
+    it('clears the karma that had been planted', () => {
+      runKarma(sm, 'tester', { description: 'a deed', intensity: '5', root: 'greed' });
+      expect(runStatus(sm, 'tester').result.pendingKarma).toBeGreaterThan(0);
+
+      const payload = runReset(sm, 'tester');
+      expect(payload.result.reset).toBe(true);
+      expect(payload.being).toBe('tester');
+      expect(runStatus(sm, 'tester').result.pendingKarma).toBe(0);
+    });
+
+    // It overwrites rather than unlinks, so the being stays listed.
+    it('writes a fresh being rather than removing the file', () => {
+      runReset(sm, 'tester');
+      expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(true);
+      expect(runBeings(sm).result.beings).toContain('tester');
+    });
+
+    it('leaves other beings alone', () => {
+      runKarma(sm, 'other', { description: 'a deed', intensity: '5', root: 'greed' });
+      runReset(sm, 'tester');
+      expect(runStatus(sm, 'other').result.pendingKarma).toBeGreaterThan(0);
     });
   });
 });

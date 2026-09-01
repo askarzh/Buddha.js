@@ -78,4 +78,22 @@ describe('Citta vīthi pins', () => {
     const result = citta.processMentalObject({ type: 'mental-object', content: 'mild craving' });
     expect(result.karmicImpact).toBe('weak');
   });
+
+  it('keeps the moment stream bounded no matter how long a life runs', () => {
+    const citta = new Citta();
+    for (let i = 0; i < 200; i++) {
+      citta.processMentalObject({ type: 'mental-object', content: `object ${i}` });
+    }
+    expect(citta.getTotalMoments()).toBeLessThanOrEqual(51);
+  });
+
+  it('keeps the most recent moments, discarding the oldest', () => {
+    const citta = new Citta();
+    for (let i = 0; i < 200; i++) {
+      citta.processMentalObject({ type: 'mental-object', content: `object ${i}` });
+    }
+    const last = citta.getCurrentMoment();
+    expect(last).toBeDefined();
+    expect(citta.getRecentMoments(51)).toContain(last);
+  });
 });

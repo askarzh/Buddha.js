@@ -8,6 +8,7 @@ import type {
 import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
 import { Being, REALM_CLASSES, type Intensity } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
+import { reportSwallowed } from './errors.js'
 
 /** The three personas this provider maps to — a subset of buddha-js's six-realm `Realm` type. */
 export type SubagentRealm = 'deva' | 'asura' | 'human'
@@ -223,10 +224,12 @@ async function startRealmChild(ctx: Context, registry: BeingRegistry, request: R
     .finally(() => {
       registry.discard(childSessionId)
     })
-    .catch(() => {
+    .catch((error) => {
       // Best-effort vipāka/cleanup: a rejection here is an infrastructure
       // fault the seam itself would already have surfaced to `run.result`'s
-      // other consumers; this listener must not throw unhandled.
+      // other consumers; this listener must not throw unhandled. Still worth
+      // a trace, since a fault that leaves none is undebuggable.
+      reportSwallowed('realms: child run settled with a fault', error)
     })
 
   return run

@@ -28,6 +28,7 @@ import type { AgentCancelCause, RequestHeaderReason, Session, SessionId, TurnEnd
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { BeingRegistry } from './being-registry.js'
+import { reportSwallowed } from './errors.js'
 
 /**
  * Merge-extension of the durable session vocabulary: one lightweight,
@@ -409,8 +410,9 @@ class CittaVithiAgent implements Agent {
     // a flush failure must not be reported as this turn's own failure.
     try {
       await this.rootCtx.sessions.flush(this.session)
-    } catch {
+    } catch (error) {
       // best-effort; see comment above
+      reportSwallowed('loop: session flush', error)
     }
   }
 }

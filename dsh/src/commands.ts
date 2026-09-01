@@ -3,6 +3,7 @@ import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands
 import { KoanGenerator, PoisonArrow } from 'buddha-js'
 import type { Being } from 'buddha-js'
 import type { BeingRegistry } from './being-registry.js'
+import { reportSwallowed } from './errors.js'
 import type { VithiHandle } from './vithi.js'
 
 /**
@@ -80,7 +81,12 @@ function renderKoan(rawInput: string): CommandResult {
       kind: 'success',
       text: `[${koan.id}] ${koan.title}\n\n${koan.case}\n\n(source: ${koan.source})${hint}`,
     }
-  } catch {
+  } catch (error) {
+    // The common case is a bad/unknown id, so the user-facing message stays
+    // exactly that. But a fault here could also be the generator itself
+    // breaking, which that message would misreport as "unknown id" — trace
+    // it to stderr for the rare case that isn't.
+    reportSwallowed('commands: /koan', error)
     const known = generator
       .getCollection()
       .map((koan) => koan.id)

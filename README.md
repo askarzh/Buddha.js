@@ -752,21 +752,23 @@ State directory priority: `--state-dir` flag > `BUDDHA_STATE_DIR` env var > `~/.
 
 | Command | Description |
 |---------|-------------|
-| `buddha meditate [--interval N] [--duration N]` | Timed meditation session with mindful check-ins |
+| `buddha meditate [--interval N] [--duration N] [--effort N]` | Timed meditation session with mindful check-ins; the `--json` path practices the named being's path factors and mindfulness and saves (`--effort` is 0-10, default 5; out-of-range values are clamped, an unparsable one falls back to the default) |
 | `buddha sit [--situation TEXT]` | Guided cessation through the Poison Arrow method |
 | `buddha koan [--id ID]` | Contemplate a Zen koan |
 | `buddha inquiry` | Investigate the nature of self |
-| `buddha diagnose [--dukkha-types T] [--craving-types T]` | Diagnose suffering using the Four Noble Truths |
+| `buddha diagnose [--dukkha-types T] [--craving-types T]` | Diagnose suffering using the Four Noble Truths, reading the named being's own path progress (read-only — see note below) |
 | `buddha karma [--description D] [--intensity N] [--root R] [--quality Q]` | Explore intentional action and karmic results (quality is derived from root; `--quality` optionally validates it) |
-| `buddha chain` | Display the 12 links of dependent origination |
+| `buddha chain` | Display the 12 links of dependent origination for the named being (read-only — see note below) |
 | `buddha status` | Show the current state of a being |
 | `buddha beings` | List saved beings |
 | `buddha beings delete <name>` | Delete a saved being |
 | `buddha reset` | Reset the current being to a fresh state |
 
+`diagnose` and `chain` load the named being (an invalid `--being` name is rejected) but never save — like `status`, they're read-only and never settle a pending rebirth. `diagnose`'s prescription (focus area, practices, rationale) doesn't yet depend on the being's own path development — `Magga.prescribe()` never consults it — but its `pathProgress` field does, so meditating a being first changes that field on a later diagnosis. `chain`'s dependent-origination links are the same for every being: nothing in the library currently drives a nidana's `hasArisen` past its default, so `chain --being alice` and `chain --being bob` print the same links regardless of what alice or bob have done.
+
 ### Persistence
 
-Being-based commands (`inquiry`, `status`, `karma`) automatically save and restore state between sessions. Each named being is stored as a JSON file in the state directory.
+Being-based commands (`inquiry`, `status`, `karma`, `meditate`) automatically save and restore state between sessions. `diagnose` and `chain` also read the named being but never write to it. Each named being is stored as a JSON file in the state directory.
 
 ```bash
 # Actions accumulate across sessions

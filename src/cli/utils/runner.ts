@@ -110,6 +110,16 @@ function typeList<T extends string>(value: string | T[] | undefined, fallback: T
  * for this command to persist. Like `status`, it neither settles a pending
  * rebirth nor saves — observation does not rebirth, and a diagnosis is an
  * observation.
+ *
+ * `diagnosis.path` (the `PathPrescription` — focus area, practices,
+ * rationale, recommended intensity) comes from `Magga.prescribe()`, which
+ * only ever reads the `CauseAnalysis` it is handed — it never consults the
+ * `IEightfoldPath` passed to its constructor (`setPath`/`getPath` exist but
+ * `prescribe()` doesn't call either). So the prescription itself is the same
+ * for every being with the same suffering/cravings input, meditated or not.
+ * `result.pathProgress` below is what actually reflects the named being's
+ * own practice — it reads `being.path.getOverallDevelopment()` directly,
+ * bypassing Magga, precisely because Magga doesn't.
  */
 export function runDiagnose(sm: StateManager, beingName: string, opts: DiagnoseOpts) {
   const suffering = typeList(opts.dukkhaTypes, DEFAULT_DUKKHA_TYPES);
@@ -125,6 +135,7 @@ export function runDiagnose(sm: StateManager, beingName: string, opts: DiagnoseO
       cause: diagnosis.cause,
       cessation: diagnosis.cessationPossible,
       path: diagnosis.path,
+      pathProgress: being.path.getOverallDevelopment(),
     },
   };
 }
@@ -136,10 +147,20 @@ export function runDiagnose(sm: StateManager, beingName: string, opts: DiagnoseO
  * reading them off the named being's own `dependentOrigination` — the same
  * instance `BeingData` serializes and restores — rather than a fresh one.
  *
- * Read-only, like `status` and the MCP `chain` tool: nothing in this repo
- * ever advances a link's `hasArisen` past its constructor default, so no
- * being's chain differs from another's today, but the being that is read is
- * now the real one. No settle, no save — observation does not rebirth.
+ * Read-only, like `status` and the MCP `chain` tool: no settle, no save —
+ * observation does not rebirth.
+ *
+ * KNOWN GAP (out of scope here — v0.8 candidate): unlike `diagnose`, this
+ * being-awareness is not observable yet. `dependentOrigination` is a real,
+ * serialized part of a being's identity, but nothing anywhere in the library
+ * — `experience()`, `act()`, `meditate()`, `cognize()` — ever advances a
+ * link's `hasArisen` past its constructor default. So `chain --being alice`
+ * and `chain --being bob` print byte-identical output today regardless of
+ * what alice or bob have done, no matter which being's `dependentOrigination`
+ * this reads. What this fix buys, until something in the library actually
+ * drives the chain: `--being` is no longer silently ignored — an invalid
+ * name is now rejected, same as every other command — and this stays
+ * consistent with the MCP `chain` tool's shape.
  */
 export function runChain(sm: StateManager, beingName: string) {
   const do_ = sm.loadBeing(beingName).dependentOrigination;
@@ -300,6 +321,26 @@ export const DEFAULT_MEDITATION_MINUTES = 5;
 export const DEFAULT_MEDITATION_EFFORT: Intensity = 5;
 
 /**
+ * Parse `--effort` into a valid `Intensity` (0-10), the same contract
+ * `Being.meditate()`'s `effort` parameter has everywhere else it's called
+ * (the MCP tool's `intensitySchema`, the realm tests). Unlike `karma
+ * --intensity` (`Number(opts.intensity) as Intensity` — a blind cast that
+ * lets `NaN` or `99` reach `being.act()` uncaught, a known, separately
+ * tracked issue), this clamps: a missing/unparsable value falls back to
+ * `DEFAULT_MEDITATION_EFFORT` rather than propagating `NaN` into
+ * `being.meditate()`'s arithmetic (`effort * duration * 0.01`, fed straight
+ * into `mindfulnessLevel` and `mind.activateFactor`), and an out-of-range
+ * value is clamped to [0, 10] rather than corrupting the being's saved state
+ * with a value the rest of the model never expects.
+ */
+function parseEffort(value: string | undefined): Intensity {
+  if (value === undefined) return DEFAULT_MEDITATION_EFFORT;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_MEDITATION_EFFORT;
+  return Math.min(10, Math.max(0, n)) as Intensity;
+}
+
+/**
  * Run a meditation session for the named being and save it — practicing is
  * an act, so a pending rebirth is settled first, per the MCP `buddha_meditate`
  * tool this mirrors. `being.meditate()` takes duration in seconds; the
@@ -313,7 +354,7 @@ export function runMeditate(
   const durationMinutes = opts.duration
     ? parseInt(opts.duration, 10)
     : DEFAULT_MEDITATION_MINUTES;
-  const effort = (opts.effort ? Number(opts.effort) : DEFAULT_MEDITATION_EFFORT) as Intensity;
+  const effort = parseEffort(opts.effort);
 
   const { being, rebirth } = loadSettledBeing(sm, beingName);
   const session = being.meditate(durationMinutes * 60, effort);

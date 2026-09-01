@@ -278,16 +278,28 @@ describe('CLI command bodies', () => {
     });
 
     // Task 9: chain now loads the named being (its `dependentOrigination`,
-    // rather than a fresh throwaway one). Nothing in this repo ever advances
-    // a link's `hasArisen` past its constructor default, so no being's chain
-    // actually differs from another's today — planting karma on alice
-    // doesn't touch her dependent-origination chain, so this can't be shown
-    // via alice-vs-nobody output equality the way `diagnose`'s twin test can
-    // no longer be shown that way either. What changed is observable instead
-    // through the being name now being used to load: an invalid one is
-    // rejected, where it was silently ignored before.
+    // rather than a fresh throwaway one) — but unlike `diagnose`, that can't
+    // be shown via output differences. Nothing in the library ever advances
+    // a link's `hasArisen` past its constructor default: not `experience()`,
+    // not `act()`, not even `meditate()` (which does mutate `path`, which
+    // is why `diagnose`'s equivalent test below *can* be flipped for real).
+    // So even a meditated being's chain is byte-identical to a fresh one —
+    // this is a real gap in the library (nothing drives the nidana chain at
+    // all), not a shortcut taken here. What's observable is only that the
+    // being name is now actually used to load: an invalid one is rejected,
+    // where it was silently ignored before.
     it('reads the named being off disk, rejecting an invalid name', () => {
       expect(() => runChain(sm, '../../../etc/passwd')).toThrow('Invalid being name');
+    });
+
+    // The gap named above, made explicit: even heavy practice never moves
+    // the chain. If a future change ever wires `dependentOrigination` up to
+    // `experience()`/`meditate()`, this test should start failing — that's
+    // the signal to replace it with a real differentiation, the way
+    // `diagnose`'s was.
+    it('is identical for a heavily meditated being and a fresh one', () => {
+      runMeditate(sm, 'meditator', { duration: '600', effort: '10' });
+      expect(runChain(sm, 'meditator')).toEqual(runChain(sm, 'fresh'));
     });
 
     it('reads no being from disk', () => {
@@ -344,12 +356,24 @@ describe('CLI command bodies', () => {
     });
 
     // Task 9: diagnose now reads the named being's own `fourNobleTruths`
-    // instead of building a fresh, throwaway one. Magga's prescription
-    // doesn't actually consult path state today, so — like `chain` — no
-    // being's diagnosis differs from another's yet; planting karma on alice
-    // doesn't change what she's prescribed. What changed is observable
-    // through the being name now being used to load: an invalid one is
-    // rejected, where it was silently ignored before.
+    // instead of building a fresh, throwaway one. `Magga.prescribe()` itself
+    // doesn't consult path state (see the doc comment on `runDiagnose`), so
+    // `result.path` (focus area, practices, rationale) is still the same for
+    // every being with the same suffering/cravings input. But `meditate()`
+    // does mutate `being.path` (four `practicePathFactor` calls), and
+    // `result.pathProgress` reads `being.path.getOverallDevelopment()`
+    // directly — so a being that has meditated is now genuinely
+    // distinguishable from one that hasn't, which is the real evidence the
+    // fix does something (an invalid-name rejection below is a second,
+    // narrower proof, but not the only one).
+    it("reflects the named being's own practiced path development", () => {
+      runMeditate(sm, 'meditator', { duration: '10' });
+      const meditated = runDiagnose(sm, 'meditator', {});
+      const fresh = runDiagnose(sm, 'fresh', {});
+      expect(meditated.result.pathProgress).toBeGreaterThan(fresh.result.pathProgress);
+      expect(fresh.result.pathProgress).toBe(0);
+    });
+
     it('reads the named being off disk, rejecting an invalid name', () => {
       expect(() => runDiagnose(sm, '../../../etc/passwd', {})).toThrow('Invalid being name');
     });

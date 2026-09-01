@@ -79,12 +79,12 @@ describe('Citta vīthi pins', () => {
     expect(result.karmicImpact).toBe('weak');
   });
 
-  it('keeps the moment stream bounded no matter how long a life runs', () => {
+  it('keeps the moment stream buffer bounded no matter how long a life runs', () => {
     const citta = new Citta();
     for (let i = 0; i < 200; i++) {
       citta.processMentalObject({ type: 'mental-object', content: `object ${i}` });
     }
-    expect(citta.getTotalMoments()).toBeLessThanOrEqual(51);
+    expect(citta.getRecentMoments(1000).length).toBeLessThanOrEqual(51);
   });
 
   it('keeps the most recent moments, discarding the oldest', () => {
@@ -92,8 +92,20 @@ describe('Citta vīthi pins', () => {
     for (let i = 0; i < 200; i++) {
       citta.processMentalObject({ type: 'mental-object', content: `object ${i}` });
     }
-    const last = citta.getCurrentMoment();
-    expect(last).toBeDefined();
-    expect(citta.getRecentMoments(51)).toContain(last);
+    const contents = citta.getRecentMoments(1000).map(m => m.object?.content);
+    // A late object (its vīthi ran well within the last 51 moments) must survive.
+    expect(contents).toContain('object 199');
+    // An early object (its vīthi ran long before the cap) must have been evicted.
+    expect(contents).not.toContain('object 0');
+  });
+
+  it('keeps a lifetime moment count that does not reset when the buffer evicts', () => {
+    const citta = new Citta();
+    for (let i = 0; i < 200; i++) {
+      citta.processMentalObject({ type: 'mental-object', content: `object ${i}` });
+    }
+    // 200 cognitions x 13 moments each (mind-door process)
+    expect(citta.getTotalMoments()).toBe(2600);
+    expect(citta.getRecentMoments(1000).length).toBeLessThanOrEqual(51);
   });
 });

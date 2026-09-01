@@ -96,6 +96,14 @@ export class Citta extends Phenomenon {
   private momentStream: CittaMoment[] = [];
 
   /**
+   * Lifetime count of moments processed, independent of the bounded buffer
+   * above. getTotalMoments() reads this, not momentStream.length, so eviction
+   * from the buffer stays invisible to a caller asking how many moments this
+   * citta has processed in its life.
+   */
+  private totalMomentsProcessed = 0;
+
+  /**
    * Three full vīthis' worth of moments (17 × 3). Momentariness is the point:
    * a citta that remembered every moment it ever had would be the opposite of
    * what this class models, and a Being in a long agent session would grow this
@@ -106,6 +114,7 @@ export class Citta extends Phenomenon {
   /** Push new moments onto the stream, evicting the oldest beyond the cap. */
   private pushMoments(moments: CittaMoment[]): void {
     this.momentStream.push(...moments);
+    this.totalMomentsProcessed += moments.length;
     const excess = this.momentStream.length - Citta.MAX_MOMENTS;
     if (excess > 0) this.momentStream.splice(0, excess);
   }
@@ -608,10 +617,13 @@ export class Citta extends Phenomenon {
   }
 
   /**
-   * Get total moments processed
+   * Get total moments processed over the citta's lifetime. This is a
+   * cumulative counter, independent of the bounded moment-stream buffer —
+   * it does not shrink when old moments are evicted. For the current
+   * buffer's size, use getRecentMoments().length.
    */
   getTotalMoments(): number {
-    return this.momentStream.length;
+    return this.totalMomentsProcessed;
   }
 
   // ===========================================================================

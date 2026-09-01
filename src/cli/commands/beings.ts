@@ -1,17 +1,16 @@
 import { Command } from 'commander';
 import { getGlobalOpts, getStateManager } from '../utils/state';
+import { runBeings, runBeingsDelete } from '../utils/runner';
 import { header, label, subtle } from '../utils/format';
 
 export function beings(_localOpts: Record<string, never>, cmd: Command): void {
   const opts = getGlobalOpts(cmd);
   const mgr = getStateManager(opts);
-  const names = mgr.listBeings();
+  const payload = runBeings(mgr);
+  const names = payload.result.beings;
 
   if (opts.json) {
-    console.log(JSON.stringify({
-      command: 'beings',
-      result: { beings: names, count: names.length },
-    }, null, 2));
+    console.log(JSON.stringify(payload, null, 2));
     return;
   }
 
@@ -29,13 +28,10 @@ export function beings(_localOpts: Record<string, never>, cmd: Command): void {
 export function beingsDelete(name: string, _localOpts: Record<string, never>, cmd: Command): void {
   const globalOpts = getGlobalOpts(cmd);
   const mgr = getStateManager(globalOpts);
-  mgr.deleteBeing(name);
+  const payload = runBeingsDelete(mgr, name);
 
   if (globalOpts.json) {
-    console.log(JSON.stringify({
-      command: 'beings delete',
-      result: { deleted: name },
-    }, null, 2));
+    console.log(JSON.stringify(payload, null, 2));
     return;
   }
 

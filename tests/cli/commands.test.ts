@@ -9,6 +9,8 @@ import {
   runMeditate,
   runKoan,
   runSit,
+  runBeings,
+  runBeingsDelete,
   isKarmaError,
   KarmaResult,
 } from '../../src/cli/utils/runner';
@@ -163,6 +165,33 @@ describe('CLI command bodies', () => {
 
     it('summarises the completed walk', () => {
       expect(runSit(sm, 'tester', {}).result.summary).toBeTruthy();
+    });
+  });
+
+  describe('beings', () => {
+    it('lists nothing before anything is saved', () => {
+      const { result } = runBeings(sm);
+      expect(result.beings).toEqual([]);
+      expect(result.count).toBe(0);
+    });
+
+    it('lists what other commands created', () => {
+      runKarma(sm, 'alice', { description: 'a deed', intensity: '5', root: 'greed' });
+      runKarma(sm, 'bob', { description: 'a deed', intensity: '5', root: 'greed' });
+      const { result } = runBeings(sm);
+      expect(result.beings.sort()).toEqual(['alice', 'bob']);
+      expect(result.count).toBe(2);
+    });
+
+    it('delete removes the named being and leaves the others', () => {
+      runKarma(sm, 'alice', { description: 'a deed', intensity: '5', root: 'greed' });
+      runKarma(sm, 'bob', { description: 'a deed', intensity: '5', root: 'greed' });
+      expect(runBeingsDelete(sm, 'alice').result.deleted).toBe('alice');
+      expect(runBeings(sm).result.beings).toEqual(['bob']);
+    });
+
+    it('delete of an unknown being is not an error', () => {
+      expect(() => runBeingsDelete(sm, 'nobody')).not.toThrow();
     });
   });
 });

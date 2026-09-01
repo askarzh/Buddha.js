@@ -51,6 +51,29 @@ export function loadSettledBeing(
   };
 }
 
+// ----------------------------------------------------------------- beings
+
+/**
+ * List every saved being. `beingName` is unused — this command is about the
+ * whole state directory, not one profile.
+ */
+export function runBeings(sm: StateManager, _beingName?: string) {
+  const names = sm.listBeings();
+  return {
+    command: 'beings' as const,
+    result: { beings: names, count: names.length },
+  };
+}
+
+/** Delete a saved being. Deleting one that does not exist is not an error. */
+export function runBeingsDelete(sm: StateManager, beingName: string) {
+  sm.deleteBeing(beingName);
+  return {
+    command: 'beings delete' as const,
+    result: { deleted: beingName },
+  };
+}
+
 // -------------------------------------------------------------------- sit
 
 export interface SitOpts {

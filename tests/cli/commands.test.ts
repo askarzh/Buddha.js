@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { PassThrough } from 'node:stream';
 import type { Command } from 'commander';
 import { StateManager } from '../../src/cli/utils/state';
 import { Being } from '../../src/simulation/Being';
@@ -147,6 +148,19 @@ describe('CLI command bodies', () => {
     it('does not affect a being it was not given', () => {
       runMeditate(sm, 'tester', { duration: '15' });
       expect(fs.existsSync(path.join(dir, 'beings', 'someone-else.json'))).toBe(false);
+    });
+
+    // `Intensity` (src/utils/types.ts) is the discrete union 0|1|...|10 —
+    // asserting an unrounded fraction into it is exactly the blind-cast bug
+    // `karma --intensity` has (a known, separately tracked issue) and
+    // `--effort` must not repeat it. `parseEffort()` rounds after clamping,
+    // so 3.7 lands exactly where 4 does, not off on its own.
+    it('rounds a fractional --effort rather than asserting it as-is', () => {
+      const viaFraction = runMeditate(sm, 'frac', { duration: '10', effort: '3.7' });
+      const viaRounded = runMeditate(sm, 'rounded', { duration: '10', effort: '4' });
+      expect(viaFraction.result.pathProgress).toBe(viaRounded.result.pathProgress);
+      expect(viaFraction.result.mindfulnessLevel).toBe(viaRounded.result.mindfulnessLevel);
+      expect(viaFraction.result.concentrationLevel).toBe(viaRounded.result.concentrationLevel);
     });
   });
 
@@ -502,9 +516,9 @@ describe('CLI action handlers (--json)', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 
   /** A Command stand-in carrying the global options the handlers read. */
-  function stubCmd(being = 'tester'): Command {
+  function stubCmd(being = 'tester', json = true): Command {
     return {
-      optsWithGlobals: () => ({ json: true, being, stateDir: dir }),
+      optsWithGlobals: () => ({ json, being, stateDir: dir }),
     } as unknown as Command;
   }
 
@@ -582,9 +596,53 @@ describe('CLI action handlers (--json)', () => {
     expect(lastJson().result.steps).toHaveLength(4);
   });
 
-  it('meditate prints the session it would run', async () => {
+  it('meditate prints the session it would run, and saves it', async () => {
     await meditate({ duration: '15' }, stubCmd());
     expect(lastJson().result.durationMinutes).toBe(15);
+    expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(true);
+  });
+
+  // The regression this guards against: runMeditate() used to be called
+  // unconditionally at the top of the handler, before the --json branch
+  // split, so the interactive path settled a pending rebirth and saved a
+  // synthetic session's worth of path/mindfulness progress the instant the
+  // command was invoked — before the timer, or the user, had done anything.
+  // The interactive path must not touch the being until a real session (the
+  // timer's own measured duration and quality) has actually completed.
+  it('meditate interactive path does not touch the being at invocation', async () => {
+    // meditate() hard-codes `input: process.stdin` for its readline
+    // interface (real `node:readline` exports are frozen and can't be
+    // spied on directly), so swap process.stdin for a stream this test
+    // controls, instead of the real terminal.
+    const originalStdin = process.stdin;
+    const fakeStdin = new PassThrough();
+    Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
+
+    const beingFile = path.join(dir, 'beings', 'interactive-tester.json');
+
+    try {
+      // `meditate()` is `async` but everything up to `return new Promise(...)`
+      // runs synchronously (no `await` precedes it), so by the time this
+      // call returns, the timer has started and the readline listener is
+      // wired — exactly the state a killed-early process would be in.
+      const pending = meditate({ duration: '15' }, stubCmd('interactive-tester', false));
+      expect(fs.existsSync(beingFile)).toBe(false);
+
+      // Drive the interactive session to a graceful, real end (as if the
+      // user typed `q`) so the promise resolves and nothing is left
+      // listening on stdin after the test — rather than leaving it to hang.
+      fakeStdin.write('q\n');
+      await pending;
+
+      // Only now — after a real (if trivial, immediately-quit) session ran
+      // — does the being exist, and it reflects the real session, not the
+      // --duration flag: a same-instant quit measured 0 elapsed seconds.
+      expect(fs.existsSync(beingFile)).toBe(true);
+      const saved: BeingData = JSON.parse(fs.readFileSync(beingFile, 'utf-8'));
+      expect(saved.mindfulnessLevel).toBe(0);
+    } finally {
+      Object.defineProperty(process, 'stdin', { value: originalStdin, configurable: true });
+    }
   });
 
   it('reset prints its confirmation and clears the being', () => {

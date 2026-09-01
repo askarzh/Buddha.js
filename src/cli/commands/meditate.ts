@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import * as readline from 'readline';
 import { MeditationTimer } from '../../meditation/MeditationTimer';
-import { MeditationQuality } from '../../utils/types';
-import { getGlobalOpts, getStateManager } from '../utils/state';
-import { MeditateOpts, runMeditate } from '../utils/runner';
+import { Intensity, MeditationQuality } from '../../utils/types';
+import { getGlobalOpts, getStateManager, StateManager } from '../utils/state';
+import { DEFAULT_MEDITATION_MINUTES, MeditateOpts, loadSettledBeing, runMeditate } from '../utils/runner';
 import { header, label, insight, success, subtle, divider } from '../utils/format';
 import chalk from 'chalk';
 
@@ -12,14 +12,24 @@ const DEFAULT_INTERVAL_BELL_SECONDS = 60;
 export async function meditate(localOpts: MeditateOpts, cmd: Command): Promise<void> {
   const globalOpts = getGlobalOpts(cmd);
   const mgr = getStateManager(globalOpts);
-  const session = runMeditate(mgr, globalOpts.being, localOpts);
 
   if (globalOpts.json) {
+    const session = runMeditate(mgr, globalOpts.being, localOpts);
     console.log(JSON.stringify(session, null, 2));
     return;
   }
 
-  const duration = session.result.durationMinutes;
+  // Interactive path: nothing touches the being here. `--duration` and
+  // `--effort` only size the timer; the being is loaded and saved once, in
+  // finishSession(), from the REAL session the timer measured — not from
+  // these flags. (Regression this guards against: runMeditate() used to be
+  // called unconditionally above the --json branch, which settled a pending
+  // rebirth and saved a synthetic session's worth of progress the instant
+  // this command was invoked, before the timer — or the user — had done
+  // anything. See tests/cli/commands.test.ts, `meditate > interactive path`.)
+  const duration = localOpts.duration
+    ? parseInt(localOpts.duration, 10)
+    : DEFAULT_MEDITATION_MINUTES;
   const intervalBell = localOpts.interval
     ? parseInt(localOpts.interval, 10)
     : DEFAULT_INTERVAL_BELL_SECONDS;
@@ -51,7 +61,7 @@ export async function meditate(localOpts: MeditateOpts, cmd: Command): Promise<v
       if (remaining <= 0) {
         clearInterval(updateInterval);
         rl.close();
-        finishSession(timer);
+        finishSession(timer, mgr, globalOpts.being);
         resolve();
       }
     }, 1000);
@@ -60,7 +70,7 @@ export async function meditate(localOpts: MeditateOpts, cmd: Command): Promise<v
       if (line.trim().toLowerCase() === 'q') {
         clearInterval(updateInterval);
         rl.close();
-        finishSession(timer);
+        finishSession(timer, mgr, globalOpts.being);
         resolve();
         return;
       }
@@ -69,13 +79,20 @@ export async function meditate(localOpts: MeditateOpts, cmd: Command): Promise<v
         timer.checkIn();
         const elapsed = timer.getElapsedSeconds();
         const remaining = timer.getRemainingSeconds();
-        console.log(success(`  \u2713 Check-in at ${elapsed}s (${remaining}s remaining)`));
+        console.log(success(`  ✓ Check-in at ${elapsed}s (${remaining}s remaining)`));
       }
     });
   });
 }
 
-function finishSession(timer: MeditationTimer): void {
+/**
+ * Report the session the timer just measured, and persist that same real
+ * session onto the named being — its actual elapsed duration and an effort
+ * derived from its own measured `mindfulnessRatio` (not the `--duration`/
+ * `--effort` flags, which only describe what was intended). A pending
+ * rebirth is settled first, since this now saves.
+ */
+function finishSession(timer: MeditationTimer, sm: StateManager, beingName: string): void {
   if (!timer.isRunning()) return;
 
   const session = timer.stop();
@@ -102,12 +119,17 @@ function finishSession(timer: MeditationTimer): void {
     console.log();
     console.log(label('Distraction periods:'));
     for (const dp of session.distractionPeriods) {
-      console.log(subtle(`  ${dp.start}s \u2192 ${dp.end}s (${dp.duration}s)`));
+      console.log(subtle(`  ${dp.start}s → ${dp.end}s (${dp.duration}s)`));
     }
   }
 
   console.log();
   console.log(insight(getQualityMessage(session.quality)));
+
+  const { being } = loadSettledBeing(sm, beingName);
+  const effort = Math.round(session.mindfulnessRatio * 10) as Intensity;
+  being.meditate(session.duration, effort);
+  sm.saveBeing(beingName, being);
 }
 
 function getQualityMessage(quality: MeditationQuality): string {

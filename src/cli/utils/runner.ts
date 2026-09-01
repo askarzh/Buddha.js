@@ -331,13 +331,17 @@ export const DEFAULT_MEDITATION_EFFORT: Intensity = 5;
  * `being.meditate()`'s arithmetic (`effort * duration * 0.01`, fed straight
  * into `mindfulnessLevel` and `mind.activateFactor`), and an out-of-range
  * value is clamped to [0, 10] rather than corrupting the being's saved state
- * with a value the rest of the model never expects.
+ * with a value the rest of the model never expects, and the result is
+ * rounded — `Intensity` is the discrete `0|1|...|10` union, and a fractional
+ * value (`--effort 3.7`) asserted straight into it would be exactly the
+ * blind-cast bug this function exists to avoid, just with a decimal instead
+ * of an out-of-range integer.
  */
 function parseEffort(value: string | undefined): Intensity {
   if (value === undefined) return DEFAULT_MEDITATION_EFFORT;
   const n = Number(value);
   if (!Number.isFinite(n)) return DEFAULT_MEDITATION_EFFORT;
-  return Math.min(10, Math.max(0, n)) as Intensity;
+  return Math.round(Math.min(10, Math.max(0, n))) as Intensity;
 }
 
 /**

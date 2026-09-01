@@ -12,6 +12,7 @@ import {
   runBeings,
   runBeingsDelete,
   runReset,
+  runInquiry,
   isKarmaError,
   KarmaResult,
 } from '../../src/cli/utils/runner';
@@ -218,6 +219,31 @@ describe('CLI command bodies', () => {
       runKarma(sm, 'other', { description: 'a deed', intensity: '5', root: 'greed' });
       runReset(sm, 'tester');
       expect(runStatus(sm, 'other').result.pendingKarma).toBeGreaterThan(0);
+    });
+  });
+
+  describe('inquiry', () => {
+    it('returns its analysis for the named being', () => {
+      const payload = runInquiry(sm, 'tester');
+      expect(payload.being).toBe('tester');
+      expect(payload.result.selfFound).toBe(false);
+      expect(payload.result.aggregatesExamined.length).toBeGreaterThan(0);
+      expect(payload.result.overallConclusion).toBeTruthy();
+      expect(payload.result.dependentOriginationInsight).toBeTruthy();
+    });
+
+    it('saves the being it investigated', () => {
+      runInquiry(sm, 'tester');
+      expect(fs.existsSync(path.join(dir, 'beings', 'tester.json'))).toBe(true);
+      expect(runBeings(sm).result.beings).toContain('tester');
+    });
+
+    it('investigates the named being, not a shared one', () => {
+      runKarma(sm, 'alice', { description: 'a deed', intensity: '5', root: 'greed' });
+      const payload = runInquiry(sm, 'alice');
+      // The karma alice carries is visible in the state the inquiry reports.
+      expect(payload.state.karmicActions).toBeGreaterThan(0);
+      expect(runInquiry(sm, 'bob').state.karmicActions).toBe(0);
     });
   });
 });

@@ -51,6 +51,39 @@ export function loadSettledBeing(
   };
 }
 
+// ---------------------------------------------------------------- inquiry
+
+/**
+ * Investigate the named being's sense of self, and save — investigating is an
+ * act, so a pending rebirth is settled first.
+ */
+export function runInquiry(sm: StateManager, beingName: string) {
+  const { being, rebirth } = loadSettledBeing(sm, beingName);
+
+  const result = being.investigateSelf();
+  sm.saveBeing(beingName, being);
+  const state = being.getState();
+
+  return {
+    command: 'inquiry' as const,
+    being: beingName,
+    result: {
+      selfFound: result.aggregateSearch.selfFound,
+      aggregatesExamined: result.aggregateSearch.aggregatesExamined.map(a => a.aggregate),
+      conclusion: result.aggregateSearch.conclusion,
+      dependentOriginationInsight: result.dependentOriginationInsight,
+      emptinessInsight: result.emptinessInsight ? {
+        phenomenon: result.emptinessInsight.phenomenon,
+        hasInherentExistence: result.emptinessInsight.hasInherentExistence,
+        dependsOn: result.emptinessInsight.dependsOn,
+      } : null,
+      overallConclusion: result.conclusion,
+    },
+    state: { mindfulness: state.mindfulnessLevel, karmicActions: state.pendingKarma },
+    ...(rebirth ? { rebirth } : {}),
+  };
+}
+
 // ------------------------------------------------------------------ reset
 
 /**

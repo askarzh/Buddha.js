@@ -20,7 +20,14 @@ import type { BeingRegistry } from './being-registry.js'
 export class SaveScheduler {
   private readonly dirty = new Map<string, Being>()
 
-  constructor(private readonly registry: BeingRegistry) {}
+  constructor(private readonly registry: BeingRegistry) {
+    // An ephemeral child being's `discard()` deletes its file; a mark that
+    // outlived its last turn boundary (a cancelled child run never reaches
+    // `agent/turn-stopping`) would otherwise be flushed afterwards by the
+    // `agent/disposed` listener or the teardown `flushAll()` and recreate
+    // that file. Forgetting on discard keeps "leaves no trace" true.
+    registry.onDiscard((sessionId) => this.forget(sessionId))
+  }
 
   /** Remember that `sessionId`'s being has changed. Does NOT write. */
   mark(sessionId: string, being: Being): void {
@@ -33,6 +40,15 @@ export class SaveScheduler {
     if (!being) return
     this.dirty.delete(sessionId)
     this.registry.save(sessionId, being)
+  }
+
+  /**
+   * Drop `sessionId`'s pending write WITHOUT writing it — the session's state
+   * is being thrown away, not persisted. Wired to `BeingRegistry.discard()`;
+   * never to `dispose()`, which keeps the file and must still flush.
+   */
+  forget(sessionId: string): void {
+    this.dirty.delete(sessionId)
   }
 
   /** Write every marked session. */

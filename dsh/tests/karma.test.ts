@@ -135,6 +135,23 @@ describe('karma from tool outcomes', () => {
     expect(wholesome.some((seed) => seed.description === 'completed turn')).toBe(true)
   })
 
+  it("the turn's flush comes AFTER the wholesome act, so the act is in that same write", async () => {
+    // PIN on ordering: `scheduler.flush()` must be the LAST action of the
+    // `agent/turn-stopping` listener. Flushing before `being.act('completed
+    // turn', ...)` is marked would still write the turn -- every other test
+    // here would stay green -- but would defer the act itself to the NEXT
+    // turn's write. Reading the file straight off disk after ONE turn is
+    // what catches that.
+    const agent = fakeAgent('session-flush-order')
+    stepRecords.advance(agent, { phase: 'āvajjana', turn: 0, step: 0 })
+    await dispatchResult(fakeExec(agent, 'bash'), success())
+
+    await stopTurn(agent, 0)
+
+    const persisted = fs.readFileSync(path.join(stateDir, 'beings', 'session-flush-order.json'), 'utf-8')
+    expect(persisted).toContain('completed turn')
+  })
+
   it('a turn with a failing tool result does NOT plant the wholesome "completed turn" act', async () => {
     const agent = fakeAgent('session-dirty-turn')
     stepRecords.advance(agent, { phase: 'āvajjana', turn: 0, step: 0 })

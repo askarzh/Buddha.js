@@ -68,6 +68,36 @@ describe('SaveScheduler', () => {
     expect(writes).toBe(1)
   })
 
+  it('a discarded session is forgotten, so no later flush can recreate its file', () => {
+    // An ephemeral realm child that was marked (its own karma/vīthi listeners
+    // run against the CHILD session id, which is the run id) but never
+    // reached a turn boundary — a cancelled run is the realistic path. Once
+    // discarded, neither the `agent/disposed` flush nor the teardown
+    // flushAll() may resurrect the file `discard()` deleted.
+    const child = registry.peek('child-run')
+    child.act('a deed', 5, 'aversion')
+    scheduler.mark('child-run', child)
+
+    registry.discard('child-run')
+
+    scheduler.flush('child-run')
+    scheduler.flushAll()
+    expect(fs.existsSync(file('child-run'))).toBe(false)
+  })
+
+  it('dispose() does NOT forget: a pending write for a disposed session still lands', () => {
+    // dispose() keeps the file (only discard() deletes it), so a mark made
+    // before disposal must still be written by the flush that follows.
+    const being = registry.peek('s1')
+    being.act('a deed', 5, 'aversion')
+    scheduler.mark('s1', being)
+
+    registry.dispose('s1')
+
+    scheduler.flush('s1')
+    expect(fs.existsSync(file('s1'))).toBe(true)
+  })
+
   it('flushAll writes every marked session and leaves nothing dirty', () => {
     scheduler.mark('s1', registry.peek('s1'))
     scheduler.mark('s2', registry.peek('s2'))

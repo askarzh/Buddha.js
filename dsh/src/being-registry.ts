@@ -26,6 +26,7 @@ import type { BeingData, RebirthResult } from 'buddha-js'
  */
 export class BeingRegistry {
   private readonly live = new Map<string, Being>()
+  private readonly discardListeners: Array<(sessionId: string) => void> = []
 
   constructor(private stateDir: string) {}
 
@@ -86,6 +87,17 @@ export class BeingRegistry {
   }
 
   /**
+   * Subscribe to `discard()`. The `SaveScheduler` (src/persistence.ts) uses
+   * this to `forget()` a discarded session, so a deferred write can never
+   * recreate the file `discard()` just deleted — an ephemeral child being
+   * must leave NO trace. Deliberately NOT fired by `dispose()`: disposal
+   * keeps the file, so a pending write for that session must still land.
+   */
+  onDiscard(listener: (sessionId: string) => void): void {
+    this.discardListeners.push(listener)
+  }
+
+  /**
    * Session-end disposal: release the tracked live being's resources and
    * forget it in memory. The persisted file is KEPT — this is the safe
    * default so a real session's karma/realm survives past disposal (e.g.
@@ -107,6 +119,9 @@ export class BeingRegistry {
    * trace once the run ends. Never use this for a main session's being.
    */
   discard(sessionId: string): void {
+    // Before anything else: cancel any deferred write for this session, or a
+    // later flush would resurrect the file removed below.
+    for (const listener of this.discardListeners) listener(sessionId)
     this.dispose(sessionId)
     const filePath = this.filePath(sessionId)
     if (fs.existsSync(filePath)) {

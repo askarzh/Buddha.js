@@ -155,6 +155,25 @@ describe('BeingRegistry', () => {
     expect(disposeSpy).toHaveBeenCalledTimes(1)
   })
 
+  it('dispose() drops the live instance: the next peek() hands back a NEW object', () => {
+    // The live-map side of disposal, which is the leak this exists to close
+    // (before the `agent/disposed` wiring, main-session beings stayed in the
+    // map for the process lifetime). Observable without touching privates:
+    // while an entry is live, `peek()` returns the SAME object every time;
+    // once dropped, `peek()` reconstructs from disk, so identity changes.
+    const registry = new BeingRegistry(stateDir)
+    const being = registry.peek('session-live-map')
+    expect(registry.peek('session-live-map')).toBe(being)
+    registry.save('session-live-map', being)
+
+    registry.dispose('session-live-map')
+
+    const resumed = registry.peek('session-live-map')
+    expect(resumed).not.toBe(being)
+    // ...and it is live again from there on.
+    expect(registry.peek('session-live-map')).toBe(resumed)
+  })
+
   it('dispose() keeps the persisted file: a subsequent peek() resumes the same incarnation/realm', () => {
     const registry = new BeingRegistry(stateDir)
     const being = registry.peek('session-f')

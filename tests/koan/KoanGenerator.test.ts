@@ -122,4 +122,88 @@ describe('KoanGenerator', () => {
       expect(() => generator.contemplate(koanId(), '   ')).toThrow();
     });
   });
+
+  describe('present() with a composed koan', () => {
+    it('presents a koan supplied by the caller rather than the collection', () => {
+      const koan = generator.present({
+        id: 'custom-1',
+        title: 'The Unread File',
+        case: 'You read a file that is not there, six times. What did you read?',
+        source: 'composed by the harness',
+      });
+      expect(koan.id).toBe('custom-1');
+      expect(koan.case).toContain('six times');
+    });
+
+    it('does not add a composed koan to the permanent collection', () => {
+      const before = generator.getCollection().length;
+      generator.present({
+        id: 'custom-2',
+        title: 'The Second Compose',
+        case: 'Who composed this?',
+        source: 'composed by the harness',
+      });
+      expect(generator.getCollection().length).toBe(before);
+      expect(generator.getCollection().some(k => k.id === 'custom-2')).toBe(false);
+    });
+
+    it('throws naming the missing field', () => {
+      expect(() =>
+        generator.present({ id: 'custom-3', case: 'What?', source: 'harness' } as never),
+      ).toThrow(/title/);
+      expect(() =>
+        generator.present({ id: 'custom-3', title: 'T', source: 'harness' } as never),
+      ).toThrow(/case/);
+    });
+  });
+
+  describe('trap journal', () => {
+    it('records which trap a response fell into, without judging the response', () => {
+      generator.present('mu');
+      generator.recordResponse('mu', 'The answer is clearly yes, dogs have Buddha nature.');
+
+      const journal = generator.getTrapJournal();
+      expect(journal).toHaveLength(1);
+      expect(journal[0].koanId).toBe('mu');
+      expect(journal[0].traps).toContain('grasping');
+      expect(journal[0]).not.toHaveProperty('correct');
+      expect(journal[0]).not.toHaveProperty('score');
+    });
+
+    it('records an entry with no traps at all', () => {
+      generator.recordResponse('mu', '\u{1F64F}');
+      const journal = generator.getTrapJournal();
+      expect(journal).toHaveLength(1);
+      expect(journal[0].traps).toEqual([]);
+    });
+
+    it('names the trap a continuum keeps returning to', () => {
+      for (const id of ['mu', 'one-hand', 'nansen-cat']) {
+        generator.present(id);
+        generator.recordResponse(id, 'It is either this or that, so the answer is this.');
+      }
+      expect(generator.getRecurringTrap()).toBe('grasping');
+    });
+
+    it('returns undefined under two occurrences of any trap', () => {
+      expect(generator.getRecurringTrap()).toBeUndefined();
+      generator.recordResponse('mu', 'The answer is this.');
+      expect(generator.getRecurringTrap()).toBeUndefined();
+    });
+
+    it('records responses to composed koans too', () => {
+      const koan = generator.present({
+        id: 'custom-4',
+        title: 'The Loop',
+        case: 'You retried, and retried. Who retried?',
+        source: 'composed by the harness',
+      });
+      generator.recordResponse(koan.id, 'The answer is to retry once more.');
+      expect(generator.getTrapJournal()[0].koanId).toBe('custom-4');
+    });
+
+    it('throws for an empty response', () => {
+      expect(() => generator.recordResponse('mu', '   ')).toThrow();
+    });
+  });
 });

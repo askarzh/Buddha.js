@@ -69,18 +69,51 @@ function mostRecentStruggle(being: Being): string | undefined {
   return unwholesome.at(-1)?.description
 }
 
+/** Format a koan for the terminal. */
+function formatKoan(koan: { id: string; title: string; case: string; source: string; hint?: string }): string {
+  const hint = koan.hint ? `\nHint: ${koan.hint}` : ''
+  return `[${koan.id}] ${koan.title}\n\n${koan.case}\n\n(source: ${koan.source})${hint}`
+}
+
+/**
+ * `/koan compose <title> | <case>` — a koan written for the situation at
+ * hand rather than drawn from the canon. Composed koans are presented and
+ * then let go; they never join the collection, and they have no answer.
+ */
+function renderComposedKoan(argument: string): CommandResult {
+  const [title, ...rest] = argument.split('|')
+  const body = rest.join('|').trim()
+  if (body === '' || title.trim() === '') {
+    return {
+      kind: 'error',
+      text: 'Usage: /koan compose <title> | <case>',
+    }
+  }
+  const generator = new KoanGenerator()
+  try {
+    const koan = generator.present({
+      id: 'composed',
+      title: title.trim(),
+      case: body,
+      source: 'composed by the harness',
+    })
+    return { kind: 'success', text: formatKoan(koan) }
+  } catch (error) {
+    reportSwallowed('commands: /koan compose', error)
+    return { kind: 'error', text: `Could not compose that koan: ${(error as Error).message}` }
+  }
+}
+
 /** Present a koan by id (or a random one), or report the known ids on a bad id. */
 function renderKoan(rawInput: string): CommandResult {
   const requested = rawInput.trim()
+  if (requested === 'compose' || requested.startsWith('compose ')) {
+    return renderComposedKoan(requested.slice('compose'.length).trim())
+  }
   const id = requested === '' ? undefined : requested
   const generator = new KoanGenerator()
   try {
-    const koan = generator.present(id)
-    const hint = koan.hint ? `\nHint: ${koan.hint}` : ''
-    return {
-      kind: 'success',
-      text: `[${koan.id}] ${koan.title}\n\n${koan.case}\n\n(source: ${koan.source})${hint}`,
-    }
+    return { kind: 'success', text: formatKoan(generator.present(id)) }
   } catch (error) {
     // The common case is a bad/unknown id, so the user-facing message stays
     // exactly that. But a fault here could also be the generator itself
@@ -164,7 +197,7 @@ function registerDefinitions(ctx: Context, registry: BeingRegistry, vithi: Vithi
 
   ctx.commands.register({
     name: 'koan',
-    description: 'Present a Zen koan for contemplation, optionally by id.',
+    description: 'Present a Zen koan for contemplation, optionally by id, or compose one: /koan compose <title> | <case>.',
     handler(invocation: CommandInvocation): CommandResult {
       return renderKoan(invocation.rawInput)
     },

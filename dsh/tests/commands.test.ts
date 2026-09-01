@@ -152,6 +152,26 @@ describe('/sit /koan /status /rebirth commands', () => {
       expect((result as { text?: string }).text).toMatch(/^\[[a-z-]+\]/)
     })
 
+    it('composes a koan for the situation at hand', async () => {
+      const result = await definition('koan').handler(
+        fakeInvocation(fakeAgent(), 'compose The Unread File | You read a file that is not there, six times. What did you read?'),
+      )
+
+      expect(result.kind).toBe('success')
+      const text = (result as { text: string }).text
+      expect(text).toContain('The Unread File')
+      expect(text).toContain('six times')
+    })
+
+    it('reports usage rather than "unknown id" for a malformed compose', async () => {
+      const result = await definition('koan').handler(fakeInvocation(fakeAgent(), 'compose No Separator Here'))
+
+      expect(result.kind).toBe('error')
+      const text = (result as { text: string }).text
+      expect(text).toContain('Usage: /koan compose')
+      expect(text).not.toContain('Unknown koan id')
+    })
+
     it('returns kind: error with text listing known ids for an unknown id', async () => {
       const result = await definition('koan').handler(fakeInvocation(fakeAgent(), 'not-a-real-koan'))
 

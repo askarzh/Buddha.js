@@ -14,6 +14,7 @@ import {
   Koan,
   DualismTrap,
   ContemplationResult,
+  TrapJournalEntry,
 } from '../utils/types';
 import { BUILT_IN_KOANS } from './koans';
 
@@ -76,25 +77,102 @@ const TRAP_REFLECTIONS: Record<DualismTrap, string> = {
 
 const NON_DUAL_REFLECTION = 'The mind is quiet. What remains?';
 
+/** The fields a composed koan must carry to be presentable. */
+const REQUIRED_KOAN_FIELDS = ['id', 'title', 'case', 'source'] as const;
+
 export class KoanGenerator {
   private readonly koans: readonly Koan[];
+  private readonly trapJournal: TrapJournalEntry[] = [];
 
   constructor() {
     this.koans = BUILT_IN_KOANS;
   }
 
   /**
-   * Present a koan. If no id is given, returns a random koan.
+   * Present a koan.
+   *
+   * - No argument: a random koan from the built-in collection.
+   * - A string: the collection koan with that id.
+   * - An object: a koan composed by the caller, used as-is. The canon is
+   *   not the point — the question this practitioner is stuck on is. A
+   *   composed koan is validated and returned, but never joins the
+   *   permanent collection.
    */
-  present(id?: string): Koan {
-    if (id !== undefined) {
-      const koan = this.koans.find(k => k.id === id);
+  present(idOrKoan?: string | Koan): Koan {
+    if (typeof idOrKoan === 'object' && idOrKoan !== null) {
+      return this.validateComposed(idOrKoan);
+    }
+    if (idOrKoan !== undefined) {
+      const koan = this.koans.find(k => k.id === idOrKoan);
       if (!koan) {
-        throw new Error(`Koan not found: "${id}"`);
+        throw new Error(`Koan not found: "${idOrKoan}"`);
       }
       return koan;
     }
     return this.koans[Math.floor(Math.random() * this.koans.length)];
+  }
+
+  /**
+   * Record a response to a koan in the trap journal.
+   *
+   * The journal holds no verdict: no correct answer, no score, no
+   * pass/fail. It records only which dualistic traps the response fell
+   * into, so that a continuum can see the shape it keeps returning to.
+   */
+  recordResponse(koanId: string, response: string): TrapJournalEntry {
+    if (!response.trim()) {
+      throw new Error('A response is required to record.');
+    }
+    const entry: TrapJournalEntry = {
+      koanId,
+      traps: this.detectTraps(response),
+      at: Date.now(),
+    };
+    this.trapJournal.push(entry);
+    return entry;
+  }
+
+  /** The trap journal, oldest entry first. */
+  getTrapJournal(): readonly TrapJournalEntry[] {
+    return this.trapJournal;
+  }
+
+  /**
+   * The trap appearing in the most journal entries, or undefined when no
+   * trap has appeared at least twice. Ties go to the trap seen first.
+   */
+  getRecurringTrap(): DualismTrap | undefined {
+    const counts = new Map<DualismTrap, number>();
+    for (const entry of this.trapJournal) {
+      for (const trap of entry.traps) {
+        counts.set(trap, (counts.get(trap) ?? 0) + 1);
+      }
+    }
+    let recurring: DualismTrap | undefined;
+    let best = 1;
+    for (const [trap, count] of counts) {
+      if (count > best) {
+        best = count;
+        recurring = trap;
+      }
+    }
+    return recurring;
+  }
+
+  private validateComposed(koan: Koan): Koan {
+    for (const field of REQUIRED_KOAN_FIELDS) {
+      const value = (koan as Partial<Koan>)[field];
+      if (typeof value !== 'string' || !value.trim()) {
+        throw new Error(`A composed koan needs a non-empty "${field}".`);
+      }
+    }
+    return {
+      id: koan.id,
+      title: koan.title,
+      case: koan.case,
+      source: koan.source,
+      ...(koan.hint ? { hint: koan.hint } : {}),
+    };
   }
 
   /**

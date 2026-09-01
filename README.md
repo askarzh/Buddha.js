@@ -700,9 +700,26 @@ quiet.reflection;      // 'The mind is quiet. What remains?'
 
 // Browse all koans
 generator.getCollection(); // 8 classic koans
+
+// Compose a koan for the situation at hand — the canon is not the point,
+// the question this practitioner is stuck on is. A composed koan is
+// presented and then let go; it never joins the collection.
+const composed = generator.present({
+  id: 'unread-file',
+  title: 'The Unread File',
+  case: 'You read a file that is not there, six times. What did you read?',
+  source: 'composed by the harness',
+});
+
+// Record a response in the trap journal
+generator.recordResponse('unread-file', 'The answer is that the file was cached.');
+generator.getTrapJournal();    // [{ koanId, traps: ['grasping'], at }]
+generator.getRecurringTrap();  // the trap seen in the most entries, or undefined
 ```
 
 **Dualism traps detected:** `binary` (yes/no), `intellectual` (over-analysis), `seeking` (looking for "the answer"), `nihilistic` ("nothing matters"), `grasping` (definitive claims).
+
+**The journal holds no verdict.** There is no `correct` field, no `score`, no pass/fail — a koan with a stored resolution is not a koan. The journal records only which trap a response fell into, so a continuum can see the shape it keeps returning to. `getRecurringTrap()` stays `undefined` until some trap has appeared at least twice.
 
 ---
 
@@ -889,7 +906,7 @@ This produces `dist/buddha-js.mcpb`. Open or drag it onto Claude Desktop (Settin
 | `buddha_chain` | Visualize the 12 links of dependent origination |
 | `buddha_cognize` | Run a full cognitive process (citta-vīthi) over content through a sense door, planting karmic seeds from its javana moments |
 | `buddha_rebirth` | Enact rebirth — advance the incarnation, expire timed-out (ahosi-kamma) seeds, select the new incarnation's realm (see [Six Realms](#six-realms-ṣaḍgati)), and carry forward the seed that shapes it. Transmigrates into a new being; never returns a live `Being` object, only the transmigration summary |
-| `buddha_koan` | Present a Zen koan for contemplation |
+| `buddha_koan` | Present a Zen koan, compose one for the situation at hand, or read the trap journal |
 | `buddha_contemplate` | Submit a response to a koan and evaluate it for dualism traps |
 | `buddha_sit` | Guided cessation via the Poison Arrow method — four steps (recognize, investigate, release, practice), one per Noble Truth — for quick relief from a named suffering |
 

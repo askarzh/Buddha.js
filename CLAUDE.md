@@ -74,7 +74,7 @@ Most domain classes extend `Phenomenon` or use it as a building block.
 | `karma/` | `Intention`, `Karma`, `KarmicResult`, `KarmicStore`, `KarmicEventSystem` | Intentional action, results, seeds, ripening, and event-driven karma system |
 | `emptiness/` | `Sunyata`, `ThreeNatures` | Emptiness analysis |
 | `mind/` | `MentalFactor`, `Mind`, `Citta` | Mental factors, states, and Abhidhamma consciousness model |
-| `koan/` | `KoanGenerator` | Zen koan presentation and dualistic thinking detection |
+| `koan/` | `KoanGenerator` | Zen koan presentation (built-in or composed at call time), dualistic thinking detection, and a trap journal that records which trap a response fell into — never a verdict on it |
 | `meditation/` | `MeditationTimer` | Real-time meditation session tracking with injectable clock |
 | `cli/` | `buddha` CLI | Terminal interface with persistence and `--json` output (10 commands) |
 | `mcp/` | `buddha-mcp` server | MCP server exposing Being API as 16 tools (stdio transport) |

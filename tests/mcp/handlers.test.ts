@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StateManager } from '../../src/cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan, sitWithSuffering, cognizeObject, rebirthBeing } from '../../src/mcp/handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, getTrapJournal, contemplateKoan, sitWithSuffering, cognizeObject, rebirthBeing } from '../../src/mcp/handlers';
 
 describe('MCP handlers — being management', () => {
   let sm: StateManager;
@@ -394,6 +394,38 @@ describe('MCP handlers — koan tools', () => {
     expect(result).toHaveProperty('trapsDetected');
     expect(result).toHaveProperty('isNonDual');
     expect(result).toHaveProperty('reflection');
+  });
+
+  test('presentKoan composes a koan from title and case', () => {
+    const koan = presentKoan('unread-file', {
+      title: 'The Unread File',
+      case: 'You read a file that is not there, six times. What did you read?',
+    });
+    expect(koan.id).toBe('unread-file');
+    expect(koan.case).toContain('six times');
+    expect(koan.source).toBe('composed by the harness');
+  });
+
+  test('presentKoan rejects a composed koan missing its case', () => {
+    expect(() => presentKoan('half-composed', { title: 'Only a Title' })).toThrow(/case/);
+  });
+
+  test('presentKoan records a response as a trap, never as a verdict', () => {
+    const before = getTrapJournal().entries.length;
+    const result = presentKoan('mu', undefined, 'The answer is clearly yes.') as {
+      recorded: { koanId: string; traps: string[] };
+    };
+    expect(result.recorded.koanId).toBe('mu');
+    expect(result.recorded.traps).toContain('grasping');
+    expect(result.recorded).not.toHaveProperty('score');
+    expect(result.recorded).not.toHaveProperty('correct');
+    expect(getTrapJournal().entries.length).toBe(before + 1);
+  });
+
+  test('getTrapJournal names the recurring trap once it repeats', () => {
+    presentKoan('one-hand', undefined, 'The answer is one hand.');
+    presentKoan('nansen-cat', undefined, 'The answer is the sandal.');
+    expect(getTrapJournal().recurringTrap).toBe('grasping');
   });
 });
 

@@ -31387,16 +31387,21 @@ var PathFactor = class extends Phenomenon {
    * Develop this path factor through practice
    *
    * @param effort - Intensity of practice (0-10)
+   * @param max - Optional ceiling this call must not push the level past
+   *   (e.g. a realm's wisdom cap). Defaults to this class's own maximum (10).
+   *   Lets a caller bound gradual, effort-scaled growth without knowing or
+   *   reconstructing the step-size formula below.
    * @returns New development level
    */
-  practice(effort) {
+  practice(effort, max) {
     if (!this._isActive) {
       this.activate();
     }
     const currentLevel = this._developmentLevel;
-    const roomToGrow = 10 - currentLevel;
+    const ceiling = max === void 0 ? 10 : Math.min(10, max);
+    const roomToGrow = Math.max(0, ceiling - currentLevel);
     const increment = Math.min(effort * 0.15, roomToGrow);
-    this._developmentLevel = Math.min(10, currentLevel + increment);
+    this._developmentLevel = Math.min(ceiling, currentLevel + increment);
     this.onPractice(effort);
     return this._developmentLevel;
   }
@@ -31437,6 +31442,28 @@ var PathFactor = class extends Phenomenon {
   }
   /** Get current development level */
   get developmentLevel() {
+    return this._developmentLevel;
+  }
+  /**
+   * Practise until this factor reaches `target`, and no further.
+   *
+   * Callers used to reconstruct `practice()`'s internal step size to avoid
+   * overshooting a cap (see the realm wisdom cap in `Being`). The step size is
+   * this class's business; the caller's business is where it wants to land.
+   *
+   * Guarded against a factor whose `practice()` cannot move the level any
+   * further (a no-op override, or one already at its own ceiling) so this
+   * never spins forever.
+   */
+  practiceTo(target) {
+    while (this._developmentLevel < target) {
+      const before = this._developmentLevel;
+      this.practice(1);
+      if (this._developmentLevel > target) {
+        this._developmentLevel = target;
+      }
+      if (this._developmentLevel === before) break;
+    }
     return this._developmentLevel;
   }
   /** Is this factor being actively cultivated? */
@@ -35883,7 +35910,7 @@ var Mind = class {
 };
 
 // src/mind/Citta.ts
-var Citta = class extends Phenomenon {
+var Citta = class _Citta extends Phenomenon {
   name = "Citta";
   sanskritName = "Citta";
   /** Current classification */
@@ -35896,6 +35923,27 @@ var Citta = class extends Phenomenon {
   currentObject = null;
   /** History of mind-moments */
   momentStream = [];
+  /**
+   * Lifetime count of moments processed, independent of the bounded buffer
+   * above. getTotalMoments() reads this, not momentStream.length, so eviction
+   * from the buffer stays invisible to a caller asking how many moments this
+   * citta has processed in its life.
+   */
+  totalMomentsProcessed = 0;
+  /**
+   * Three full vīthis' worth of moments (17 × 3). Momentariness is the point:
+   * a citta that remembered every moment it ever had would be the opposite of
+   * what this class models, and a Being in a long agent session would grow this
+   * array without bound.
+   */
+  static MAX_MOMENTS = 51;
+  /** Push new moments onto the stream, evicting the oldest beyond the cap. */
+  pushMoments(moments) {
+    this.momentStream.push(...moments);
+    this.totalMomentsProcessed += moments.length;
+    const excess = this.momentStream.length - _Citta.MAX_MOMENTS;
+    if (excess > 0) this.momentStream.splice(0, excess);
+  }
   /** Bhavaṅga (life-continuum) object - set at rebirth */
   bhava\u1E45gaObject;
   /** Is a vīthi (cognitive process) currently active? */
@@ -35964,7 +36012,7 @@ var Citta = class extends Phenomenon {
     this.currentStage = "bhava\u1E45ga";
     this.currentObject = null;
     this.vithiActive = false;
-    this.momentStream.push(...moments);
+    this.pushMoments(moments);
     return {
       moments,
       object: object3,
@@ -35998,7 +36046,7 @@ var Citta = class extends Phenomenon {
     this.currentStage = "bhava\u1E45ga";
     this.currentObject = null;
     this.vithiActive = false;
-    this.momentStream.push(...moments);
+    this.pushMoments(moments);
     return {
       moments,
       object: object3,
@@ -36279,10 +36327,13 @@ var Citta = class extends Phenomenon {
     return this.vithiActive;
   }
   /**
-   * Get total moments processed
+   * Get total moments processed over the citta's lifetime. This is a
+   * cumulative counter, independent of the bounded moment-stream buffer —
+   * it does not shrink when old moments are evicted. For the current
+   * buffer's size, use getRecentMoments().length.
    */
   getTotalMoments() {
-    return this.momentStream.length;
+    return this.totalMomentsProcessed;
   }
   // ===========================================================================
   // TWO TRUTHS
@@ -36746,23 +36797,18 @@ var Being = class _Being {
   }
   /**
    * Practice a path factor through Being, applying wisdomCap() as a ceiling
-   * on rightView specifically. PathFactor has no setter for developmentLevel
-   * (only reset() to zero), so the cap is enforced by pre-limiting the
-   * effort passed to practice() rather than clamping the result — this
-   * duplicates PathFactor.practice()'s internal `effort * 0.15` increment
-   * formula, a documented coupling accepted so PathFactor itself is never
-   * edited (see task-1-report.md).
+   * on rightView specifically. `PathFactor.practice()`'s optional `max`
+   * parameter takes the realm's cap directly, so growth stays gradual and
+   * effort-scaled right up to the ceiling — Being neither reconstructs the
+   * `effort * 0.15` step formula nor short-circuits to instant attainment
+   * (see task-7-report.md, round 2 — round 1 mistakenly did the latter via
+   * `practiceTo()`, which remains a legitimate public convenience for
+   * "walk this factor all the way to a target" but is the wrong tool for
+   * "bound one effort-scaled practice call").
    */
   practicePathFactor(factor, effort) {
     if (factor === this.path.rightView) {
-      const cap = this.wisdomCap();
-      const current = factor.developmentLevel;
-      if (current >= cap) {
-        return current;
-      }
-      const room = cap - current;
-      const maxEffort = room / 0.15;
-      effort = Math.min(effort, maxEffort);
+      return factor.practice(effort, this.wisdomCap());
     }
     return factor.practice(effort);
   }
@@ -36794,6 +36840,13 @@ var Being = class _Being {
       description,
       intentionStrength: intensity,
       ...root ? { root } : {},
+      // intensity is 1-10, so potency tops out at 70 — below the 80-potency
+      // 'weighty' (garuka) threshold in createKarmicSeed's strength mapping
+      // (KarmicEventSystem.ts). This is deliberate, not an oversight: garuka
+      // kamma should not be reachable through ordinary intentional action —
+      // no one commits a weighty deed just by acting at intensity 10. The
+      // only path to a weighty seed is planting one directly through
+      // karmicStore.plantSeed (see weightyKarma() / README's Karma section).
       potency: intensity * 7,
       ripeningTiming: "deferred",
       minDelay: 0,
@@ -37097,9 +37150,10 @@ var Being = class _Being {
     }
   }
   /**
-   * Pick the seed that shapes the next incarnation: a weighty seed takes
-   * priority (garuka-kamma), then the most habitually-repeated slug
-   * (āciṇṇa-kamma), then the oldest active seed as a reserve
+   * Pick the seed that shapes the next incarnation, in the canonical
+   * Theravāda order: a weighty seed takes priority (garuka-kamma), then the
+   * deed nearest death (āsanna-kamma), then the most habitually-repeated
+   * slug (āciṇṇa-kamma), then the oldest active seed as a reserve
    * (kaṭattā-kamma). A tie in planting count between two slugs — or between
    * two seeds when falling back to the reserve — is resolved in favor of
    * whichever was formed earliest, since the strict `>` comparisons below
@@ -37128,6 +37182,11 @@ var Being = class _Being {
         bestCount = createdAts.size;
         bestSlug = slug;
       }
+    }
+    const newest = seeds.reduce((a, b) => b.createdAt >= a.createdAt ? b : a);
+    const newestIsTheHabit = bestSlug !== void 0 && this.slugOf(newest) === bestSlug;
+    if (!newestIsTheHabit && (newest.strength === "moderate" || newest.strength === "strong")) {
+      return { seed: newest, reason: "proximate" };
     }
     if (bestSlug) {
       const habitual = seeds.find((s) => this.slugOf(s) === bestSlug);
@@ -37694,23 +37753,94 @@ var TRAP_REFLECTIONS = {
   grasping: 'To say "the answer is..." is to hold water in a clenched fist.'
 };
 var NON_DUAL_REFLECTION = "The mind is quiet. What remains?";
+var REQUIRED_KOAN_FIELDS = ["id", "title", "case", "source"];
 var KoanGenerator = class {
   koans;
+  trapJournal = [];
   constructor() {
     this.koans = BUILT_IN_KOANS;
   }
   /**
-   * Present a koan. If no id is given, returns a random koan.
+   * Present a koan.
+   *
+   * - No argument: a random koan from the built-in collection.
+   * - A string: the collection koan with that id.
+   * - An object: a koan composed by the caller, used as-is. The canon is
+   *   not the point — the question this practitioner is stuck on is. A
+   *   composed koan is validated and returned, but never joins the
+   *   permanent collection.
    */
-  present(id) {
-    if (id !== void 0) {
-      const koan = this.koans.find((k) => k.id === id);
+  present(idOrKoan) {
+    if (typeof idOrKoan === "object" && idOrKoan !== null) {
+      return this.validateComposed(idOrKoan);
+    }
+    if (idOrKoan !== void 0) {
+      const koan = this.koans.find((k) => k.id === idOrKoan);
       if (!koan) {
-        throw new Error(`Koan not found: "${id}"`);
+        throw new Error(`Koan not found: "${idOrKoan}"`);
       }
       return koan;
     }
     return this.koans[Math.floor(Math.random() * this.koans.length)];
+  }
+  /**
+   * Record a response to a koan in the trap journal.
+   *
+   * The journal holds no verdict: no correct answer, no score, no
+   * pass/fail. It records only which dualistic traps the response fell
+   * into, so that a continuum can see the shape it keeps returning to.
+   */
+  recordResponse(koanId, response) {
+    if (!response.trim()) {
+      throw new Error("A response is required to record.");
+    }
+    const entry = {
+      koanId,
+      traps: this.detectTraps(response),
+      at: Date.now()
+    };
+    this.trapJournal.push(entry);
+    return entry;
+  }
+  /** The trap journal, oldest entry first. */
+  getTrapJournal() {
+    return this.trapJournal;
+  }
+  /**
+   * The trap appearing in the most journal entries, or undefined when no
+   * trap has appeared at least twice. Ties go to the trap seen first.
+   */
+  getRecurringTrap() {
+    const counts = /* @__PURE__ */ new Map();
+    for (const entry of this.trapJournal) {
+      for (const trap of entry.traps) {
+        counts.set(trap, (counts.get(trap) ?? 0) + 1);
+      }
+    }
+    let recurring;
+    let best = 1;
+    for (const [trap, count] of counts) {
+      if (count > best) {
+        best = count;
+        recurring = trap;
+      }
+    }
+    return recurring;
+  }
+  validateComposed(koan) {
+    for (const field of REQUIRED_KOAN_FIELDS) {
+      const value = koan[field];
+      if (typeof value !== "string" || !value.trim()) {
+        throw new Error(`A composed koan needs a non-empty "${field}".`);
+      }
+    }
+    return {
+      id: koan.id,
+      title: koan.title,
+      case: koan.case,
+      source: koan.source,
+      ...koan.hint ? { hint: koan.hint } : {}
+    };
   }
   /**
    * Contemplate a koan by submitting a response. Returns an analysis
@@ -37956,8 +38086,29 @@ function chain(sm2, name) {
   const being = sm2.loadExistingBeing(name);
   return being.observeDependentOrigination();
 }
-function presentKoan(id) {
-  return koanGenerator.present(id);
+function presentKoan(id, composed, response) {
+  const koan = composed && (composed.title || composed.case || composed.source) ? koanGenerator.present({
+    id: id ?? `composed-${Date.now()}`,
+    title: composed.title,
+    case: composed.case,
+    source: composed.source ?? "composed by the harness",
+    ...composed.hint ? { hint: composed.hint } : {}
+  }) : koanGenerator.present(id);
+  if (response === void 0) {
+    return koan;
+  }
+  const entry = koanGenerator.recordResponse(koan.id, response);
+  return {
+    ...koan,
+    recorded: entry,
+    recurringTrap: koanGenerator.getRecurringTrap()
+  };
+}
+function getTrapJournal() {
+  return {
+    entries: koanGenerator.getTrapJournal(),
+    recurringTrap: koanGenerator.getRecurringTrap()
+  };
 }
 function contemplateKoan(koanId, response) {
   return koanGenerator.contemplate(koanId, response);
@@ -37977,7 +38128,7 @@ var stateDir = process.env.BUDDHA_STATE_DIR || path2.join(os.homedir(), ".buddha
 var sm = new StateManager(stateDir);
 var server = new McpServer({
   name: "buddha-js",
-  version: "0.6.0"
+  version: "0.7.0"
 });
 var nameSchema = {
   name: external_exports3.string().regex(/^[a-zA-Z0-9_-]+$/).describe("Being name (letters, numbers, hyphens, underscores)")
@@ -38240,12 +38391,20 @@ server.tool(
 );
 server.tool(
   "buddha_koan",
-  "Present a Zen koan for contemplation. Available: mu, one-hand, stone-mind, flag-wind, marrow, nansen-cat, fan-wind, original-face",
-  { id: external_exports3.string().optional().describe("Koan ID (omit for random)") },
-  async ({ id }) => {
+  "Present a Zen koan for contemplation, or compose one for the situation at hand. Built-in: mu, one-hand, stone-mind, flag-wind, marrow, nansen-cat, fan-wind, original-face. Supply title/case (and optionally source) to compose a koan instead of drawing from the collection \u2014 composed koans are presented, never added to the canon. Supply response to record which dualism traps the answer fell into; the journal records the trap, never a verdict, and no koan has a canonical answer. Set journal:true to read the recorded traps and the one this continuum keeps returning to.",
+  {
+    id: external_exports3.string().optional().describe("Koan ID (omit for random; names the composed koan when title/case are given)"),
+    title: external_exports3.string().optional().describe("Title of a koan composed for this situation"),
+    case: external_exports3.string().optional().describe("The case itself \u2014 the question this practitioner is actually stuck on"),
+    source: external_exports3.string().optional().describe("Attribution for a composed koan (default: composed by the harness)"),
+    hint: external_exports3.string().optional().describe("Optional hint for a composed koan"),
+    response: external_exports3.string().optional().describe("A response to record in the trap journal (recorded, never graded)"),
+    journal: external_exports3.boolean().optional().describe("Return the trap journal and the recurring trap instead of a koan")
+  },
+  async ({ id, title, case: koanCase, source, hint, response, journal }) => {
     try {
-      const koan = presentKoan(id);
-      return { content: [{ type: "text", text: JSON.stringify(koan, null, 2) }] };
+      const result = journal ? getTrapJournal() : presentKoan(id, { title, case: koanCase, source, hint }, response);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
       return { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true };
     }

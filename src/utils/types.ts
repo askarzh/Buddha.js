@@ -364,3 +364,18 @@ export interface ContemplationResult {
   reflection: string;
   isNonDual: boolean;
 }
+
+/**
+ * One entry in the trap journal: which koan was answered, and which
+ * dualistic traps the response fell into.
+ *
+ * There is deliberately no verdict here — no `correct`, no `score`, no
+ * pass/fail. A koan has no canonical answer; the journal is a mirror of
+ * recurring habit, not a grade.
+ */
+export interface TrapJournalEntry {
+  koanId: string;
+  traps: DualismTrap[];
+  /** Epoch milliseconds at which the response was recorded. */
+  at: number;
+}

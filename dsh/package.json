@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-buddha",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "DeepSeek Harness (Cordis) plugin bringing buddha-js's Poison Arrow circuit breaker and karma tracking to DSH agents.",
   "packageManager": "pnpm@11.24.0",
   "type": "module",

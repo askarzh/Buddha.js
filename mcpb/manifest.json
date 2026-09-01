@@ -3,7 +3,7 @@
   "manifest_version": "0.4",
   "name": "buddha-js",
   "display_name": "Buddha.js",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Buddhist philosophy tools: meditation, karma, koans, self-inquiry, and the Poison Arrow method — 16 tools over a persistent simulated being.",
   "author": { "name": "Askar Zhakenov", "email": "askar@zhakenov.pro" },
   "homepage": "https://github.com/askarzh/Buddha.js",

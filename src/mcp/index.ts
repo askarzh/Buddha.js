@@ -4,7 +4,7 @@ import { z } from 'zod';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { StateManager } from '../cli/utils/state';
-import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, contemplateKoan, sitWithSuffering, cognizeObject, rebirthBeing } from './handlers';
+import { createBeing, listBeings, deleteBeing, getStatus, experienceSensory, act, ripenKarma, meditate, diagnose, inquiry, chain, presentKoan, getTrapJournal, contemplateKoan, sitWithSuffering, cognizeObject, rebirthBeing } from './handlers';
 import type { SenseBase, Intensity, UnwholesomeRoot, WholesomeRoot, DukkhaType, CravingType, FeelingTone } from '../utils/types';
 
 const stateDir = process.env.BUDDHA_STATE_DIR || path.join(os.homedir(), '.buddha');
@@ -12,7 +12,7 @@ const sm = new StateManager(stateDir);
 
 const server = new McpServer({
   name: 'buddha-js',
-  version: '0.6.0',
+  version: '0.7.0',
 });
 
 const nameSchema = {
@@ -299,12 +299,22 @@ server.tool(
 
 server.tool(
   'buddha_koan',
-  'Present a Zen koan for contemplation. Available: mu, one-hand, stone-mind, flag-wind, marrow, nansen-cat, fan-wind, original-face',
-  { id: z.string().optional().describe('Koan ID (omit for random)') },
-  async ({ id }) => {
+  'Present a Zen koan for contemplation, or compose one for the situation at hand. Built-in: mu, one-hand, stone-mind, flag-wind, marrow, nansen-cat, fan-wind, original-face. Supply title/case (and optionally source) to compose a koan instead of drawing from the collection — composed koans are presented, never added to the canon. Supply response to record which dualism traps the answer fell into; the journal records the trap, never a verdict, and no koan has a canonical answer. Set journal:true to read the recorded traps and the one this continuum keeps returning to.',
+  {
+    id: z.string().optional().describe('Koan ID (omit for random; names the composed koan when title/case are given)'),
+    title: z.string().optional().describe('Title of a koan composed for this situation'),
+    case: z.string().optional().describe('The case itself — the question this practitioner is actually stuck on'),
+    source: z.string().optional().describe('Attribution for a composed koan (default: composed by the harness)'),
+    hint: z.string().optional().describe('Optional hint for a composed koan'),
+    response: z.string().optional().describe('A response to record in the trap journal (recorded, never graded)'),
+    journal: z.boolean().optional().describe('Return the trap journal and the recurring trap instead of a koan'),
+  },
+  async ({ id, title, case: koanCase, source, hint, response, journal }) => {
     try {
-      const koan = presentKoan(id);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(koan, null, 2) }] };
+      const result = journal
+        ? getTrapJournal()
+        : presentKoan(id, { title, case: koanCase, source, hint }, response);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
       return { content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }], isError: true };
     }

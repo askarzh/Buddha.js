@@ -9,6 +9,84 @@ Claude Code plugin manifest, and the MCPB manifest had drifted out of sync
 independently across releases. From 0.4.0 on, all four are unified and bumped
 together on every release.
 
+## [0.7.0]
+
+A debt-paydown release. The DSH plugin's circuit breaker becomes something a
+model actually obeys, the CLI gets its first tests, and koans stop being a
+fixed canon.
+
+### Added
+
+- **Koans the harness composes.** `KoanGenerator.present()` now accepts a koan
+  object as well as an id. A composed koan is validated (id, title, case,
+  source — the error names the missing field) and presented, but never joins
+  the built-in collection. A harness that can only recite eleven stored cases
+  cannot pose the question this agent, stuck in this way, actually needs.
+- **A journal of recurring traps.** `recordResponse(koanId, text)` runs the
+  existing dualistic-thinking detector and appends `{ koanId, traps, at }` to
+  an in-memory journal; `getTrapJournal()` reads it and `getRecurringTrap()`
+  names the trap appearing in the most entries (undefined under two
+  occurrences). The journal records the TRAP, never a verdict on the response:
+  there is no `correct`, no `score`, no pass/fail. A koan with a stored
+  resolution is not a koan.
+- `buddha_koan` (MCP) gains `title`/`case`/`source`/`hint` to compose a koan,
+  `response` to record one, and `journal: true` to read the journal and the
+  recurring trap. Still 16 tools.
+- `/koan compose <title> | <case>` in the DSH plugin. A malformed compose
+  reports usage rather than the "unknown koan id" message, which stays exactly
+  as it was for the common case of a bad id.
+- **`PathFactor.practice(effort, max?)` and `practiceTo(target)`** — the
+  wisdom-cap computation in `Being.meditate()` had been open-coded; a factor
+  can now be walked toward a target without a call site doing the arithmetic.
+- **First tests for the CLI.** Command logic moved into a testable
+  `src/cli/runner.ts` (100% line coverage) behind unchanged wrappers;
+  behaviour preservation was proven byte-for-byte across 26 invocations of the
+  built `dist/cli.mjs`.
+- `scripts/check-versions.sh`, run first in CI: all five version surfaces
+  (`package.json`, the plugin manifest, the MCPB manifest, `dsh/package.json`
+  and the MCP `serverInfo`) must carry the same version.
+
+### Changed
+
+- **The DSH breaker now has three tiers: advise → withhold → refuse.** The
+  advisory notice is delivered inside the tool result rather than as a loose
+  user message; block withholds the crossing call's output; past the boundary
+  a pre-execute deny refuses the call before it runs, so a doomed
+  side-effecting call is no longer executed and then discarded. Each tier
+  leads with a clause naming itself, derived from the outgoing decision so the
+  text and the decision cannot disagree. `breaker.blockMultiplier` (default
+  1.5) replaces the hard-coded `2 * threshold`.
+- Recovery is by relief, not reset: a success on any tool clears that tool's
+  streak and relieves every other tool to below the block boundary, so a
+  read-only persona whose only tool is denied can still recover.
+- **āsanna-kamma** — the death-proximate deed now breaks the rebirth tie, but
+  only when the newest seed is not another instance of the dominant habit.
+- `Citta`'s moment stream is bounded (51 moments) while `getTotalMoments()`
+  keeps its documented meaning via a lifetime counter, so a long agent session
+  is not misreported.
+- `diagnose`, `chain` and `meditate` in the CLI now act on the being you named
+  with `--being`; interactive `meditate` persists the real session, with
+  effort derived from the timer's measured mindfulness ratio.
+- The DSH plugin no longer bundles DSH's own runtime: `lib/index.js` is
+  34.85 KB against a 181.51 KB baseline.
+- Swallowed faults in `dsh/src` are traced to stderr by name rather than
+  vanishing.
+
+### Fixed
+
+- One save per turn, and a being that is actually disposed: writes are batched
+  per turn (with deliberate exemptions for `/rebirth` and for subagent vipāka,
+  which settle outside any turn), and discarding an ephemeral child forgets
+  its pending write so the file is not recreated after deletion.
+
+### Note
+
+The advisory tier is informational on models that reason about provenance. We
+measured this three times against a live model: an advisory notice is
+discounted as injected content regardless of how it is delivered. Enforcement
+comes from the withhold and refuse tiers, which the same model obeys and
+describes as a hard guard.
+
 ## [0.6.0]
 
 One act, one record. Plus fixes found by running the plugin against a live

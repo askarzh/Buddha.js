@@ -22,7 +22,7 @@ Buddha.js ships as a bundled MCP server (`buddha-js`) — no build step is requi
 | `buddha_chain` | Visualize the 12 links of dependent origination |
 | `buddha_cognize` | Run a full cognitive process (citta-vīthi) over content through a sense door, planting karmic seeds |
 | `buddha_rebirth` | Enact rebirth — advance the incarnation, expire timed-out seeds, select the new incarnation's realm (human, deva, asura, animal, preta, or naraka), and carry forward a shaping seed. Transmigrates into a new being; never returns a live being object |
-| `buddha_koan` | Present a Zen koan for contemplation |
+| `buddha_koan` | Present a Zen koan, compose one, or read the trap journal |
 | `buddha_contemplate` | Submit a response to a koan for dualism-trap evaluation |
 | `buddha_sit` | Guided cessation via the Poison Arrow method |
 

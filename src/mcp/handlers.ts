@@ -179,8 +179,40 @@ export function chain(sm: StateManager, name: string): string {
   return being.observeDependentOrigination();
 }
 
-export function presentKoan(id?: string) {
-  return koanGenerator.present(id);
+export function presentKoan(
+  id?: string,
+  composed?: { title?: string; case?: string; source?: string; hint?: string },
+  response?: string,
+) {
+  const koan = composed && (composed.title || composed.case || composed.source)
+    ? koanGenerator.present({
+        id: id ?? `composed-${Date.now()}`,
+        title: composed.title as string,
+        case: composed.case as string,
+        source: composed.source ?? 'composed by the harness',
+        ...(composed.hint ? { hint: composed.hint } : {}),
+      })
+    : koanGenerator.present(id);
+
+  if (response === undefined) {
+    return koan;
+  }
+
+  // A response is recorded, never graded: the journal names the trap, not
+  // a verdict on the answer. Koans have no canonical resolution.
+  const entry = koanGenerator.recordResponse(koan.id, response);
+  return {
+    ...koan,
+    recorded: entry,
+    recurringTrap: koanGenerator.getRecurringTrap(),
+  };
+}
+
+export function getTrapJournal() {
+  return {
+    entries: koanGenerator.getTrapJournal(),
+    recurringTrap: koanGenerator.getRecurringTrap(),
+  };
 }
 
 export function contemplateKoan(koanId: string, response: string) {

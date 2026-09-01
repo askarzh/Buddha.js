@@ -6,7 +6,6 @@ import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ResolvedSubagentStartRequest, SubagentProvider, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
 import { BeingRegistry } from '../src/being-registry.js'
-import { SaveScheduler } from '../src/persistence.js'
 import { applyRealms, REALM_PERSONAS, resetPersonaWarning } from '../src/realms.js'
 
 /**
@@ -26,7 +25,6 @@ import { applyRealms, REALM_PERSONAS, resetPersonaWarning } from '../src/realms.
 describe('six-realm subagent personas', () => {
   let stateDir: string
   let registry: BeingRegistry
-  let scheduler: SaveScheduler
   let ctx: Context
   let captured: SubagentProvider | undefined
   let spawnCalls: Array<{ name: string; request: SubagentStartRequest }>
@@ -39,7 +37,6 @@ describe('six-realm subagent personas', () => {
   beforeEach(async () => {
     stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-realms-'))
     registry = new BeingRegistry(stateDir)
-    scheduler = new SaveScheduler(registry)
     ctx = new Context()
     captured = undefined
     spawnCalls = []
@@ -66,7 +63,7 @@ describe('six-realm subagent personas', () => {
       },
     }
     ctx.provide('subagents', fakeSubagents as never)
-    await applyRealms(ctx, { registry, scheduler })
+    await applyRealms(ctx, { registry })
     resetPersonaWarning()
   })
 
@@ -213,6 +210,24 @@ describe('six-realm subagent personas', () => {
     const beforeTotal = Object.values(before).reduce((a, b) => a + b, 0)
     const afterTotal = Object.values(after).reduce((a, b) => a + b, 0)
     expect(afterTotal).toBeGreaterThan(beforeTotal)
+  })
+
+  it("writes the vipaka act to the parent's file the moment the run settles", async () => {
+    // PIN: `plantVipaka`'s save is deliberately direct, never
+    // `scheduler.mark()`. A subagent result arrives asynchronously, outside
+    // the parent's turn lifecycle — after its last `agent/turn-stopping` and
+    // possibly after its `agent/disposed` — so there is no later flush to
+    // rely on and THIS write is the flush. Nothing here flushes anything, so
+    // converting the call to `mark()` fails this test.
+    const parent = fakeAgent('parent-session-direct-vipaka')
+    const parentFile = path.join(stateDir, 'beings', `${parent.id}.json`)
+    expect(fs.existsSync(parentFile)).toBe(false)
+
+    await captured!.start(fakeRequest('deva', parent))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(fs.existsSync(parentFile)).toBe(true)
+    expect(fs.readFileSync(parentFile, 'utf-8')).toContain('deva subagent completed')
   })
 
   it('writes the child being file directly at start, before the run settles', async () => {

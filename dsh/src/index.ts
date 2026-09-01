@@ -96,7 +96,7 @@ export function apply(ctx: Context, config?: Config) {
   // Six-realm subagent personas: a `buddha-realms` provider on
   // `ctx.subagents` mapping persona -> realm, delegating actual execution
   // to the stock in-process `spawn` provider.
-  applyRealms(ctx, { registry, scheduler })
+  applyRealms(ctx, { registry })
 
   // Layer B (experimental, opt-in): replace DSH's stock agent loop with the
   // citta-vīthi structured loop. A no-op unless `config.loop ===
